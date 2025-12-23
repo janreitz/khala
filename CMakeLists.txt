@@ -12,6 +12,16 @@ if(NOT X11_FOUND)
     message(FATAL_ERROR "X11 not found!")
 endif()
 
+# Find PkgConfig for Cairo and Pango
+find_package(PkgConfig REQUIRED)
+
+# Find Cairo
+pkg_check_modules(CAIRO REQUIRED cairo)
+
+# Find Pango and PangoCairo
+pkg_check_modules(PANGO REQUIRED pango)
+pkg_check_modules(PANGOCAIRO REQUIRED pangocairo)
+
 # Compiler warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
@@ -25,10 +35,16 @@ add_executable(launcher
 target_include_directories(launcher PRIVATE
     ${X11_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
+    ${CAIRO_INCLUDE_DIRS}
+    ${PANGO_INCLUDE_DIRS}
+    ${PANGOCAIRO_INCLUDE_DIRS}
 )
 
 target_link_libraries(launcher PRIVATE
     ${X11_LIBRARIES}
+    ${CAIRO_LIBRARIES}
+    ${PANGO_LIBRARIES}
+    ${PANGOCAIRO_LIBRARIES}
 )
 
 # Install target
