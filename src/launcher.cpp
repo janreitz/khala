@@ -11,13 +11,60 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <vector>
 
 static constexpr int WIDTH = 600;
-static constexpr int HEIGHT = 50;
+static constexpr int INPUT_HEIGHT = 40;
+static constexpr int OPTION_HEIGHT = 30;
+static constexpr int MAX_VISIBLE_OPTIONS = 8;
+static constexpr int DROPDOWN_HEIGHT = MAX_VISIBLE_OPTIONS * OPTION_HEIGHT;
+static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
+
+// Mock search result structure
+struct SearchResult {
+    std::string path;
+    std::string filename;
+};
+
+// Get mock search results based on query
+std::vector<SearchResult> get_mock_results(const std::string& query) {
+    static const std::vector<SearchResult> mock_data = {
+        {"/home/user/Documents/report.pdf", "report.pdf"},
+        {"/home/user/Pictures/vacation.jpg", "vacation.jpg"},
+        {"/home/user/Downloads/installer.deb", "installer.deb"},
+        {"/usr/bin/firefox", "firefox"},
+        {"/usr/bin/chromium", "chromium"},
+        {"/home/user/Code/project/main.cpp", "main.cpp"},
+        {"/home/user/Music/song.mp3", "song.mp3"},
+        {"/home/user/Documents/notes.txt", "notes.txt"},
+        {"/usr/share/applications/calculator.desktop", "calculator.desktop"},
+        {"/home/user/Desktop/todo.md", "todo.md"},
+        {"/etc/hosts", "hosts"},
+        {"/var/log/syslog", "syslog"},
+    };
+    
+    std::vector<SearchResult> results;
+    
+    if (query.empty()) {
+        // Return all results when no query
+        return mock_data;
+    }
+    
+    // Simple substring matching
+    for (const auto& item : mock_data) {
+        if (item.filename.find(query) != std::string::npos || 
+            item.path.find(query) != std::string::npos) {
+            results.push_back(item);
+        }
+    }
+    
+    return results;
+}
 
 namespace
 {
-void draw(Display *display, Window window, int width, int height, const std::string& search_buffer)
+void draw(Display *display, Window window, int width, int height, const std::string& search_buffer, 
+         const std::vector<SearchResult>& results, int selected_index)
 {
     // Get the default visual
     int const screen = DefaultScreen(display);
@@ -46,6 +93,11 @@ void draw(Display *display, Window window, int width, int height, const std::str
     defer const cleanup_font([font_desc]() noexcept { pango_font_description_free(font_desc); });
     pango_layout_set_font_description(layout, font_desc);
 
+    // Draw search input area
+    cairo_set_source_rgb(cr, 0.95, 0.95, 0.95);  // Light gray background
+    cairo_rectangle(cr, 0, 0, width, INPUT_HEIGHT);
+    cairo_fill(cr);
+    
     // Draw search prompt and buffer
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, 15);
@@ -68,6 +120,63 @@ void draw(Display *display, Window window, int width, int height, const std::str
         cairo_move_to(cr, 10 + (text_width / PANGO_SCALE), 15);
         cairo_line_to(cr, 10 + (text_width / PANGO_SCALE), 15 + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
+    }
+    
+    // Draw separator line
+    cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
+    cairo_move_to(cr, 0, INPUT_HEIGHT);
+    cairo_line_to(cr, width, INPUT_HEIGHT);
+    cairo_stroke(cr);
+    
+    // Draw dropdown options
+    int visible_count = std::min(static_cast<int>(results.size()), MAX_VISIBLE_OPTIONS);
+    for (int i = 0; i < visible_count; ++i) {
+        int y_pos = INPUT_HEIGHT + (i * OPTION_HEIGHT);
+        
+        // Draw selection highlight
+        if (i == selected_index) {
+            cairo_set_source_rgb(cr, 0.3, 0.6, 1.0);  // Blue highlight
+            cairo_rectangle(cr, 0, y_pos, width, OPTION_HEIGHT);
+            cairo_fill(cr);
+        }
+        
+        // Set text color (white on selected, black on normal)
+        if (i == selected_index) {
+            cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        } else {
+            cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+        }
+        
+        // Draw filename (main text)
+        cairo_move_to(cr, 15, y_pos + 8);
+        pango_layout_set_text(layout, results[i].filename.c_str(), -1);
+        pango_cairo_show_layout(cr, layout);
+        
+        // Draw path (smaller, dimmed text)
+        if (i == selected_index) {
+            cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);
+        } else {
+            cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
+        }
+        
+        PangoFontDescription *small_font = pango_font_description_from_string("Sans 9");
+        defer const cleanup_small_font([small_font]() noexcept { pango_font_description_free(small_font); });
+        
+        pango_layout_set_font_description(layout, small_font);
+        cairo_move_to(cr, 15, y_pos + 20);
+        pango_layout_set_text(layout, results[i].path.c_str(), -1);
+        pango_cairo_show_layout(cr, layout);
+        
+        // Reset font for next iteration
+        pango_layout_set_font_description(layout, font_desc);
+        
+        // Draw separator between options
+        if (i < visible_count - 1) {
+            cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);
+            cairo_move_to(cr, 10, y_pos + OPTION_HEIGHT);
+            cairo_line_to(cr, width - 10, y_pos + OPTION_HEIGHT);
+            cairo_stroke(cr);
+        }
     }
 
     // Flush to display
@@ -105,7 +214,7 @@ int main()
 
     // Create the window
     Window const window = XCreateWindow(
-        display, RootWindow(display, screen), x, y, WIDTH, HEIGHT, 2,
+        display, RootWindow(display, screen), x, y, WIDTH, TOTAL_HEIGHT, 2,
         CopyFromParent, InputOutput, CopyFromParent,
         CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &attrs);
 
@@ -139,7 +248,9 @@ int main()
     XEvent event;
     bool running = true;
     std::string search_buffer;
+    int selected_index = 0;
     bool needs_redraw = true;
+    std::vector<SearchResult> current_results;
 
     while (running) {
         XNextEvent(display, &event);
@@ -147,7 +258,8 @@ int main()
         switch (event.type) {
         case Expose:
             if (event.xexpose.count == 0) {
-                draw(display, window, WIDTH, HEIGHT, search_buffer);
+                current_results = get_mock_results(search_buffer);
+                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer, current_results, selected_index);
             }
             break;
 
@@ -156,10 +268,33 @@ int main()
 
             if (keysym == XK_Escape) {
                 running = false;
+            } else if (keysym == XK_Up) {
+                // Move selection up
+                if (!current_results.empty() && selected_index > 0) {
+                    selected_index--;
+                    needs_redraw = true;
+                }
+                std::cout << "Selected index: " << selected_index << std::endl;
+            } else if (keysym == XK_Down) {
+                // Move selection down
+                int max_index = std::min(static_cast<int>(current_results.size()) - 1, MAX_VISIBLE_OPTIONS - 1);
+                if (!current_results.empty() && selected_index < max_index) {
+                    selected_index++;
+                    needs_redraw = true;
+                }
+                std::cout << "Selected index: " << selected_index << std::endl;
+            } else if (keysym == XK_Return) {
+                // Handle Enter key - for now just print selection
+                if (!current_results.empty() && selected_index < static_cast<int>(current_results.size())) {
+                    std::cout << "Selected: " << current_results[selected_index].path << std::endl;
+                    running = false;  // Exit for now
+                }
             } else if (keysym == XK_BackSpace) {
                 // Handle backspace
                 if (!search_buffer.empty()) {
                     search_buffer.pop_back();
+                    current_results = get_mock_results(search_buffer);
+                    selected_index = 0;  // Reset selection when search changes
                     needs_redraw = true;
                 }
             } else {
@@ -173,16 +308,19 @@ int main()
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
                             search_buffer += char_buffer[i];
+                            current_results = get_mock_results(search_buffer);
+                            selected_index = 0;  // Reset selection when search changes
                             needs_redraw = true;
                         }
                     }
-                    std::cout << "Search buffer: \"" << search_buffer << "\"\n";
+                    std::cout << "Search buffer: \"" << search_buffer << "\" (" 
+                              << current_results.size() << " results)" << std::endl;
                 }
             }
             
-            // Redraw if buffer changed
+            // Redraw if anything changed
             if (needs_redraw) {
-                draw(display, window, WIDTH, HEIGHT, search_buffer);
+                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer, current_results, selected_index);
                 needs_redraw = false;
             }
             break;
