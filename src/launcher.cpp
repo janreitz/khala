@@ -10,13 +10,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <string>
 
 static constexpr int WIDTH = 600;
 static constexpr int HEIGHT = 50;
 
 namespace
 {
-void draw(Display *display, Window window, int width, int height)
+void draw(Display *display, Window window, int width, int height, const std::string& search_buffer)
 {
     // Get the default visual
     int const screen = DefaultScreen(display);
@@ -40,44 +41,34 @@ void draw(Display *display, Window window, int width, int height)
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_paint(cr);
 
-    // Draw some example text with different styles
+    // Set font for launcher
+    PangoFontDescription *font_desc = pango_font_description_from_string("Sans 12");
+    defer const cleanup_font([font_desc]() noexcept { pango_font_description_free(font_desc); });
+    pango_layout_set_font_description(layout, font_desc);
+
+    // Draw search prompt and buffer
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-    cairo_move_to(cr, 10, 10);
-
-    // Normal text
-    pango_layout_set_text(layout, "Hello Cairo+Pango! ", -1);
+    cairo_move_to(cr, 10, 15);
+    
+    std::string display_text = "> " + search_buffer;
+    if (search_buffer.empty()) {
+        display_text += "(type to search...)";
+    }
+    
+    pango_layout_set_text(layout, display_text.c_str(), -1);
+    pango_layout_set_attributes(layout, nullptr);
     pango_cairo_show_layout(cr, layout);
 
-    // Bold text
-    PangoAttrList *attrs = pango_attr_list_new();
-    defer const cleanup_attrs(
-        [attrs]() noexcept { pango_attr_list_unref(attrs); });
-
-    pango_attr_list_insert(attrs, pango_attr_weight_new(PANGO_WEIGHT_BOLD));
-
-    pango_layout_set_text(layout, "Bold", -1);
-    pango_layout_set_attributes(layout, attrs);
-    pango_cairo_show_layout(cr, layout);
-
-    // Colored text
-    cairo_set_source_rgb(cr, 0.8, 0.0, 0.0); // Red
-    PangoAttrList *attrs2 = pango_attr_list_new();
-    defer const cleanup_attrs2(
-        [attrs2]() noexcept { pango_attr_list_unref(attrs2); });
-
-    pango_attr_list_insert(attrs2,
-                           pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
-
-    pango_layout_set_text(layout, " + Underlined Red", -1);
-    pango_layout_set_attributes(layout, attrs2);
-    pango_cairo_show_layout(cr, layout);
-
-    // Show instructions
-    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-    cairo_move_to(cr, 10, 30);
-    pango_layout_set_text(layout, "(Press ESC to quit)", -1);
-    pango_layout_set_attributes(layout, nullptr); // Clear attributes
-    pango_cairo_show_layout(cr, layout);
+    // Draw cursor after text if there's content
+    if (!search_buffer.empty()) {
+        int text_width, text_height;
+        pango_layout_get_size(layout, &text_width, &text_height);
+        
+        cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+        cairo_move_to(cr, 10 + (text_width / PANGO_SCALE), 15);
+        cairo_line_to(cr, 10 + (text_width / PANGO_SCALE), 15 + (text_height / PANGO_SCALE));
+        cairo_stroke(cr);
+    }
 
     // Flush to display
     cairo_surface_flush(surface);
@@ -147,6 +138,8 @@ int main()
     // Event loop
     XEvent event;
     bool running = true;
+    std::string search_buffer;
+    bool needs_redraw = true;
 
     while (running) {
         XNextEvent(display, &event);
@@ -154,7 +147,7 @@ int main()
         switch (event.type) {
         case Expose:
             if (event.xexpose.count == 0) {
-                draw(display, window, WIDTH, HEIGHT);
+                draw(display, window, WIDTH, HEIGHT, search_buffer);
             }
             break;
 
@@ -163,15 +156,34 @@ int main()
 
             if (keysym == XK_Escape) {
                 running = false;
-            } else {
-                // Just print for now
-                char buffer[32];
-                int const len = XLookupString(&event.xkey, buffer,
-                                              sizeof(buffer), nullptr, nullptr);
-                if (len > 0) {
-                    buffer[len] = '\0';
-                    std::cout << "Key pressed: " << buffer << "\n";
+            } else if (keysym == XK_BackSpace) {
+                // Handle backspace
+                if (!search_buffer.empty()) {
+                    search_buffer.pop_back();
+                    needs_redraw = true;
                 }
+            } else {
+                // Handle regular character input
+                char char_buffer[32];
+                int const len = XLookupString(&event.xkey, char_buffer,
+                                              sizeof(char_buffer), nullptr, nullptr);
+                if (len > 0) {
+                    char_buffer[len] = '\0';
+                    // Only add printable characters
+                    for (int i = 0; i < len; ++i) {
+                        if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
+                            search_buffer += char_buffer[i];
+                            needs_redraw = true;
+                        }
+                    }
+                    std::cout << "Search buffer: \"" << search_buffer << "\"\n";
+                }
+            }
+            
+            // Redraw if buffer changed
+            if (needs_redraw) {
+                draw(display, window, WIDTH, HEIGHT, search_buffer);
+                needs_redraw = false;
             }
             break;
         }
