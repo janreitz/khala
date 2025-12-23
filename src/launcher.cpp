@@ -26,15 +26,15 @@ void draw(Display *display, Window window, int width, int height)
     cairo_surface_t *surface =
         cairo_xlib_surface_create(display, window, visual, width, height);
     defer const cleanup_surface(
-        [surface]() { cairo_surface_destroy(surface); });
+        [surface]() noexcept { cairo_surface_destroy(surface); });
 
     // Create Cairo context
     cairo_t *cr = cairo_create(surface);
-    defer const cleanup_cr([cr]() { cairo_destroy(cr); });
+    defer const cleanup_cr([cr]() noexcept { cairo_destroy(cr); });
 
     // Create Pango layout for text rendering
     PangoLayout *layout = pango_cairo_create_layout(cr);
-    defer const cleanup_layout([layout]() { g_object_unref(layout); });
+    defer const cleanup_layout([layout]() noexcept { g_object_unref(layout); });
 
     // Clear background with white
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
@@ -50,7 +50,8 @@ void draw(Display *display, Window window, int width, int height)
 
     // Bold text
     PangoAttrList *attrs = pango_attr_list_new();
-    defer const cleanup_attrs([attrs]() { pango_attr_list_unref(attrs); });
+    defer const cleanup_attrs(
+        [attrs]() noexcept { pango_attr_list_unref(attrs); });
 
     pango_attr_list_insert(attrs, pango_attr_weight_new(PANGO_WEIGHT_BOLD));
 
@@ -61,7 +62,8 @@ void draw(Display *display, Window window, int width, int height)
     // Colored text
     cairo_set_source_rgb(cr, 0.8, 0.0, 0.0); // Red
     PangoAttrList *attrs2 = pango_attr_list_new();
-    defer const cleanup_attrs2([attrs2]() { pango_attr_list_unref(attrs2); });
+    defer const cleanup_attrs2(
+        [attrs2]() noexcept { pango_attr_list_unref(attrs2); });
 
     pango_attr_list_insert(attrs2,
                            pango_attr_underline_new(PANGO_UNDERLINE_SINGLE));
@@ -91,7 +93,8 @@ int main()
         std::cerr << "Cannot open display\n";
         return 1;
     }
-    defer const cleanup_display([display]() { XCloseDisplay(display); });
+    defer const cleanup_display(
+        [display]() noexcept { XCloseDisplay(display); });
 
     int const screen = DefaultScreen(display);
 
@@ -116,7 +119,7 @@ int main()
         CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &attrs);
 
     defer const cleanup_window(
-        [display, window]() { XDestroyWindow(display, window); });
+        [display, window]() noexcept { XDestroyWindow(display, window); });
 
     // Set window type hint
     Atom const windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
