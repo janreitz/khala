@@ -26,26 +26,23 @@ PackedStrings scan_subtree(const fs::path& root) {
     return paths;
 }
 
-std::vector<PackedStrings> scan_filesystem_parallel(const fs::path& root_path) {
-    std::vector<PackedStrings> result;
+PackedStrings scan_filesystem_parallel(const fs::path& root_path) {
+    PackedStrings result;
     std::vector<fs::path> subdirs;
     
     // Collect top-level entries
-    PackedStrings top_level_paths;
     try {
         for (const auto& entry : fs::directory_iterator(root_path)) {
             if (entry.is_directory()) {
                 subdirs.push_back(entry.path());
             } else if (entry.is_regular_file()) {
-                top_level_paths.push(entry.path().string());
+                result.push(entry.path().string());
             }
         }
     } catch (const fs::filesystem_error& e) {
         fprintf(stderr, "Error reading root: %s\n", e.what());
         return result;
     }
-    result.push_back(top_level_paths);
-
 
     std::vector<std::future<PackedStrings>> futures;
     futures.reserve(subdirs.size());
@@ -53,10 +50,8 @@ std::vector<PackedStrings> scan_filesystem_parallel(const fs::path& root_path) {
         futures.push_back(std::async(std::launch::async, scan_subtree, subdir));
     }
 
-    // Gather results
     for (auto& fut : futures) {
-        auto paths = fut.get();
-        result.push_back(std::move(paths));
+        result.merge(fut.get());
     }
 
     return result;

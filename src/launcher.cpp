@@ -38,7 +38,7 @@ struct SearchResult {
 };
 
 // Global cache of indexed paths
-static std::vector<PackedStrings> g_indexed_subtrees;
+static PackedStrings g_indexed_paths;
 static bool g_index_loaded = false;
 
 // Initialize index on first use
@@ -49,10 +49,10 @@ static void ensure_index_loaded()
         printf("Loading index for %s...\n", home.c_str());
 
         // Scan filesystem and cache results
-        g_indexed_subtrees = indexer::scan_filesystem_parallel(home);
+        g_indexed_paths = indexer::scan_filesystem_parallel(home);
         g_index_loaded = true;
 
-        printf("Loaded %zu files\n", g_indexed_subtrees.size());
+        printf("Loaded %zu files\n", g_indexed_paths.size());
     }
 }
 
@@ -64,14 +64,12 @@ static std::vector<SearchResult> get_mock_results(const std::string &query)
     std::vector<SearchResult> results;
 
     // Simple substring matching
-    for (const auto &subtree : g_indexed_subtrees) {
-        for (const auto path : subtree) {
-            if (path.find(query) != std::string::npos) {
-                results.emplace_back(path, 0.0f);
+    for (const auto &path : g_indexed_paths) {
+        if (path.find(query) != std::string::npos) {
+            results.emplace_back(path, 0.0f);
 
-                if (results.size() >= 100)
-                    break; // Limit results
-            }
+            if (results.size() >= 100)
+                break; // Limit results
         }
     }
 

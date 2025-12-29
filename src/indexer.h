@@ -7,6 +7,5 @@
 
 namespace indexer
 {
-std::vector<PackedStrings>
-scan_filesystem_parallel(const std::filesystem::path &root_path);
+PackedStrings scan_filesystem_parallel(const std::filesystem::path &root_path);
 } // namespace indexer
