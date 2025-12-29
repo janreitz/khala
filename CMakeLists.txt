@@ -30,6 +30,7 @@ endif()
 add_executable(launcher
     src/launcher.cpp
     src/indexer.cpp
+    src/utility.cpp
 )
 
 target_include_directories(launcher PRIVATE
@@ -50,6 +51,7 @@ target_link_libraries(launcher PRIVATE
 add_executable(indexer_benchmark
     src/indexer_benchmark.cpp
     src/indexer.cpp
+    src/utility.cpp
 )
 
 install(TARGETS launcher indexer_benchmark DESTINATION bin)
