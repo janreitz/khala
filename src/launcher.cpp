@@ -1,5 +1,6 @@
 #include "glib-object.h"
 #include "indexer.h"
+#include "fuzzy.h"
 #include "pango/pango-font.h"
 #include "pango/pango-layout.h"
 #include "pango/pango-types.h"
@@ -39,7 +40,7 @@ static bool g_index_loaded = false;
 static void ensure_index_loaded()
 {
     if (!g_index_loaded) {
-        const fs::path home = std::getenv("HOME");
+        const fs::path home = "/"; //std::getenv("HOME");
         printf("Loading index for %s...\n", home.c_str());
 
         // Scan filesystem and cache results
@@ -53,7 +54,7 @@ static void ensure_index_loaded()
 namespace
 {
 void draw(Display *display, Window window, int width, int height,
-          const std::string &search_buffer,
+          const std::string &query_buffer,
           const std::vector<RankResult> &results, int selected_index)
 {
     // Get the default visual
@@ -94,8 +95,8 @@ void draw(Display *display, Window window, int width, int height,
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, 15);
 
-    std::string display_text = "> " + search_buffer;
-    if (search_buffer.empty()) {
+    std::string display_text = "> " + query_buffer;
+    if (query_buffer.empty()) {
         display_text += "(type to search...)";
     }
 
@@ -104,7 +105,7 @@ void draw(Display *display, Window window, int width, int height,
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor after text if there's content
-    if (!search_buffer.empty()) {
+    if (!query_buffer.empty()) {
         int text_width;
         int text_height;
         pango_layout_get_size(layout, &text_width, &text_height);
@@ -247,17 +248,20 @@ int main()
     // Event loop
     XEvent event;
     bool running = true;
-    std::string search_buffer;
+    std::string query_buffer;
     int selected_index = 0;
     bool needs_redraw = true;
     
     ensure_index_loaded();
 
     std::vector<RankResult> current_results;
-    auto rerank = [&current_results, &search_buffer]() {
-        current_results = rank(
+    auto rerank = [&current_results, &query_buffer]() {
+        auto tik = std::chrono::steady_clock::now();
+        current_results = rank_parallel(
             g_indexed_paths,
-            [&search_buffer](std::string_view path) { return 1.0f; }, 20);
+            [&query_buffer](std::string_view path) { return fuzzy::fuzzy_score(path, query_buffer); }, 20);
+        auto tok = std::chrono::steady_clock::now();
+        printf("Ranked %ld paths in %ldms", g_indexed_paths.size(), std::chrono::duration_cast<std::chrono::milliseconds>(tok - tik).count());
     };
 
     while (running) {
@@ -267,7 +271,7 @@ int main()
         case Expose:
             if (event.xexpose.count == 0) {
                 rerank();
-                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer,
+                draw(display, window, WIDTH, TOTAL_HEIGHT, query_buffer,
                      current_results, selected_index);
             }
             break;
@@ -306,8 +310,8 @@ int main()
                 }
             } else if (keysym == XK_BackSpace) {
                 // Handle backspace
-                if (!search_buffer.empty()) {
-                    search_buffer.pop_back();
+                if (!query_buffer.empty()) {
+                    query_buffer.pop_back();
                     rerank();
                     selected_index = 0; // Reset selection when search changes
                     needs_redraw = true;
@@ -323,7 +327,7 @@ int main()
                     // Only add printable characters
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                            search_buffer += char_buffer[i];
+                            query_buffer += char_buffer[i];
                             rerank();
                             selected_index =
                                 0; // Reset selection when search changes
@@ -331,13 +335,13 @@ int main()
                         }
                     }
                     printf("Search buffer: \"%s\" (%zu results)\n",
-                           search_buffer.c_str(), current_results.size());
+                           query_buffer.c_str(), current_results.size());
                 }
             }
 
             // Redraw if anything changed
             if (needs_redraw) {
-                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer,
+                draw(display, window, WIDTH, TOTAL_HEIGHT, query_buffer,
                      current_results, selected_index);
                 needs_redraw = false;
             }
