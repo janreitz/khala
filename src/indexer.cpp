@@ -29,12 +29,7 @@ std::vector<std::string> scan_subtree(const fs::path& root) {
     return paths;
 }
 
-std::vector<std::string> scan_filesystem_parallel(const fs::path& root_path,
-                                                   unsigned int num_threads) {
-    if (num_threads == 0) {
-        num_threads = std::thread::hardware_concurrency();
-    }
-
+std::vector<std::string> scan_filesystem_parallel(const fs::path& root_path) {
     std::vector<std::string> result;
     std::vector<fs::path> subdirs;
     

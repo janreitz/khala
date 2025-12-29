@@ -21,12 +21,11 @@ int main(int argc, char *argv[])
     try {
         auto total_start = std::chrono::steady_clock::now();
 
-        printf("Starting two-phase filesystem indexing\n");
         printf("  Root: %s\n", root_path.string().c_str());
         printf("=================================\n");
 
         // Phase 1: Collect all paths in memory
-        auto paths = indexer::scan_filesystem_parallel(root_path, 0);
+        auto paths = indexer::scan_filesystem_parallel(root_path);
         auto scan_end = std::chrono::steady_clock::now();
         auto scan_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(scan_end -
