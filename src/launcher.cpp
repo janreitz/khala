@@ -149,25 +149,6 @@ void draw(Display *display, Window window, int width, int height,
                               g_indexed_paths.at(results[i].index).data(), -1);
         pango_cairo_show_layout(cr, layout);
 
-        // Draw path (smaller, dimmed text)
-        if (i == selected_index) {
-            cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);
-        } else {
-            cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
-        }
-
-        PangoFontDescription *small_font =
-            pango_font_description_from_string("Sans 9");
-        const defer cleanup_small_font([small_font]() noexcept {
-            pango_font_description_free(small_font);
-        });
-
-        pango_layout_set_font_description(layout, small_font);
-        cairo_move_to(cr, 15, y_pos + 20);
-        pango_layout_set_text(layout,
-                              g_indexed_paths.at(results[i].index).data(), -1);
-        pango_cairo_show_layout(cr, layout);
-
         // Reset font for next iteration
         pango_layout_set_font_description(layout, font_desc);
 
