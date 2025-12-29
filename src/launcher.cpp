@@ -31,12 +31,6 @@ static constexpr int MAX_VISIBLE_OPTIONS = 8;
 static constexpr int DROPDOWN_HEIGHT = MAX_VISIBLE_OPTIONS * OPTION_HEIGHT;
 static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
 
-// Search result structure
-struct SearchResult {
-    std::string_view path;
-    float match_score;
-};
-
 // Global cache of indexed paths
 static PackedStrings g_indexed_paths;
 static bool g_index_loaded = false;
@@ -56,31 +50,11 @@ static void ensure_index_loaded()
     }
 }
 
-// Get search results based on query
-static std::vector<SearchResult> get_mock_results(const std::string &query)
-{
-    ensure_index_loaded();
-
-    std::vector<SearchResult> results;
-
-    // Simple substring matching
-    for (const auto &path : g_indexed_paths) {
-        if (path.find(query) != std::string::npos) {
-            results.emplace_back(path, 0.0f);
-
-            if (results.size() >= 100)
-                break; // Limit results
-        }
-    }
-
-    return results;
-}
-
 namespace
 {
 void draw(Display *display, Window window, int width, int height,
           const std::string &search_buffer,
-          const std::vector<SearchResult> &results, int selected_index)
+          const std::vector<RankResult> &results, int selected_index)
 {
     // Get the default visual
     const int screen = DefaultScreen(display);
@@ -170,7 +144,8 @@ void draw(Display *display, Window window, int width, int height,
 
         // Draw filename (main text)
         cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout, results[i].path.data(), -1);
+        pango_layout_set_text(layout,
+                              g_indexed_paths.at(results[i].index).data(), -1);
         pango_cairo_show_layout(cr, layout);
 
         // Draw path (smaller, dimmed text)
@@ -188,7 +163,8 @@ void draw(Display *display, Window window, int width, int height,
 
         pango_layout_set_font_description(layout, small_font);
         cairo_move_to(cr, 15, y_pos + 20);
-        pango_layout_set_text(layout, results[i].path.data(), -1);
+        pango_layout_set_text(layout,
+                              g_indexed_paths.at(results[i].index).data(), -1);
         pango_cairo_show_layout(cr, layout);
 
         // Reset font for next iteration
@@ -274,7 +250,15 @@ int main()
     std::string search_buffer;
     int selected_index = 0;
     bool needs_redraw = true;
-    std::vector<SearchResult> current_results;
+    
+    ensure_index_loaded();
+
+    std::vector<RankResult> current_results;
+    auto rerank = [&current_results, &search_buffer]() {
+        current_results = rank(
+            g_indexed_paths,
+            [&search_buffer](std::string_view path) { return 1.0f; }, 20);
+    };
 
     while (running) {
         XNextEvent(display, &event);
@@ -282,7 +266,7 @@ int main()
         switch (event.type) {
         case Expose:
             if (event.xexpose.count == 0) {
-                current_results = get_mock_results(search_buffer);
+                rerank();
                 draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer,
                      current_results, selected_index);
             }
@@ -315,14 +299,16 @@ int main()
                 if (!current_results.empty() &&
                     std::cmp_less(selected_index, current_results.size())) {
                     printf("Selected: %s\n",
-                           current_results[selected_index].path.data());
+                           g_indexed_paths
+                               .at(current_results[selected_index].index)
+                               .data());
                     running = false; // Exit for now
                 }
             } else if (keysym == XK_BackSpace) {
                 // Handle backspace
                 if (!search_buffer.empty()) {
                     search_buffer.pop_back();
-                    current_results = get_mock_results(search_buffer);
+                    rerank();
                     selected_index = 0; // Reset selection when search changes
                     needs_redraw = true;
                 }
@@ -338,7 +324,7 @@ int main()
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
                             search_buffer += char_buffer[i];
-                            current_results = get_mock_results(search_buffer);
+                            rerank();
                             selected_index =
                                 0; // Reset selection when search changes
                             needs_redraw = true;
