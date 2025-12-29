@@ -13,9 +13,9 @@
 #include <cairo.h>
 #include <pango/pangocairo.h>
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -200,7 +200,7 @@ int main()
     // Open connection to X server
     Display *display = XOpenDisplay(nullptr);
     if (display == nullptr) {
-        std::cerr << "Cannot open display\n";
+        fprintf(stderr, "Cannot open display\n");
         return 1;
     }
     defer const cleanup_display(
@@ -252,7 +252,7 @@ int main()
 
     XFlush(display);
 
-    std::cout << "Launcher window opened. Press ESC to close.\n";
+    printf("Launcher window opened. Press ESC to close.\n");
 
     // Event loop
     XEvent event;
@@ -284,7 +284,7 @@ int main()
                     selected_index--;
                     needs_redraw = true;
                 }
-                std::cout << "Selected index: " << selected_index << '\n';
+                printf("Selected index: %d\n", selected_index);
             } else if (keysym == XK_Down) {
                 // Move selection down
                 const int max_index =
@@ -294,15 +294,13 @@ int main()
                     selected_index++;
                     needs_redraw = true;
                 }
-                std::cout << "Selected index: " << selected_index << '\n';
+                printf("Selected index: %d\n", selected_index);
             } else if (keysym == XK_Return) {
                 // Handle Enter key - for now just print selection
                 if (!current_results.empty() &&
                     std::cmp_less(selected_index, current_results.size()))
                     {
-                        std::cout << "Selected: "
-                                  << current_results[selected_index].path
-                                  << '\n';
+                        printf("Selected: %s\n", current_results[selected_index].path.c_str());
                         running = false; // Exit for now
                     }
             } else if (keysym == XK_BackSpace) {
@@ -329,8 +327,7 @@ int main()
                             needs_redraw = true;
                         }
                     }
-                    std::cout << "Search buffer: \"" << search_buffer << "\" ("
-                              << current_results.size() << " results)" << '\n';
+                    printf("Search buffer: \"%s\" (%zu results)\n", search_buffer.c_str(), current_results.size());
                 }
             }
             
