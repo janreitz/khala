@@ -27,9 +27,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Main executable
 add_executable(launcher
     src/launcher.cpp
+    src/indexer.cpp
 )
 
 target_include_directories(launcher PRIVATE
@@ -47,14 +47,9 @@ target_link_libraries(launcher PRIVATE
     ${PANGOCAIRO_LIBRARIES}
 )
 
-# Indexer daemon executable
-add_executable(indexer
+add_executable(indexer_benchmark
+    src/indexer_benchmark.cpp
     src/indexer.cpp
 )
 
-target_include_directories(indexer PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
-)
-
-# Install target
-install(TARGETS launcher indexer  DESTINATION bin)
+install(TARGETS launcher indexer_benchmark DESTINATION bin)

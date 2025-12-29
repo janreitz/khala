@@ -1,3 +1,4 @@
+#include "indexer.h"
 #include "glib-object.h"
 #include "pango/pango-font.h"
 #include "pango/pango-layout.h"
@@ -16,9 +17,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
+
+namespace fs = std::filesystem;
 
 static constexpr int WIDTH = 600;
 static constexpr int INPUT_HEIGHT = 40;
@@ -27,45 +31,62 @@ static constexpr int MAX_VISIBLE_OPTIONS = 8;
 static constexpr int DROPDOWN_HEIGHT = MAX_VISIBLE_OPTIONS * OPTION_HEIGHT;
 static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
 
-// Mock search result structure
+// Search result structure
 struct SearchResult {
     std::string path;
     std::string filename;
 };
 
-// Get mock search results based on query
+// Global cache of indexed paths
+static std::vector<std::string> g_indexed_paths;
+static bool g_index_loaded = false;
+
+// Initialize index on first use
+static void ensure_index_loaded() {
+    if (!g_index_loaded) {
+        const fs::path home = std::getenv("HOME");
+        printf("Loading index for %s...\n", home.c_str());
+
+        // Scan filesystem and cache results
+        g_indexed_paths = indexer::scan_filesystem_parallel(home);
+        g_index_loaded = true;
+
+        printf("Loaded %zu files\n", g_indexed_paths.size());
+    }
+}
+
+// Get search results based on query
 static std::vector<SearchResult> get_mock_results(const std::string &query)
 {
-    static const std::vector<SearchResult> mock_data = {
-        {"/home/user/Documents/report.pdf", "report.pdf"},
-        {"/home/user/Pictures/vacation.jpg", "vacation.jpg"},
-        {"/home/user/Downloads/installer.deb", "installer.deb"},
-        {"/usr/bin/firefox", "firefox"},
-        {"/usr/bin/chromium", "chromium"},
-        {"/home/user/Code/project/main.cpp", "main.cpp"},
-        {"/home/user/Music/song.mp3", "song.mp3"},
-        {"/home/user/Documents/notes.txt", "notes.txt"},
-        {"/usr/share/applications/calculator.desktop", "calculator.desktop"},
-        {"/home/user/Desktop/todo.md", "todo.md"},
-        {"/etc/hosts", "hosts"},
-        {"/var/log/syslog", "syslog"},
-    };
-    
+    ensure_index_loaded();
+
     std::vector<SearchResult> results;
-    
+
     if (query.empty()) {
-        // Return all results when no query
-        return mock_data;
+        // Show first 100 results when no query
+        size_t count = std::min(g_indexed_paths.size(), size_t(100));
+        for (size_t i = 0; i < count; ++i) {
+            const auto& path = g_indexed_paths[i];
+            results.push_back({
+                path,
+                fs::path(path).filename().string()
+            });
+        }
+        return results;
     }
-    
+
     // Simple substring matching
-    for (const auto& item : mock_data) {
-        if (item.filename.find(query) != std::string::npos || 
-            item.path.find(query) != std::string::npos) {
-            results.push_back(item);
+    for (const auto& path : g_indexed_paths) {
+        if (path.find(query) != std::string::npos) {
+            results.push_back({
+                path,
+                fs::path(path).filename().string()
+            });
+
+            if (results.size() >= 100) break;  // Limit results
         }
     }
-    
+
     return results;
 }
 
