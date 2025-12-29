@@ -1,27 +1,31 @@
 #include "fuzzy.h"
-#include "glib-object.h"
 #include "indexer.h"
-#include "pango/pango-font.h"
-#include "pango/pango-layout.h"
-#include "pango/pango-types.h"
 #include "utility.h"
+
+#include "glib-object.h"
 
 #include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <algorithm>
+
 #include <cairo-xlib.h>
 #include <cairo.h>
+
+#include "pango/pango-font.h"
+#include "pango/pango-layout.h"
+#include "pango/pango-types.h"
 #include <pango/pangocairo.h>
 
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -232,6 +236,7 @@ int main()
     std::string query_buffer;
     int selected_index = 0;
     bool needs_redraw = true;
+    bool needs_rerank = true;
 
     ensure_index_loaded();
 
@@ -253,16 +258,12 @@ int main()
     while (running) {
         XNextEvent(display, &event);
 
-        switch (event.type) {
-        case Expose:
+        if (event.type == Expose) {
             if (event.xexpose.count == 0) {
-                rerank();
-                draw(display, window, WIDTH, TOTAL_HEIGHT, query_buffer,
-                     current_results, selected_index);
+                needs_rerank = true;
+                needs_redraw = true;
             }
-            break;
-
-        case KeyPress: {
+        } else if (event.type == KeyPress) {
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
             if (keysym == XK_Escape) {
@@ -298,23 +299,23 @@ int main()
                 // Handle backspace
                 if (!query_buffer.empty()) {
                     query_buffer.pop_back();
-                    rerank();
                     selected_index = 0; // Reset selection when search changes
+                    needs_rerank = true;
                     needs_redraw = true;
                 }
             } else {
                 // Handle regular character input
-                char char_buffer[32];
+                std::array<char, 32> char_buffer;
                 const int len =
-                    XLookupString(&event.xkey, char_buffer, sizeof(char_buffer),
-                                  nullptr, nullptr);
+                    XLookupString(&event.xkey, char_buffer.data(),
+                                  char_buffer.size(), nullptr, nullptr);
                 if (len > 0) {
                     char_buffer[len] = '\0';
                     // Only add printable characters
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
                             query_buffer += char_buffer[i];
-                            rerank();
+                            needs_rerank = true;
                             selected_index =
                                 0; // Reset selection when search changes
                             needs_redraw = true;
@@ -324,15 +325,18 @@ int main()
                            query_buffer.c_str(), current_results.size());
                 }
             }
-
-            // Redraw if anything changed
-            if (needs_redraw) {
-                draw(display, window, WIDTH, TOTAL_HEIGHT, query_buffer,
-                     current_results, selected_index);
-                needs_redraw = false;
-            }
             break;
         }
+
+        // Redraw if anything changed
+        if (needs_redraw) {
+            draw(display, window, WIDTH, TOTAL_HEIGHT, query_buffer,
+                 current_results, selected_index);
+            needs_redraw = false;
+        }
+        if (needs_rerank) {
+            rerank();
+            needs_rerank = false;
         }
     }
 
