@@ -1,7 +1,5 @@
 #include "utility.h"
 
-#include <sqlite3.h>
-
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -69,101 +67,6 @@ std::vector<std::string> scan_filesystem_parallel(const fs::path& root_path,
     return result;
 }
 
-void write_paths_batched(const std::vector<std::string> &paths,
-                         const std::string &db_path)
-{
-    if (paths.empty()) {
-        printf("No paths to write to database\n");
-        return;
-    }
-
-    auto start_time = std::chrono::steady_clock::now();
-    printf("Phase 2: Writing %zu paths to database\n", paths.size());
-
-    sqlite3 *db = nullptr;
-
-    // Open database
-    int rc = sqlite3_open(db_path.c_str(), &db);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        return;
-    }
-
-    const defer close_db([db]() noexcept {
-        if (db)
-            sqlite3_close(db);
-    });
-
-    // Create table if it doesn't exist
-    const char *create_table_sql =
-        "CREATE TABLE IF NOT EXISTS files ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "path TEXT UNIQUE NOT NULL,"
-        "indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-        ")";
-
-    rc = sqlite3_exec(db, create_table_sql, nullptr, nullptr, nullptr);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot create table: %s\n", sqlite3_errmsg(db));
-        return;
-    }
-
-    // Prepare statement for batch inserts
-    const char *insert_sql = "INSERT OR REPLACE INTO files (path) VALUES (?)";
-    sqlite3_stmt *stmt = nullptr;
-    rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        fprintf(stderr, "Cannot prepare statement: %s\n", sqlite3_errmsg(db));
-        return;
-    }
-
-    const defer finalize_stmt([stmt]() noexcept {
-        if (stmt)
-            sqlite3_finalize(stmt);
-    });
-
-    sqlite3_exec(db, "PRAGMA journal_mode=WAL", nullptr, nullptr, nullptr);
-    sqlite3_exec(db, "PRAGMA synchronous=NORMAL", nullptr, nullptr, nullptr);
-    sqlite3_exec(db, "PRAGMA cache_size=10000", nullptr, nullptr, nullptr);
-
-    // Process in batches with transactions
-    const size_t batch_size = 5000;
-    size_t total_processed = 0;
-
-    for (size_t i = 0; i < paths.size(); i += batch_size) {
-        // Begin transaction
-        sqlite3_exec(db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
-
-        const size_t batch_end = std::min(i + batch_size, paths.size());
-
-        for (size_t j = i; j < batch_end; ++j) {
-            sqlite3_bind_text(stmt, 1, paths[j].c_str(), -1, SQLITE_STATIC);
-
-            rc = sqlite3_step(stmt);
-            if (rc != SQLITE_DONE) {
-                fprintf(stderr, "Insert failed: %s\n", sqlite3_errmsg(db));
-            }
-
-            sqlite3_reset(stmt);
-        }
-
-        // Commit transaction
-        sqlite3_exec(db, "COMMIT", nullptr, nullptr, nullptr);
-
-        total_processed += (batch_end - i);
-
-        printf("  Written %zu / %zu files...\n", total_processed, paths.size());
-    }
-
-    printf("Database write complete: %zu files stored\n", total_processed);
-
-    auto end_time = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        end_time - start_time);
-
-    printf("Phase 2 complete: Database updated in %ldms\n", duration.count());
-}
-
 // Main two-phase indexing coroutine
 void index_filesystem_threads(const fs::path &root_path,
                                        const std::string &db_path)
@@ -180,9 +83,6 @@ void index_filesystem_threads(const fs::path &root_path,
     auto scan_end = std::chrono::steady_clock::now();
     auto scan_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         scan_end - total_start);
-
-    // Phase 2: Batch write to SQLite
-    write_paths_batched(paths, db_path);
 
     auto total_end = std::chrono::steady_clock::now();
     auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(

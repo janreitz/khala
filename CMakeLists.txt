@@ -5,9 +5,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find SQLite3
-find_package(SQLite3 REQUIRED)
-
 # Find X11
 find_package(X11 REQUIRED)
 
@@ -57,11 +54,6 @@ add_executable(indexer
 
 target_include_directories(indexer PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${SQLite3_INCLUDE_DIRS}
-)
-
-target_link_libraries(indexer PRIVATE
-    ${SQLite3_LIBRARIES}
 )
 
 # Install target
