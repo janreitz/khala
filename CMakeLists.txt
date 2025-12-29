@@ -5,9 +5,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find Boost with coroutine and context components
-find_package(Boost 1.82 REQUIRED COMPONENTS system filesystem)
-
 # Find SQLite3
 find_package(SQLite3 REQUIRED)
 
@@ -60,12 +57,10 @@ add_executable(indexer
 
 target_include_directories(indexer PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${Boost_INCLUDE_DIRS}
     ${SQLite3_INCLUDE_DIRS}
 )
 
 target_link_libraries(indexer PRIVATE
-    ${Boost_LIBRARIES}
     ${SQLite3_LIBRARIES}
 )
 

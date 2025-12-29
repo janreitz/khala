@@ -1,85 +1,74 @@
 #include "utility.h"
 
-#include <boost/asio.hpp>
-#include <boost/asio/awaitable.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/thread_pool.hpp>
-#include <boost/asio/use_awaitable.hpp>
 #include <sqlite3.h>
 
 #include <chrono>
 #include <filesystem>
+#include <thread>
+#include <future>
 #include <iostream>
 #include <string>
 #include <vector>
 
-namespace asio = boost::asio;
 namespace fs = std::filesystem;
 
-// Phase 1: Async filesystem traversal with periodic yielding
-asio::awaitable<std::vector<std::string>>
-scan_filesystem_to_memory(const fs::path &root_path,
-                          asio::thread_pool &thread_pool)
-{
-    auto start_time = std::chrono::steady_clock::now();
-    std::cout << "Phase 1: Scanning filesystem from " << root_path << std::endl;
 
-    // Offload blocking filesystem operations to thread pool while keeping
-    // coroutine benefits
-    auto paths = co_await asio::co_spawn(
-        thread_pool,
-        [root_path]() -> asio::awaitable<std::vector<std::string>> {
-            std::vector<std::string> collected_paths;
-            size_t processed_entries = 0;
-
-            try {
-                for (const auto &entry : fs::recursive_directory_iterator(
-                         root_path,
-                         fs::directory_options::skip_permission_denied)) {
-
-                    if (entry.is_regular_file()) {
-                        collected_paths.push_back(entry.path().string());
-                    }
-
-                    processed_entries++;
-
-                    // Yield control every 1000 entries to keep responsive
-                    if (processed_entries % 1000 == 0) {
-                        co_await asio::post(asio::use_awaitable);
-
-                        // Progress update every 10k entries
-                        if (processed_entries % 10000 == 0) {
-                            std::cout << "  Processed " << processed_entries
-                                      << " entries, found "
-                                      << collected_paths.size() << " files..."
-                                      << std::endl;
-                        }
-                    }
-                }
-            } catch (const fs::filesystem_error &e) {
-                std::cerr << "Filesystem error: " << e.what() << std::endl;
-            } catch (const std::exception &e) {
-                std::cerr << "Error during filesystem scan: " << e.what()
-                          << std::endl;
+std::vector<std::string> scan_subtree(const fs::path& root) {
+    std::vector<std::string> paths;
+    try {
+        for (const auto& entry : fs::recursive_directory_iterator(
+                 root, fs::directory_options::skip_permission_denied)) {
+            if (entry.is_regular_file()) {
+                paths.push_back(entry.path().string());
             }
-
-            co_return collected_paths;
-        },
-        asio::use_awaitable);
-
-    auto end_time = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        end_time - start_time);
-
-    std::cout << "Phase 1 complete: Found " << paths.size() << " files in "
-              << duration.count() << "ms" << std::endl;
-
-    co_return paths;
+        }
+    } catch (const fs::filesystem_error&) {
+        // Handle or ignore
+    }
+    return paths;
 }
 
-// Phase 2: Batched SQLite writes with transactions
+std::vector<std::string> scan_filesystem_parallel(const fs::path& root_path,
+                                                   unsigned int num_threads = 0) {
+    if (num_threads == 0) {
+        num_threads = std::thread::hardware_concurrency();
+    }
+
+    std::vector<std::string> result;
+    std::vector<fs::path> subdirs;
+    
+    // Collect top-level entries
+    try {
+        for (const auto& entry : fs::directory_iterator(root_path)) {
+            if (entry.is_directory()) {
+                subdirs.push_back(entry.path());
+            } else if (entry.is_regular_file()) {
+                result.push_back(entry.path().string());
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Error reading root: " << e.what() << std::endl;
+        return result;
+    }
+
+
+    std::vector<std::future<std::vector<std::string>>> futures;
+    futures.reserve(subdirs.size());
+    for (const auto& subdir : subdirs) {
+        futures.push_back(std::async(std::launch::async, scan_subtree, subdir));
+    }
+
+    // Gather results
+    for (auto& fut : futures) {
+        auto paths = fut.get();
+        result.insert(result.end(), 
+                      std::make_move_iterator(paths.begin()),
+                      std::make_move_iterator(paths.end()));
+    }
+
+    return result;
+}
+
 void write_paths_batched(const std::vector<std::string> &paths,
                          const std::string &db_path)
 {
@@ -136,8 +125,6 @@ void write_paths_batched(const std::vector<std::string> &paths,
             sqlite3_finalize(stmt);
     });
 
-    // Enable WAL mode for better concurrency (though we're
-    // single-threaded here)
     sqlite3_exec(db, "PRAGMA journal_mode=WAL", nullptr, nullptr, nullptr);
     sqlite3_exec(db, "PRAGMA synchronous=NORMAL", nullptr, nullptr, nullptr);
     sqlite3_exec(db, "PRAGMA cache_size=10000", nullptr, nullptr, nullptr);
@@ -185,9 +172,8 @@ void write_paths_batched(const std::vector<std::string> &paths,
 }
 
 // Main two-phase indexing coroutine
-asio::awaitable<void> index_filesystem(const fs::path &root_path,
-                                       const std::string &db_path,
-                                       asio::thread_pool &thread_pool)
+void index_filesystem_threads(const fs::path &root_path,
+                                       const std::string &db_path)
 {
     auto total_start = std::chrono::steady_clock::now();
 
@@ -197,7 +183,10 @@ asio::awaitable<void> index_filesystem(const fs::path &root_path,
     std::cout << "=================================" << std::endl;
 
     // Phase 1: Collect all paths in memory
-    auto paths = co_await scan_filesystem_to_memory(root_path, thread_pool);
+    auto paths = scan_filesystem_parallel(root_path, 0);
+    auto scan_end = std::chrono::steady_clock::now();
+    auto scan_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        scan_end - total_start);
 
     // Phase 2: Batch write to SQLite
     write_paths_batched(paths, db_path);
@@ -207,7 +196,7 @@ asio::awaitable<void> index_filesystem(const fs::path &root_path,
         total_end - total_start);
 
     std::cout << "=================================" << std::endl;
-    std::cout << "Indexing complete! Total time: " << total_duration.count()
+    std::cout << "Indexing complete! Scan time:" <<   scan_duration.count() << "ms Total time: " << total_duration.count()
               << "ms" << std::endl;
 }
 
@@ -223,18 +212,8 @@ int main(int argc, char *argv[])
     std::cout << "Launcher Indexer\n";
     std::cout << "================\n\n";
 
-    // Create io_context (event loop) and thread pool for blocking operations
-    asio::io_context io;
-    asio::thread_pool thread_pool(std::thread::hardware_concurrency());
-
     try {
-        // Spawn the main indexing coroutine
-        asio::co_spawn(io, index_filesystem(root_path, db_path, thread_pool),
-                       asio::detached);
-
-        // Run the event loop
-        io.run();
-
+        index_filesystem_threads(root_path, db_path);
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
