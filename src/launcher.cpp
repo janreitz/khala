@@ -19,11 +19,14 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <future>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -36,30 +39,11 @@ static constexpr int MAX_VISIBLE_OPTIONS = 8;
 static constexpr int DROPDOWN_HEIGHT = MAX_VISIBLE_OPTIONS * OPTION_HEIGHT;
 static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
 
-// Global cache of indexed paths
-static PackedStrings g_indexed_paths;
-static bool g_index_loaded = false;
-
-// Initialize index on first use
-static void ensure_index_loaded()
-{
-    if (!g_index_loaded) {
-        const fs::path home = std::getenv("HOME");
-        printf("Loading index for %s...\n", home.c_str());
-
-        // Scan filesystem and cache results
-        g_indexed_paths = indexer::scan_filesystem_parallel(home);
-        g_index_loaded = true;
-
-        printf("Loaded %zu files\n", g_indexed_paths.size());
-    }
-}
-
 namespace
 {
 void draw(Display *display, Window window, int width, int height,
-          const std::string &query_buffer,
-          const std::vector<RankResult> &results, int selected_index)
+          const std::string &query_buffer, const PackedStrings &results,
+          int selected_index)
 {
     // Get the default visual
     const int screen = DefaultScreen(display);
@@ -149,8 +133,7 @@ void draw(Display *display, Window window, int width, int height,
 
         // Draw filename (main text)
         cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout,
-                              g_indexed_paths.at(results[i].index).data(), -1);
+        pango_layout_set_text(layout, results.at(i).data(), -1);
         pango_cairo_show_layout(cr, layout);
 
         // Reset font for next iteration
@@ -171,8 +154,89 @@ void draw(Display *display, Window window, int width, int height,
 
 } // namespace
 
-int main()
+int main(int argc, char *argv[])
 {
+
+    // Shared state
+    PackedStrings indexed_paths;
+    std::atomic_bool index_loaded{false};
+
+    // Results shared between ranking thread and GUI
+    PackedStrings current_matches;
+    std::mutex results_mutex;
+    std::atomic_bool results_ready{false};
+
+    // Query state - GUI writes, ranker reads
+    std::string query_buffer;
+    std::mutex query_mutex;
+    std::atomic_bool query_changed{false};
+    std::atomic_bool should_exit{false};
+
+    const fs::path root_path =
+        (argc > 1) ? argv[1] : fs::path(std::getenv("HOME"));
+
+    printf("Loading index for %s...\n", root_path.c_str());
+
+    // Launch indexing thread
+    auto index_future = std::async(
+        std::launch::async, [&indexed_paths, &index_loaded, &root_path]() {
+            indexed_paths = indexer::scan_filesystem_parallel(root_path);
+            index_loaded.store(true, std::memory_order_release);
+            index_loaded.notify_all();
+            printf("Loaded %zu files\n", indexed_paths.size());
+        });
+
+    // Launch ranking thread
+    auto rank_future = std::async(std::launch::async, [&]() {
+        // Wait for index to be ready
+        index_loaded.wait(false);
+
+        while (!should_exit.load(std::memory_order_relaxed)) {
+            // Wait for query change or exit
+            query_changed.wait(false);
+            if (should_exit.load(std::memory_order_relaxed))
+                break;
+            query_changed.store(false, std::memory_order_relaxed);
+
+            // Get current query
+            std::string query;
+            {
+                std::lock_guard lock(query_mutex);
+                query = query_buffer;
+            }
+            auto tik = std::chrono::steady_clock::now();
+
+            // Do ranking (expensive, outside lock)
+            auto new_ranks = rank_parallel(
+                indexed_paths,
+                [&query](std::string_view path) {
+                    return fuzzy::fuzzy_score(path, query);
+                },
+                20);
+
+            auto tok = std::chrono::steady_clock::now();
+            printf(
+                "Ranked %ld paths in %ldms", indexed_paths.size(),
+                std::chrono::duration_cast<std::chrono::milliseconds>(tok - tik)
+                    .count());
+
+            PackedStrings new_results;
+            for (const auto &rank : new_ranks) {
+                new_results.push(indexed_paths.at(rank.index).data());
+            }
+
+            // Publish results
+            {
+                std::lock_guard lock(results_mutex);
+                current_matches = std::move(new_results);
+            }
+            results_ready.store(true, std::memory_order_release);
+            results_ready.notify_one();
+        }
+    });
+
+    printf("Loaded %zu files\n", indexed_paths.size());
+
     // Open connection to X server
     Display *display = XOpenDisplay(nullptr);
     if (display == nullptr) {
@@ -233,112 +297,118 @@ int main()
     // Event loop
     XEvent event;
     bool running = true;
-    std::string query_buffer;
     int selected_index = 0;
     bool needs_redraw = true;
-    bool needs_rerank = true;
 
-    ensure_index_loaded();
-
-    std::vector<RankResult> current_results;
-    auto rerank = [&current_results, &query_buffer]() {
-        auto tik = std::chrono::steady_clock::now();
-        current_results = rank_parallel(
-            g_indexed_paths,
-            [&query_buffer](std::string_view path) {
-                return fuzzy::fuzzy_score(path, query_buffer);
-            },
-            20);
-        auto tok = std::chrono::steady_clock::now();
-        printf("Ranked %ld paths in %ldms", g_indexed_paths.size(),
-               std::chrono::duration_cast<std::chrono::milliseconds>(tok - tik)
-                   .count());
-    };
+    std::string query_input;
+    bool query_input_changed = false;
+    PackedStrings display_results;
 
     while (running) {
-        XNextEvent(display, &event);
+        while (XPending(display) > 0) {
+            XNextEvent(display, &event);
 
-        if (event.type == Expose) {
-            if (event.xexpose.count == 0) {
-                needs_rerank = true;
-                needs_redraw = true;
-            }
-        } else if (event.type == KeyPress) {
-            const KeySym keysym = XLookupKeysym(&event.xkey, 0);
+            if (event.type == Expose) {
+                if (event.xexpose.count == 0) {
+                    needs_redraw = true;
+                }
+            } else if (event.type == KeyPress) {
+                const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
-            if (keysym == XK_Escape) {
-                running = false;
-            } else if (keysym == XK_Up) {
-                // Move selection up
-                if (!current_results.empty() && selected_index > 0) {
-                    selected_index--;
-                    needs_redraw = true;
-                }
-                printf("Selected index: %d\n", selected_index);
-            } else if (keysym == XK_Down) {
-                // Move selection down
-                const int max_index =
-                    std::min(static_cast<int>(current_results.size()) - 1,
-                             MAX_VISIBLE_OPTIONS - 1);
-                if (!current_results.empty() && selected_index < max_index) {
-                    selected_index++;
-                    needs_redraw = true;
-                }
-                printf("Selected index: %d\n", selected_index);
-            } else if (keysym == XK_Return) {
-                // Handle Enter key - for now just print selection
-                if (!current_results.empty() &&
-                    std::cmp_less(selected_index, current_results.size())) {
-                    printf("Selected: %s\n",
-                           g_indexed_paths
-                               .at(current_results[selected_index].index)
-                               .data());
-                    running = false; // Exit for now
-                }
-            } else if (keysym == XK_BackSpace) {
-                // Handle backspace
-                if (!query_buffer.empty()) {
-                    query_buffer.pop_back();
-                    selected_index = 0; // Reset selection when search changes
-                    needs_rerank = true;
-                    needs_redraw = true;
-                }
-            } else {
-                // Handle regular character input
-                std::array<char, 32> char_buffer;
-                const int len =
-                    XLookupString(&event.xkey, char_buffer.data(),
-                                  char_buffer.size(), nullptr, nullptr);
-                if (len > 0) {
-                    char_buffer[len] = '\0';
-                    // Only add printable characters
-                    for (int i = 0; i < len; ++i) {
-                        if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                            query_buffer += char_buffer[i];
-                            needs_rerank = true;
-                            selected_index =
-                                0; // Reset selection when search changes
-                            needs_redraw = true;
-                        }
+                if (keysym == XK_Escape) {
+                    running = false;
+                } else if (keysym == XK_Up) {
+                    // Move selection up
+                    if (!current_matches.empty() && selected_index > 0) {
+                        selected_index--;
+                        needs_redraw = true;
                     }
-                    printf("Search buffer: \"%s\" (%zu results)\n",
-                           query_buffer.c_str(), current_results.size());
+                    printf("Selected index: %d\n", selected_index);
+                } else if (keysym == XK_Down) {
+                    // Move selection down
+                    const int max_index =
+                        std::min(static_cast<int>(current_matches.size()) - 1,
+                                 MAX_VISIBLE_OPTIONS - 1);
+                    if (!current_matches.empty() &&
+                        selected_index < max_index) {
+                        selected_index++;
+                        needs_redraw = true;
+                    }
+                    printf("Selected index: %d\n", selected_index);
+                } else if (keysym == XK_Return) {
+                    // Handle Enter key - for now just print selection
+                    if (!current_matches.empty() &&
+                        std::cmp_less(selected_index, current_matches.size())) {
+                        printf("Selected: %s\n",
+                               current_matches.at(selected_index).data());
+                        running = false; // Exit for now
+                    }
+                } else if (keysym == XK_BackSpace) {
+                    // Handle backspace
+                    if (!query_input.empty()) {
+                        query_input.pop_back();
+                        query_input_changed = true;
+                        selected_index =
+                            0; // Reset selection when search changes
+                        needs_redraw = true;
+                    }
+                } else {
+                    // Handle regular character input
+                    std::array<char, 32> char_buffer;
+                    const int len =
+                        XLookupString(&event.xkey, char_buffer.data(),
+                                      char_buffer.size(), nullptr, nullptr);
+                    if (len > 0) {
+                        char_buffer[len] = '\0';
+                        // Only add printable characters
+                        for (int i = 0; i < len; ++i) {
+                            if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
+                                query_input += char_buffer[i];
+                                query_input_changed = true;
+                                selected_index =
+                                    0; // Reset selection when search changes
+                                needs_redraw = true;
+                            }
+                        }
+                        printf("Search buffer: \"%s\" (%zu results)\n",
+                               query_buffer.c_str(), current_matches.size());
+                    }
                 }
+                break;
             }
-            break;
         }
 
-        // Redraw if anything changed
+        if (query_input_changed) {
+            {
+                std::lock_guard lock(query_mutex);
+                query_buffer = query_input;
+            }
+            query_changed.store(true, std::memory_order_release);
+            query_changed.notify_one();
+        }
+
+        // Check for new results
+        if (results_ready.exchange(false, std::memory_order_acquire)) {
+            std::lock_guard lock(results_mutex);
+            display_results = current_matches; // copy for GUI
+            needs_redraw = true;
+        }
+
         if (needs_redraw) {
             draw(display, window, WIDTH, TOTAL_HEIGHT, query_buffer,
-                 current_results, selected_index);
+                 current_matches, selected_index);
             needs_redraw = false;
         }
-        if (needs_rerank) {
-            rerank();
-            needs_rerank = false;
-        }
     }
+
+    // Signal threads to exit
+    should_exit.store(true, std::memory_order_release);
+    query_changed.store(true);
+    query_changed.notify_one();
+
+    // Wait for threads
+    index_future.wait();
+    rank_future.wait();
 
     return 0;
 }
