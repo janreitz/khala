@@ -40,7 +40,7 @@ static bool g_index_loaded = false;
 static void ensure_index_loaded()
 {
     if (!g_index_loaded) {
-        const fs::path home = "/"; //std::getenv("HOME");
+        const fs::path home = std::getenv("HOME");
         printf("Loading index for %s...\n", home.c_str());
 
         // Scan filesystem and cache results
