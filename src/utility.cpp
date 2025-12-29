@@ -39,7 +39,8 @@ void PackedStrings::shrink_to_fit()
     indices_.shrink_to_fit();
 }
 
-size_t PackedStrings::size() const { return indices_.size(); }
+bool PackedStrings::empty() const noexcept { return indices_.empty(); }
+size_t PackedStrings::size() const noexcept { return indices_.size(); }
 
 PackedStrings::iterator PackedStrings::begin() const
 {
