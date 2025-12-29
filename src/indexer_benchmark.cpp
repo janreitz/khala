@@ -1,8 +1,11 @@
 #include "indexer.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
+#include <string>
 
 namespace fs = std::filesystem;
 
@@ -12,11 +15,8 @@ int main(int argc, char *argv[])
     const fs::path root_path =
         (argc > 1) ? argv[1] : fs::path(std::getenv("HOME"));
 
-    // Database path - store in current directory for now
-    const std::string db_path = "index.db";
-
-    printf("Khala Indexer Benchmark\n");
     printf("=======================\n\n");
+    printf("Khala Indexer Benchmark\n");
 
     try {
         auto total_start = std::chrono::steady_clock::now();

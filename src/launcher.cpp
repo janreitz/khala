@@ -1,5 +1,5 @@
-#include "indexer.h"
 #include "glib-object.h"
+#include "indexer.h"
 #include "pango/pango-font.h"
 #include "pango/pango-layout.h"
 #include "pango/pango-types.h"
@@ -33,25 +33,26 @@ static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
 
 // Search result structure
 struct SearchResult {
-    std::string path;
-    std::string filename;
+    std::string_view path;
+    float match_score;
 };
 
 // Global cache of indexed paths
-static std::vector<std::string> g_indexed_paths;
+static std::vector<PackedStrings> g_indexed_subtrees;
 static bool g_index_loaded = false;
 
 // Initialize index on first use
-static void ensure_index_loaded() {
+static void ensure_index_loaded()
+{
     if (!g_index_loaded) {
         const fs::path home = std::getenv("HOME");
         printf("Loading index for %s...\n", home.c_str());
 
         // Scan filesystem and cache results
-        g_indexed_paths = indexer::scan_filesystem_parallel(home);
+        g_indexed_subtrees = indexer::scan_filesystem_parallel(home);
         g_index_loaded = true;
 
-        printf("Loaded %zu files\n", g_indexed_paths.size());
+        printf("Loaded %zu files\n", g_indexed_subtrees.size());
     }
 }
 
@@ -62,28 +63,15 @@ static std::vector<SearchResult> get_mock_results(const std::string &query)
 
     std::vector<SearchResult> results;
 
-    if (query.empty()) {
-        // Show first 100 results when no query
-        size_t count = std::min(g_indexed_paths.size(), size_t(100));
-        for (size_t i = 0; i < count; ++i) {
-            const auto& path = g_indexed_paths[i];
-            results.push_back({
-                path,
-                fs::path(path).filename().string()
-            });
-        }
-        return results;
-    }
-
     // Simple substring matching
-    for (const auto& path : g_indexed_paths) {
-        if (path.find(query) != std::string::npos) {
-            results.push_back({
-                path,
-                fs::path(path).filename().string()
-            });
+    for (const auto &subtree : g_indexed_subtrees) {
+        for (const auto path : subtree) {
+            if (path.find(query) != std::string::npos) {
+                results.emplace_back(path, 0.0f);
 
-            if (results.size() >= 100) break;  // Limit results
+                if (results.size() >= 100)
+                    break; // Limit results
+            }
         }
     }
 
@@ -92,50 +80,53 @@ static std::vector<SearchResult> get_mock_results(const std::string &query)
 
 namespace
 {
-void draw(Display *display, Window window, int width, int height, const std::string& search_buffer, 
-         const std::vector<SearchResult>& results, int selected_index)
+void draw(Display *display, Window window, int width, int height,
+          const std::string &search_buffer,
+          const std::vector<SearchResult> &results, int selected_index)
 {
     // Get the default visual
-    int const screen = DefaultScreen(display);
+    const int screen = DefaultScreen(display);
     Visual *visual = DefaultVisual(display, screen);
 
     // Create Cairo surface for X11 window
     cairo_surface_t *surface =
         cairo_xlib_surface_create(display, window, visual, width, height);
-    defer const cleanup_surface(
+    const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
     // Create Cairo context
     cairo_t *cr = cairo_create(surface);
-    defer const cleanup_cr([cr]() noexcept { cairo_destroy(cr); });
+    const defer cleanup_cr([cr]() noexcept { cairo_destroy(cr); });
 
     // Create Pango layout for text rendering
     PangoLayout *layout = pango_cairo_create_layout(cr);
-    defer const cleanup_layout([layout]() noexcept { g_object_unref(layout); });
+    const defer cleanup_layout([layout]() noexcept { g_object_unref(layout); });
 
     // Clear background with white
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_paint(cr);
 
     // Set font for launcher
-    PangoFontDescription *font_desc = pango_font_description_from_string("Sans 12");
-    defer const cleanup_font([font_desc]() noexcept { pango_font_description_free(font_desc); });
+    PangoFontDescription *font_desc =
+        pango_font_description_from_string("Sans 12");
+    const defer cleanup_font(
+        [font_desc]() noexcept { pango_font_description_free(font_desc); });
     pango_layout_set_font_description(layout, font_desc);
 
     // Draw search input area
-    cairo_set_source_rgb(cr, 0.95, 0.95, 0.95);  // Light gray background
+    cairo_set_source_rgb(cr, 0.95, 0.95, 0.95); // Light gray background
     cairo_rectangle(cr, 0, 0, width, INPUT_HEIGHT);
     cairo_fill(cr);
-    
+
     // Draw search prompt and buffer
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, 15);
-    
+
     std::string display_text = "> " + search_buffer;
     if (search_buffer.empty()) {
         display_text += "(type to search...)";
     }
-    
+
     pango_layout_set_text(layout, display_text.c_str(), -1);
     pango_layout_set_attributes(layout, nullptr);
     pango_cairo_show_layout(cr, layout);
@@ -145,19 +136,20 @@ void draw(Display *display, Window window, int width, int height, const std::str
         int text_width;
         int text_height;
         pango_layout_get_size(layout, &text_width, &text_height);
-        
+
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         cairo_move_to(cr, 10 + (text_width / PANGO_SCALE), 15);
-        cairo_line_to(cr, 10 + (text_width / PANGO_SCALE), 15 + (text_height / PANGO_SCALE));
+        cairo_line_to(cr, 10 + (text_width / PANGO_SCALE),
+                      15 + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
     }
-    
+
     // Draw separator line
     cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
     cairo_move_to(cr, 0, INPUT_HEIGHT);
     cairo_line_to(cr, width, INPUT_HEIGHT);
     cairo_stroke(cr);
-    
+
     // Draw dropdown options
     const int visible_count =
         std::min(static_cast<int>(results.size()), MAX_VISIBLE_OPTIONS);
@@ -166,41 +158,44 @@ void draw(Display *display, Window window, int width, int height, const std::str
 
         // Draw selection highlight
         if (i == selected_index) {
-            cairo_set_source_rgb(cr, 0.3, 0.6, 1.0);  // Blue highlight
+            cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
             cairo_rectangle(cr, 0, y_pos, width, OPTION_HEIGHT);
             cairo_fill(cr);
         }
-        
+
         // Set text color (white on selected, black on normal)
         if (i == selected_index) {
             cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
         } else {
             cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         }
-        
+
         // Draw filename (main text)
         cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout, results[i].filename.c_str(), -1);
+        pango_layout_set_text(layout, results[i].path.data(), -1);
         pango_cairo_show_layout(cr, layout);
-        
+
         // Draw path (smaller, dimmed text)
         if (i == selected_index) {
             cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);
         } else {
             cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
         }
-        
-        PangoFontDescription *small_font = pango_font_description_from_string("Sans 9");
-        defer const cleanup_small_font([small_font]() noexcept { pango_font_description_free(small_font); });
-        
+
+        PangoFontDescription *small_font =
+            pango_font_description_from_string("Sans 9");
+        const defer cleanup_small_font([small_font]() noexcept {
+            pango_font_description_free(small_font);
+        });
+
         pango_layout_set_font_description(layout, small_font);
         cairo_move_to(cr, 15, y_pos + 20);
-        pango_layout_set_text(layout, results[i].path.c_str(), -1);
+        pango_layout_set_text(layout, results[i].path.data(), -1);
         pango_cairo_show_layout(cr, layout);
-        
+
         // Reset font for next iteration
         pango_layout_set_font_description(layout, font_desc);
-        
+
         // Draw separator between options
         if (i < visible_count - 1) {
             cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);
@@ -224,17 +219,17 @@ int main()
         fprintf(stderr, "Cannot open display\n");
         return 1;
     }
-    defer const cleanup_display(
+    const defer cleanup_display(
         [display]() noexcept { XCloseDisplay(display); });
 
-    int const screen = DefaultScreen(display);
+    const int screen = DefaultScreen(display);
 
     // Get screen dimensions for centering
-    int const screen_width = DisplayWidth(display, screen);
-    int const screen_height = DisplayHeight(display, screen);
+    const int screen_width = DisplayWidth(display, screen);
+    const int screen_height = DisplayHeight(display, screen);
 
-    int const x = (screen_width - WIDTH) / 2;
-    int const y = screen_height / 4;
+    const int x = (screen_width - WIDTH) / 2;
+    const int y = screen_height / 4;
 
     // Create window attributes
     XSetWindowAttributes attrs;
@@ -244,24 +239,24 @@ int main()
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
 
     // Create the window
-    Window const window = XCreateWindow(
+    const Window window = XCreateWindow(
         display, RootWindow(display, screen), x, y, WIDTH, TOTAL_HEIGHT, 2,
         CopyFromParent, InputOutput, CopyFromParent,
         CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &attrs);
 
-    defer const cleanup_window(
+    const defer cleanup_window(
         [display, window]() noexcept { XDestroyWindow(display, window); });
 
     // Set window type hint
-    Atom const windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
-    Atom const dialogType =
+    const Atom windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+    const Atom dialogType =
         XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
     XChangeProperty(display, window, windowType, XA_ATOM, 32, PropModeReplace,
                     (unsigned char *)&dialogType, 1);
 
     // Set window to stay on top
-    Atom const stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
-    Atom const stateAbove = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
+    const Atom stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
+    const Atom stateAbove = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
     XChangeProperty(display, window, stateAtom, XA_ATOM, 32, PropModeReplace,
                     (unsigned char *)&stateAbove, 1);
 
@@ -290,12 +285,13 @@ int main()
         case Expose:
             if (event.xexpose.count == 0) {
                 current_results = get_mock_results(search_buffer);
-                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer, current_results, selected_index);
+                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer,
+                     current_results, selected_index);
             }
             break;
 
         case KeyPress: {
-            KeySym const keysym = XLookupKeysym(&event.xkey, 0);
+            const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
             if (keysym == XK_Escape) {
                 running = false;
@@ -319,24 +315,25 @@ int main()
             } else if (keysym == XK_Return) {
                 // Handle Enter key - for now just print selection
                 if (!current_results.empty() &&
-                    std::cmp_less(selected_index, current_results.size()))
-                    {
-                        printf("Selected: %s\n", current_results[selected_index].path.c_str());
-                        running = false; // Exit for now
-                    }
+                    std::cmp_less(selected_index, current_results.size())) {
+                    printf("Selected: %s\n",
+                           current_results[selected_index].path.data());
+                    running = false; // Exit for now
+                }
             } else if (keysym == XK_BackSpace) {
                 // Handle backspace
                 if (!search_buffer.empty()) {
                     search_buffer.pop_back();
                     current_results = get_mock_results(search_buffer);
-                    selected_index = 0;  // Reset selection when search changes
+                    selected_index = 0; // Reset selection when search changes
                     needs_redraw = true;
                 }
             } else {
                 // Handle regular character input
                 char char_buffer[32];
-                int const len = XLookupString(&event.xkey, char_buffer,
-                                              sizeof(char_buffer), nullptr, nullptr);
+                const int len =
+                    XLookupString(&event.xkey, char_buffer, sizeof(char_buffer),
+                                  nullptr, nullptr);
                 if (len > 0) {
                     char_buffer[len] = '\0';
                     // Only add printable characters
@@ -344,17 +341,20 @@ int main()
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
                             search_buffer += char_buffer[i];
                             current_results = get_mock_results(search_buffer);
-                            selected_index = 0;  // Reset selection when search changes
+                            selected_index =
+                                0; // Reset selection when search changes
                             needs_redraw = true;
                         }
                     }
-                    printf("Search buffer: \"%s\" (%zu results)\n", search_buffer.c_str(), current_results.size());
+                    printf("Search buffer: \"%s\" (%zu results)\n",
+                           search_buffer.c_str(), current_results.size());
                 }
             }
-            
+
             // Redraw if anything changed
             if (needs_redraw) {
-                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer, current_results, selected_index);
+                draw(display, window, WIDTH, TOTAL_HEIGHT, search_buffer,
+                     current_results, selected_index);
                 needs_redraw = false;
             }
             break;
