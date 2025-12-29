@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(TBB REQUIRED)
+
 # Find X11
 find_package(X11 REQUIRED)
 
@@ -31,6 +33,7 @@ add_executable(launcher
     src/launcher.cpp
     src/indexer.cpp
     src/utility.cpp
+    src/fuzzy.cpp
 )
 
 target_include_directories(launcher PRIVATE
@@ -46,12 +49,15 @@ target_link_libraries(launcher PRIVATE
     ${CAIRO_LIBRARIES}
     ${PANGO_LIBRARIES}
     ${PANGOCAIRO_LIBRARIES}
+    TBB::tbb
 )
 
 add_executable(indexer_benchmark
     src/indexer_benchmark.cpp
     src/indexer.cpp
     src/utility.cpp
+    src/fuzzy.cpp
 )
+target_link_libraries(indexer_benchmark PRIVATE TBB::tbb)
 
-install(TARGETS launcher indexer_benchmark DESTINATION bin)
+install(TARGETS launcher DESTINATION bin)
