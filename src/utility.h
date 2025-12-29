@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <execution>
 #include <numeric>
-#include <chrono>
 #include <queue>
 #include <string>
 #include <string_view>
@@ -39,31 +38,26 @@ struct RankResult {
     }
 };
 
-
-template<typename ContainerT, typename ScoreFn>
-std::vector<RankResult> rank_parallel(const ContainerT& data, ScoreFn scoring_function, size_t n) {
+template <typename ContainerT, typename ScoreFn>
+std::vector<RankResult> rank_parallel(const ContainerT &data,
+                                      ScoreFn scoring_function, size_t n)
+{
     std::vector<size_t> indices(data.size());
     std::iota(indices.begin(), indices.end(), 0);
-    
+
     std::vector<RankResult> scored(data.size());
-    
-    std::transform(
-        std::execution::par_unseq,
-        indices.begin(), indices.end(),
-        scored.begin(),
-        [&](size_t i) {
-            return RankResult{i, scoring_function(data.at(i))};
-        }
-    );
-    
+
+    std::transform(std::execution::par_unseq, indices.begin(), indices.end(),
+                   scored.begin(), [&](size_t i) {
+                       return RankResult{i, scoring_function(data.at(i))};
+                   });
+
     // Partial sort to get top n
     std::partial_sort(
-        scored.begin(),
-        scored.begin() + std::min(n, scored.size()),
+        scored.begin(), scored.begin() + std::min(n, scored.size()),
         scored.end(),
-        [](const auto& a, const auto& b) { return a.score > b.score; }
-    );
-    
+        [](const auto &a, const auto &b) { return a.score > b.score; });
+
     scored.resize(std::min(n, scored.size()));
     return scored;
 }
@@ -86,7 +80,7 @@ std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
             top_n.push({i, s});
         }
     }
-    
+
     // Extract in descending order
     std::vector<RankResult> result;
     result.reserve(top_n.size());
@@ -96,7 +90,6 @@ std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
     }
     std::reverse(result.begin(), result.end());
 
-    
     return result;
 }
 
@@ -114,7 +107,8 @@ struct PackedStrings {
     void shrink_to_fit();
 
     std::string_view at(size_t idx) const;
-    size_t size() const;
+    bool empty() const noexcept;
+    size_t size() const noexcept;
 
     class iterator
     {
