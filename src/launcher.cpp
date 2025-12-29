@@ -1,6 +1,6 @@
+#include "fuzzy.h"
 #include "glib-object.h"
 #include "indexer.h"
-#include "fuzzy.h"
 #include "pango/pango-font.h"
 #include "pango/pango-layout.h"
 #include "pango/pango-types.h"
@@ -232,7 +232,7 @@ int main()
     std::string query_buffer;
     int selected_index = 0;
     bool needs_redraw = true;
-    
+
     ensure_index_loaded();
 
     std::vector<RankResult> current_results;
@@ -240,9 +240,14 @@ int main()
         auto tik = std::chrono::steady_clock::now();
         current_results = rank_parallel(
             g_indexed_paths,
-            [&query_buffer](std::string_view path) { return fuzzy::fuzzy_score(path, query_buffer); }, 20);
+            [&query_buffer](std::string_view path) {
+                return fuzzy::fuzzy_score(path, query_buffer);
+            },
+            20);
         auto tok = std::chrono::steady_clock::now();
-        printf("Ranked %ld paths in %ldms", g_indexed_paths.size(), std::chrono::duration_cast<std::chrono::milliseconds>(tok - tik).count());
+        printf("Ranked %ld paths in %ldms", g_indexed_paths.size(),
+               std::chrono::duration_cast<std::chrono::milliseconds>(tok - tik)
+                   .count());
     };
 
     while (running) {
