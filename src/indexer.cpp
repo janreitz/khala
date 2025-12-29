@@ -3,10 +3,10 @@
 #include <sqlite3.h>
 
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <thread>
 #include <future>
-#include <iostream>
 #include <string>
 #include <vector>
 
@@ -47,7 +47,7 @@ std::vector<std::string> scan_filesystem_parallel(const fs::path& root_path,
             }
         }
     } catch (const fs::filesystem_error& e) {
-        std::cerr << "Error reading root: " << e.what() << std::endl;
+        fprintf(stderr, "Error reading root: %s\n", e.what());
         return result;
     }
 
@@ -73,21 +73,19 @@ void write_paths_batched(const std::vector<std::string> &paths,
                          const std::string &db_path)
 {
     if (paths.empty()) {
-        std::cout << "No paths to write to database" << std::endl;
+        printf("No paths to write to database\n");
         return;
     }
 
     auto start_time = std::chrono::steady_clock::now();
-    std::cout << "Phase 2: Writing " << paths.size() << " paths to database"
-              << std::endl;
+    printf("Phase 2: Writing %zu paths to database\n", paths.size());
 
     sqlite3 *db = nullptr;
 
     // Open database
     int rc = sqlite3_open(db_path.c_str(), &db);
     if (rc != SQLITE_OK) {
-        std::cerr << "Cannot open database: " << sqlite3_errmsg(db)
-                  << std::endl;
+        fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
         return;
     }
 
@@ -106,7 +104,7 @@ void write_paths_batched(const std::vector<std::string> &paths,
 
     rc = sqlite3_exec(db, create_table_sql, nullptr, nullptr, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Cannot create table: " << sqlite3_errmsg(db) << std::endl;
+        fprintf(stderr, "Cannot create table: %s\n", sqlite3_errmsg(db));
         return;
     }
 
@@ -115,8 +113,7 @@ void write_paths_batched(const std::vector<std::string> &paths,
     sqlite3_stmt *stmt = nullptr;
     rc = sqlite3_prepare_v2(db, insert_sql, -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Cannot prepare statement: " << sqlite3_errmsg(db)
-                  << std::endl;
+        fprintf(stderr, "Cannot prepare statement: %s\n", sqlite3_errmsg(db));
         return;
     }
 
@@ -144,8 +141,7 @@ void write_paths_batched(const std::vector<std::string> &paths,
 
             rc = sqlite3_step(stmt);
             if (rc != SQLITE_DONE) {
-                std::cerr << "Insert failed: " << sqlite3_errmsg(db)
-                          << std::endl;
+                fprintf(stderr, "Insert failed: %s\n", sqlite3_errmsg(db));
             }
 
             sqlite3_reset(stmt);
@@ -156,19 +152,16 @@ void write_paths_batched(const std::vector<std::string> &paths,
 
         total_processed += (batch_end - i);
 
-        std::cout << "  Written " << total_processed << " / " << paths.size()
-                  << " files..." << std::endl;
+        printf("  Written %zu / %zu files...\n", total_processed, paths.size());
     }
 
-    std::cout << "Database write complete: " << total_processed
-              << " files stored" << std::endl;
+    printf("Database write complete: %zu files stored\n", total_processed);
 
     auto end_time = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         end_time - start_time);
 
-    std::cout << "Phase 2 complete: Database updated in " << duration.count()
-              << "ms" << std::endl;
+    printf("Phase 2 complete: Database updated in %ldms\n", duration.count());
 }
 
 // Main two-phase indexing coroutine
@@ -177,10 +170,10 @@ void index_filesystem_threads(const fs::path &root_path,
 {
     auto total_start = std::chrono::steady_clock::now();
 
-    std::cout << "Starting two-phase filesystem indexing" << std::endl;
-    std::cout << "  Root: " << root_path << std::endl;
-    std::cout << "  Database: " << db_path << std::endl;
-    std::cout << "=================================" << std::endl;
+    printf("Starting two-phase filesystem indexing\n");
+    printf("  Root: %s\n", root_path.string().c_str());
+    printf("  Database: %s\n", db_path.c_str());
+    printf("=================================\n");
 
     // Phase 1: Collect all paths in memory
     auto paths = scan_filesystem_parallel(root_path, 0);
@@ -195,9 +188,8 @@ void index_filesystem_threads(const fs::path &root_path,
     auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         total_end - total_start);
 
-    std::cout << "=================================" << std::endl;
-    std::cout << "Indexing complete! Scan time:" <<   scan_duration.count() << "ms Total time: " << total_duration.count()
-              << "ms" << std::endl;
+    printf("=================================\n");
+    printf("Indexing complete! Scan time: %ldms Total time: %ldms\n", scan_duration.count(), total_duration.count());
 }
 
 int main(int argc, char *argv[])
@@ -209,16 +201,16 @@ int main(int argc, char *argv[])
     // Database path - store in current directory for now
     const std::string db_path = "index.db";
 
-    std::cout << "Launcher Indexer\n";
-    std::cout << "================\n\n";
+    printf("Launcher Indexer\n");
+    printf("================\n\n");
 
     try {
         index_filesystem_threads(root_path, db_path);
     } catch (const std::exception &e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        fprintf(stderr, "Error: %s\n", e.what());
         return 1;
     }
 
-    std::cout << "\nIndexing finished!\n";
+    printf("\nIndexing finished!\n");
     return 0;
 }
