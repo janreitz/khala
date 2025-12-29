@@ -1,10 +1,12 @@
 #pragma once
 
+#include <algorithm>
+#include <queue>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <string>
-#include <string_view>
 
 template <typename C>
 requires std::is_nothrow_invocable_v<std::decay_t<C>>
@@ -19,6 +21,51 @@ struct defer {
   private:
     C _callable;
 };
+
+struct RankResult {
+    size_t index;
+    float score;
+
+    bool operator>(const RankResult &other) const
+    {
+        return score > other.score;
+    }
+    bool operator<(const RankResult &other) const
+    {
+        return score < other.score;
+    }
+};
+
+template <typename ContainerT, typename ScoreFn>
+std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
+                             size_t n)
+{
+    // Min-heap: smallest score at top, so we can evict it
+    std::priority_queue<RankResult, std::vector<RankResult>,
+                        std::greater<RankResult>>
+        top_n;
+
+    for (size_t i = 0; i < data.size(); ++i) {
+        float s = scoring_function(data.at(i));
+        if (top_n.size() < n) {
+            top_n.push({i, s});
+        } else if (s > top_n.top().score) {
+            top_n.pop();
+            top_n.push({i, s});
+        }
+    }
+
+    // Extract in descending order
+    std::vector<RankResult> result;
+    result.reserve(top_n.size());
+    while (!top_n.empty()) {
+        result.push_back(top_n.top());
+        top_n.pop();
+    }
+    std::reverse(result.begin(), result.end());
+
+    return result;
+}
 
 struct PackedStrings {
 
