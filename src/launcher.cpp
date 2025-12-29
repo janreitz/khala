@@ -1,8 +1,14 @@
+#include "glib-object.h"
+#include "pango/pango-font.h"
+#include "pango/pango-layout.h"
+#include "pango/pango-types.h"
 #include "utility.h"
 
+#include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <algorithm>
 #include <cairo-xlib.h>
 #include <cairo.h>
 #include <pango/pangocairo.h>
@@ -11,6 +17,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 static constexpr int WIDTH = 600;
@@ -27,7 +34,8 @@ struct SearchResult {
 };
 
 // Get mock search results based on query
-std::vector<SearchResult> get_mock_results(const std::string& query) {
+static std::vector<SearchResult> get_mock_results(const std::string &query)
+{
     static const std::vector<SearchResult> mock_data = {
         {"/home/user/Documents/report.pdf", "report.pdf"},
         {"/home/user/Pictures/vacation.jpg", "vacation.jpg"},
@@ -113,7 +121,8 @@ void draw(Display *display, Window window, int width, int height, const std::str
 
     // Draw cursor after text if there's content
     if (!search_buffer.empty()) {
-        int text_width, text_height;
+        int text_width;
+        int text_height;
         pango_layout_get_size(layout, &text_width, &text_height);
         
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
@@ -129,10 +138,11 @@ void draw(Display *display, Window window, int width, int height, const std::str
     cairo_stroke(cr);
     
     // Draw dropdown options
-    int visible_count = std::min(static_cast<int>(results.size()), MAX_VISIBLE_OPTIONS);
+    const int visible_count =
+        std::min(static_cast<int>(results.size()), MAX_VISIBLE_OPTIONS);
     for (int i = 0; i < visible_count; ++i) {
-        int y_pos = INPUT_HEIGHT + (i * OPTION_HEIGHT);
-        
+        const int y_pos = INPUT_HEIGHT + (i * OPTION_HEIGHT);
+
         // Draw selection highlight
         if (i == selected_index) {
             cairo_set_source_rgb(cr, 0.3, 0.6, 1.0);  // Blue highlight
@@ -189,7 +199,7 @@ int main()
 {
     // Open connection to X server
     Display *display = XOpenDisplay(nullptr);
-    if (!display) {
+    if (display == nullptr) {
         std::cerr << "Cannot open display\n";
         return 1;
     }
@@ -274,21 +284,27 @@ int main()
                     selected_index--;
                     needs_redraw = true;
                 }
-                std::cout << "Selected index: " << selected_index << std::endl;
+                std::cout << "Selected index: " << selected_index << '\n';
             } else if (keysym == XK_Down) {
                 // Move selection down
-                int max_index = std::min(static_cast<int>(current_results.size()) - 1, MAX_VISIBLE_OPTIONS - 1);
+                const int max_index =
+                    std::min(static_cast<int>(current_results.size()) - 1,
+                             MAX_VISIBLE_OPTIONS - 1);
                 if (!current_results.empty() && selected_index < max_index) {
                     selected_index++;
                     needs_redraw = true;
                 }
-                std::cout << "Selected index: " << selected_index << std::endl;
+                std::cout << "Selected index: " << selected_index << '\n';
             } else if (keysym == XK_Return) {
                 // Handle Enter key - for now just print selection
-                if (!current_results.empty() && selected_index < static_cast<int>(current_results.size())) {
-                    std::cout << "Selected: " << current_results[selected_index].path << std::endl;
-                    running = false;  // Exit for now
-                }
+                if (!current_results.empty() &&
+                    std::cmp_less(selected_index, current_results.size()))
+                    {
+                        std::cout << "Selected: "
+                                  << current_results[selected_index].path
+                                  << '\n';
+                        running = false; // Exit for now
+                    }
             } else if (keysym == XK_BackSpace) {
                 // Handle backspace
                 if (!search_buffer.empty()) {
@@ -313,8 +329,8 @@ int main()
                             needs_redraw = true;
                         }
                     }
-                    std::cout << "Search buffer: \"" << search_buffer << "\" (" 
-                              << current_results.size() << " results)" << std::endl;
+                    std::cout << "Search buffer: \"" << search_buffer << "\" ("
+                              << current_results.size() << " results)" << '\n';
                 }
             }
             
