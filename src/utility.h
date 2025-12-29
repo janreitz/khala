@@ -30,6 +30,7 @@ struct PackedStrings {
     PackedStrings();
 
     void push(const std::string &str);
+    void merge(PackedStrings &&other);
     void shrink_to_fit();
 
     std::string_view at(size_t idx) const;

@@ -13,6 +13,20 @@ void PackedStrings::push(const std::string &str)
     data_.push_back('\0');
 }
 
+void PackedStrings::merge(PackedStrings &&other)
+{
+    size_t data_offset = data_.size();
+
+    // Append raw data_
+    data_.insert(data_.end(), other.data_.begin(), other.data_.end());
+
+    // Append indices, adjusted by offset
+    indices_.reserve(indices_.size() + other.indices_.size());
+    for (size_t idx : other.indices_) {
+        indices_.push_back(idx + data_offset);
+    }
+}
+
 std::string_view PackedStrings::at(size_t idx) const
 {
     const char *ptr = data_.data() + indices_[idx];
@@ -86,16 +100,19 @@ PackedStrings::iterator &PackedStrings::iterator::operator-=(difference_type n)
     return *this;
 }
 
-PackedStrings::iterator PackedStrings::iterator::operator+(difference_type n) const
+PackedStrings::iterator
+PackedStrings::iterator::operator+(difference_type n) const
 {
     return iterator(container_, idx_ + n);
 }
-PackedStrings::iterator PackedStrings::iterator::operator-(difference_type n) const
+PackedStrings::iterator
+PackedStrings::iterator::operator-(difference_type n) const
 {
     return iterator(container_, idx_ - n);
 }
 
-PackedStrings::iterator::difference_type PackedStrings::iterator::operator-(const iterator &other) const
+PackedStrings::iterator::difference_type
+PackedStrings::iterator::operator-(const iterator &other) const
 {
     return idx_ - other.idx_;
 }
