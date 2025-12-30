@@ -16,9 +16,73 @@
 
 namespace ui
 {
+
+UserInput process_input_events(Display* display,  std::string& input_buffer, size_t selected_action_index, size_t max_action_index)
+{
+    XEvent event;
+
+    UserInput state;
+
+    while (XPending(display) > 0) {
+        XNextEvent(display, &event);
+
+        if (event.type == Expose) {
+            if (event.xexpose.count == 0) {
+            }
+        } else if (event.type == KeyPress) {
+            const KeySym keysym = XLookupKeysym(&event.xkey, 0);
+
+            if (keysym == XK_Escape) {
+                state.exit_requested = true;
+            } else if (keysym == XK_Up) {
+                // Move selection up
+                if (selected_action_index > 0) {
+                    selected_action_index--;
+                }
+                printf("Selected index: %ld\n", selected_action_index);
+            } else if (keysym == XK_Down) {
+                // Move selection down
+                if (selected_action_index < max_action_index) {
+                    selected_action_index++;
+                }
+                printf("Selected index: %ld\n", selected_action_index);
+            } else if (keysym == XK_Return) {
+                    state.action_requested = true; // Exit for now
+            } else if (keysym == XK_BackSpace) {
+                // Handle backspace
+                if (!input_buffer.empty()) {
+                    input_buffer.pop_back();
+                    state.input_buffer_changed = true;
+                    selected_action_index = 0; // Reset selection when search changes
+                }
+            } else {
+                // Handle regular character input
+                std::array<char, 32> char_buffer;
+                const int len =
+                    XLookupString(&event.xkey, char_buffer.data(),
+                                  char_buffer.size(), nullptr, nullptr);
+                if (len > 0) {
+                    char_buffer[len] = '\0';
+                    // Only add printable characters
+                    for (int i = 0; i < len; ++i) {
+                        if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
+                            input_buffer += char_buffer[i];
+                            state.input_buffer_changed = true;
+                            selected_action_index =
+                                0; // Reset selection when search changes
+                        }
+                    }
+                }
+            }
+            break;
+        }
+    }
+    return state;
+}
+
 void draw(Display *display, Window window, int width, int height,
           int input_height, const std::string &input_buffer, int action_height,
-          const std::vector<Action> &actions, int selected_index)
+          const std::vector<Action> &actions, size_t selected_action_index)
 {
     // Get the default visual
     const int screen = DefaultScreen(display);
@@ -87,18 +151,18 @@ void draw(Display *display, Window window, int width, int height,
     cairo_stroke(cr);
 
     // Draw dropdown options
-    for (int i = 0; i < actions.size(); ++i) {
+    for (size_t i = 0; i < actions.size(); ++i) {
         const int y_pos = input_height + (i * action_height);
 
         // Draw selection highlight
-        if (i == selected_index) {
+        if (i == selected_action_index) {
             cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
             cairo_rectangle(cr, 0, y_pos, width, action_height);
             cairo_fill(cr);
         }
 
         // Set text color (white on selected, black on normal)
-        if (i == selected_index) {
+        if (i == selected_action_index) {
             cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
         } else {
             cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);

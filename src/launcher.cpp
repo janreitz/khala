@@ -170,118 +170,63 @@ int main(int argc, char *argv[])
     printf("Launcher window opened. Press ESC to close.\n");
 
     // Event loop
-    XEvent event;
-    bool running = true;
-    int selected_index = 0;
-    bool needs_redraw = true;
+    std::string input_buffer;
+    size_t action_index = 0;
 
-    std::string query_input;
-    bool query_input_changed = false;
     std::vector<ui::Action> display_results;
 
-    while (running) {
-        while (XPending(display) > 0) {
-            XNextEvent(display, &event);
+    bool first_iteration = true;
 
-            if (event.type == Expose) {
-                if (event.xexpose.count == 0) {
-                    needs_redraw = true;
-                }
-            } else if (event.type == KeyPress) {
-                const KeySym keysym = XLookupKeysym(&event.xkey, 0);
+    while (true) {
+        const size_t max_action_index =
+            std::min(display_results.size() - 1, MAX_VISIBLE_OPTIONS - 1);
+        ui::UserInput input = ui::process_input_events(
+            display, input_buffer, action_index, max_action_index);
 
-                if (keysym == XK_Escape) {
-                    running = false;
-                } else if (keysym == XK_Up) {
-                    // Move selection up
-                    if (!current_matches.empty() && selected_index > 0) {
-                        selected_index--;
-                        needs_redraw = true;
-                    }
-                    printf("Selected index: %d\n", selected_index);
-                } else if (keysym == XK_Down) {
-                    // Move selection down
-                    const int max_index =
-                        std::min(current_matches.size() - 1,
-                                 MAX_VISIBLE_OPTIONS - 1);
-                    if (!current_matches.empty() &&
-                        selected_index < max_index) {
-                        selected_index++;
-                        needs_redraw = true;
-                    }
-                    printf("Selected index: %d\n", selected_index);
-                } else if (keysym == XK_Return) {
-                    // Handle Enter key - for now just print selection
-                    if (!current_matches.empty() &&
-                        std::cmp_less(selected_index, current_matches.size())) {
-                        printf("Selected: %s\n",
-                               current_matches.at(selected_index).data());
-                        running = false; // Exit for now
-                    }
-                } else if (keysym == XK_BackSpace) {
-                    // Handle backspace
-                    if (!query_input.empty()) {
-                        query_input.pop_back();
-                        query_input_changed = true;
-                        selected_index =
-                            0; // Reset selection when search changes
-                        needs_redraw = true;
-                    }
-                } else {
-                    // Handle regular character input
-                    std::array<char, 32> char_buffer;
-                    const int len =
-                        XLookupString(&event.xkey, char_buffer.data(),
-                                      char_buffer.size(), nullptr, nullptr);
-                    if (len > 0) {
-                        char_buffer[len] = '\0';
-                        // Only add printable characters
-                        for (int i = 0; i < len; ++i) {
-                            if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                                query_input += char_buffer[i];
-                                query_input_changed = true;
-                                selected_index =
-                                    0; // Reset selection when search changes
-                                needs_redraw = true;
-                            }
-                        }
-                        printf("Search buffer: \"%s\" (%zu results)\n",
-                               query_buffer.c_str(), current_matches.size());
-                    }
-                }
-                break;
-            }
+        if (input.exit_requested) {
+            break;
         }
 
-        if (query_input_changed) {
+        if (input.action_requested) {
+            printf("Selected: %s\n", current_matches.at(action_index).data());
+        }
+
+        if (input.input_buffer_changed) {
             {
                 std::lock_guard lock(query_mutex);
-                query_buffer = query_input;
+                query_buffer = input_buffer;
             }
             query_changed.store(true, std::memory_order_release);
             query_changed.notify_one();
         }
 
         // Check for new results
+        bool new_results_available = false;
         if (results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
             display_results.clear();
             display_results.reserve(current_matches.size());
-            const size_t visible_action_count = std::min(current_matches.size(), MAX_VISIBLE_OPTIONS);
+            const size_t visible_action_count =
+                std::min(current_matches.size(), MAX_VISIBLE_OPTIONS);
             for (size_t i = 0; i < visible_action_count; i++) {
                 display_results.push_back(ui::Action{
                     .title = current_matches.at(i).data(),
                     .description = "",
                 });
             }
-            needs_redraw = true;
+            new_results_available = true;
         }
 
+        bool needs_redraw = input.selected_action_index_changed ||
+                            input.input_buffer_changed || new_results_available || first_iteration;
+
         if (needs_redraw) {
-            ui::draw(display, window, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT, query_buffer,
-                     OPTION_HEIGHT, display_results, selected_index);
-            needs_redraw = false;
+            ui::draw(display, window, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT,
+                     query_buffer, OPTION_HEIGHT, display_results,
+                     action_index);
         }
+
+        first_iteration = false;
     }
 
     // Signal threads to exit
