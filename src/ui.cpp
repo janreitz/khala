@@ -288,7 +288,15 @@ void draw(Display *display, Window window, const State &state, int width,
         // Draw selection highlight
         if (i == selection_index) {
             cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
-            cairo_rectangle(cr, 0, y_pos, width, action_height);
+
+            // Use rounded bottom corners if this is the last item
+            const bool is_last_item = (i == dropdown_items.size() - 1);
+            if (is_last_item) {
+                draw_rounded_rect(cr, 0, y_pos, width, action_height, corner_radius,
+                                  Corner::BottomLeft | Corner::BottomRight);
+            } else {
+                draw_rounded_rect(cr, 0, y_pos, width, action_height, 0, Corner::NoCorners);
+            }
             cairo_fill(cr);
         }
 
