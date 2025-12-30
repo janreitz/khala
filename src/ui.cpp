@@ -72,7 +72,7 @@ static void draw_rounded_rect(cairo_t* cr, double x, double y, double width, dou
     cairo_close_path(cr);
 }
 
-UserInput process_input_events(Display* display,  std::string& input_buffer, size_t selected_action_index, size_t max_action_index)
+UserInput process_input_events(Display* display,  std::string& input_buffer, size_t& selected_action_index, size_t max_action_index)
 {
     XEvent event;
 
@@ -93,12 +93,14 @@ UserInput process_input_events(Display* display,  std::string& input_buffer, siz
                 // Move selection up
                 if (selected_action_index > 0) {
                     selected_action_index--;
+                    state.selected_action_index_changed = true;
                 }
                 printf("Selected index: %ld\n", selected_action_index);
             } else if (keysym == XK_Down) {
                 // Move selection down
                 if (selected_action_index < max_action_index) {
                     selected_action_index++;
+                    state.selected_action_index_changed = true;
                 }
                 printf("Selected index: %ld\n", selected_action_index);
             } else if (keysym == XK_Return) {

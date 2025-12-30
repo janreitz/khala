@@ -17,7 +17,7 @@ struct UserInput {
     bool action_requested = false;
 };
 
-UserInput process_input_events(Display* display, std::string& input_buffer, size_t selected_action_index, size_t max_action_index);
+UserInput process_input_events(Display* display, std::string& input_buffer, size_t& selected_action_index, size_t max_action_index);
 
 struct Action {
     std::string title;
