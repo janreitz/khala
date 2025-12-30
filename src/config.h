@@ -9,9 +9,8 @@ namespace fs = std::filesystem;
 struct Config {
     // Window
     int width = 800;
-    int height = 400;
     int input_height = 40;
-    int item_height = 32;
+    int item_height = 24;
     size_t max_visible_items = 10;
 
     // Appearance
