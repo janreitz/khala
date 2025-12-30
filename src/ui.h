@@ -20,6 +20,7 @@ struct Item {
 
 struct State {
     std::string input_buffer;
+    size_t cursor_position = 0;
 
     // Results
     std::vector<Item> items;
@@ -37,6 +38,7 @@ enum class Event {
     NoEvent,
     InputChanged,
     SelectionChanged,
+    CursorPositionChanged,
     ActionRequested,
     ContextMenuToggled,
     ExitRequested,

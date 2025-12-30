@@ -134,30 +134,55 @@ Event process_input_events(Display *display, State &state)
                         out_event = Event::SelectionChanged;
                     }
                 }
-            } else if (keysym == XK_Right) {
+            } else if (keysym == XK_Tab) {
                 // Open context menu
-                if (!state.context_menu_open &&
+                if (!state.context_menu_open && !state.items.empty() &&
                     !state.get_selected_item().actions.empty()) {
                     state.context_menu_open = true;
                     state.selected_action_index = 0;
                     out_event = Event::ContextMenuToggled;
                 }
             } else if (keysym == XK_Left) {
-                // Close context menu
                 if (state.context_menu_open) {
+                    // Close context menu
                     state.context_menu_open = false;
                     out_event = Event::ContextMenuToggled;
+                } else {
+                    // Move cursor left
+                    if (state.cursor_position > 0) {
+                        state.cursor_position--;
+                        out_event = Event::CursorPositionChanged;
+                    }
+                }
+            } else if (keysym == XK_Right) {
+                // Move cursor right (only when not in context menu)
+                if (!state.context_menu_open && state.cursor_position < state.input_buffer.size()) {
+                    state.cursor_position++;
+                    out_event = Event::CursorPositionChanged;
+                }
+            } else if (keysym == XK_Home) {
+                // Jump to beginning
+                if (!state.context_menu_open) {
+                    state.cursor_position = 0;
+                    out_event = Event::CursorPositionChanged;
+                }
+            } else if (keysym == XK_End) {
+                // Jump to end
+                if (!state.context_menu_open) {
+                    state.cursor_position = state.input_buffer.size();
+                    out_event = Event::CursorPositionChanged;
                 }
             } else if (keysym == XK_Return) {
                 out_event = Event::ActionRequested;
             } else if (keysym == XK_BackSpace) {
-                // Handle backspace
-                if (!state.input_buffer.empty()) {
-                    state.input_buffer.pop_back();
+                // Handle backspace at cursor position
+                if (!state.input_buffer.empty() && state.cursor_position > 0) {
+                    state.input_buffer.erase(state.cursor_position - 1, 1);
+                    state.cursor_position--;
                     out_event = Event::InputChanged;
                 }
             } else {
-                // Handle regular character input
+                // Handle regular character input at cursor position
                 std::array<char, 32> char_buffer;
                 const int len =
                     XLookupString(&event.xkey, char_buffer.data(),
@@ -167,7 +192,8 @@ Event process_input_events(Display *display, State &state)
                     // Only add printable characters
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                            state.input_buffer += char_buffer[i];
+                            state.input_buffer.insert(state.cursor_position, 1, char_buffer[i]);
+                            state.cursor_position++;
                             out_event = Event::InputChanged;
                         }
                     }
@@ -238,9 +264,15 @@ void draw(Display *display, Window window, const State &state, int width,
     pango_layout_set_font_description(layout, font_desc);
 
     // Draw search prompt and buffer
-    std::string display_text = state.input_buffer;
-    if (state.input_buffer.empty()) {
-        display_text += "Search files... (prefix > for utility actions)";
+    std::string display_text;
+    if (state.context_menu_open) {
+        // Show selected item title when in context menu
+        display_text = state.get_selected_item().title + " › Actions";
+    } else {
+        display_text = state.input_buffer;
+        if (state.input_buffer.empty()) {
+            display_text = "Search files... (prefix > for utility actions)";
+        }
     }
 
     pango_layout_set_text(layout, display_text.c_str(), -1);
@@ -256,13 +288,24 @@ void draw(Display *display, Window window, const State &state, int width,
     cairo_move_to(cr, 10, text_y);
     pango_cairo_show_layout(cr, layout);
 
-    // Draw cursor after text if there's content
-    if (!state.input_buffer.empty()) {
+    // Draw cursor at cursor position when not in context menu
+    if (!state.context_menu_open) {
+        // Get width of text up to cursor position
+        const std::string text_before_cursor = state.input_buffer.substr(0, state.cursor_position);
+        pango_layout_set_text(layout, text_before_cursor.c_str(), -1);
+        int cursor_x_offset;
+        int cursor_height;
+        pango_layout_get_size(layout, &cursor_x_offset, &cursor_height);
+
+        // Draw cursor line
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-        cairo_move_to(cr, 10 + (text_width / PANGO_SCALE), text_y);
-        cairo_line_to(cr, 10 + (text_width / PANGO_SCALE),
-                      text_y + (text_height / PANGO_SCALE));
+        const double cursor_x = 10 + (cursor_x_offset / PANGO_SCALE);
+        cairo_move_to(cr, cursor_x, text_y);
+        cairo_line_to(cr, cursor_x, text_y + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
+
+        // Restore original text for layout
+        pango_layout_set_text(layout, display_text.c_str(), -1);
     }
 
     struct DropdownItem {
