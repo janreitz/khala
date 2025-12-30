@@ -496,7 +496,7 @@ void draw(XWindow& window, const Config& config, const State &state)
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
-            display_text = "Search files... (prefix > for utility actions)";
+            display_text = "Search files... (prefix > for utility actions, ! for applications)";
         }
     }
 
@@ -587,6 +587,8 @@ void draw(XWindow& window, const Config& config, const State &state)
             cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         }
 
+        // Draw the title text
+        pango_layout_set_text(layout, dropdown_items.at(i).title.c_str(), -1);
         int text_width_unused, text_height;
         pango_layout_get_size(layout, &text_width_unused, &text_height);
         const double text_y_centered = y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;

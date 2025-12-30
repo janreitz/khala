@@ -39,6 +39,7 @@ struct Item {
 struct State {
     std::string input_buffer;
     size_t cursor_position = 0;
+    std::string current_query; // Current search query for highlighting
 
     // Results
     std::vector<Item> items;
