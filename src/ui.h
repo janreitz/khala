@@ -1,4 +1,5 @@
 #include "actions.h"
+#include "config.h"
 #include "utility.h"
 
 #include <string>
@@ -46,7 +47,7 @@ enum class Event {
 
 Event process_input_events(Display *display, State &state);
 
-void draw(Display *display, Window window, const State &state, int width,
-          int height, int input_height, int action_height);
+void draw(Display *display, Window window, const Config& config, const State &state, 
+          int height);
 
 } // namespace ui

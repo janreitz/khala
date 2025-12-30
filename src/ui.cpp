@@ -156,7 +156,8 @@ Event process_input_events(Display *display, State &state)
                 }
             } else if (keysym == XK_Right) {
                 // Move cursor right (only when not in context menu)
-                if (!state.context_menu_open && state.cursor_position < state.input_buffer.size()) {
+                if (!state.context_menu_open &&
+                    state.cursor_position < state.input_buffer.size()) {
                     state.cursor_position++;
                     out_event = Event::CursorPositionChanged;
                 }
@@ -192,7 +193,8 @@ Event process_input_events(Display *display, State &state)
                     // Only add printable characters
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                            state.input_buffer.insert(state.cursor_position, 1, char_buffer[i]);
+                            state.input_buffer.insert(state.cursor_position, 1,
+                                                      char_buffer[i]);
                             state.cursor_position++;
                             out_event = Event::InputChanged;
                         }
@@ -205,8 +207,8 @@ Event process_input_events(Display *display, State &state)
     return out_event;
 }
 
-void draw(Display *display, Window window, const State &state, int width,
-          int height, int input_height, int action_height)
+void draw(Display *display, Window window, const Config& config, const State &state, 
+          int height)
 {
     // Get the window's visual (which should be ARGB for transparency)
     XWindowAttributes window_attrs;
@@ -215,7 +217,7 @@ void draw(Display *display, Window window, const State &state, int width,
 
     // Create Cairo surface for X11 window
     cairo_surface_t *surface =
-        cairo_xlib_surface_create(display, window, visual, width, height);
+        cairo_xlib_surface_create(display, window, visual, config.width, height);
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
@@ -238,27 +240,28 @@ void draw(Display *display, Window window, const State &state, int width,
     const double border_width = 3.0;
 
     // Fill entire window with input color (grey)
-    draw_rounded_rect(cr, 0, 0, width, height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, config.width, height, corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 0.92, 0.92, 0.92);
     cairo_fill(cr);
 
     // Draw white background for dropdown area if there are items
-    if (height > input_height) {
+    if (height > config.input_height) {
         cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
-        draw_rounded_rect(cr, 0, input_height, width, height - input_height,
-                          corner_radius, Corner::BottomLeft | Corner::BottomRight);
+        draw_rounded_rect(cr, 0, config.input_height, config.width, height - config.input_height,
+                          corner_radius,
+                          Corner::BottomLeft | Corner::BottomRight);
         cairo_fill(cr);
     }
 
     // Draw white border around entire window
-    draw_rounded_rect(cr, 0, 0, width, height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, config.width, height, corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_set_line_width(cr, border_width);
     cairo_stroke(cr);
 
     // Set font for launcher
-    PangoFontDescription *font_desc =
-        pango_font_description_from_string("Sans 12");
+    PangoFontDescription *font_desc = pango_font_description_from_string(
+        (config.font_name + " " + std::to_string(config.font_size)).c_str());
     const defer cleanup_font(
         [font_desc]() noexcept { pango_font_description_free(font_desc); });
     pango_layout_set_font_description(layout, font_desc);
@@ -282,7 +285,7 @@ void draw(Display *display, Window window, const State &state, int width,
     int text_width;
     int text_height;
     pango_layout_get_size(layout, &text_width, &text_height);
-    const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
+    const double text_y = (config.input_height - (text_height / PANGO_SCALE)) / 2.0;
 
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, text_y);
@@ -291,7 +294,8 @@ void draw(Display *display, Window window, const State &state, int width,
     // Draw cursor at cursor position when not in context menu
     if (!state.context_menu_open) {
         // Get width of text up to cursor position
-        const std::string text_before_cursor = state.input_buffer.substr(0, state.cursor_position);
+        const std::string text_before_cursor =
+            state.input_buffer.substr(0, state.cursor_position);
         pango_layout_set_text(layout, text_before_cursor.c_str(), -1);
         int cursor_x_offset;
         int cursor_height;
@@ -313,29 +317,29 @@ void draw(Display *display, Window window, const State &state, int width,
         std::string description;
     };
 
-    auto to_dropdown = [](const auto& x) {
+    auto to_dropdown = [](const auto &x) {
         return DropdownItem{.title = x.title, .description = x.description};
     };
 
-    auto [dropdown_items, selection_index] = [&]() -> std::pair<std::vector<DropdownItem>, size_t> {
+    auto [dropdown_items, selection_index] =
+        [&]() -> std::pair<std::vector<DropdownItem>, size_t> {
         if (state.context_menu_open) {
-            auto transformed = state.get_selected_item().actions | std::views::transform(to_dropdown);
-            return {
-                std::vector<DropdownItem>(transformed.begin(), transformed.end()),
-                state.selected_action_index
-            };
+            auto transformed = state.get_selected_item().actions |
+                               std::views::transform(to_dropdown);
+            return {std::vector<DropdownItem>(transformed.begin(),
+                                              transformed.end()),
+                    state.selected_action_index};
         } else {
             auto transformed = state.items | std::views::transform(to_dropdown);
-            return {
-                std::vector<DropdownItem>(transformed.begin(), transformed.end()),
-                state.selected_item_index
-            };
+            return {std::vector<DropdownItem>(transformed.begin(),
+                                              transformed.end()),
+                    state.selected_item_index};
         }
     }();
 
     // Draw dropdown items
     for (size_t i = 0; i < dropdown_items.size(); ++i) {
-        const int y_pos = input_height + (i * action_height);
+        const int y_pos = config.input_height + (i * config.item_height);
 
         // Draw selection highlight
         if (i == selection_index) {
@@ -344,10 +348,12 @@ void draw(Display *display, Window window, const State &state, int width,
             // Use rounded bottom corners if this is the last item
             const bool is_last_item = (i == dropdown_items.size() - 1);
             if (is_last_item) {
-                draw_rounded_rect(cr, 0, y_pos, width, action_height, corner_radius,
+                draw_rounded_rect(cr, 0, y_pos, config.width, config.item_height,
+                                  corner_radius,
                                   Corner::BottomLeft | Corner::BottomRight);
             } else {
-                draw_rounded_rect(cr, 0, y_pos, width, action_height, 0, Corner::NoCorners);
+                draw_rounded_rect(cr, 0, y_pos, config.width, config.item_height, 0,
+                                  Corner::NoCorners);
             }
             cairo_fill(cr);
         }
@@ -375,7 +381,9 @@ void draw(Display *display, Window window, const State &state, int width,
             const int spacing = 10;
             const int left_margin = 15;
             const int right_margin = 15;
-            const int available_width = width - left_margin - (title_width / PANGO_SCALE) - spacing - right_margin;
+            const int available_width = config.width - left_margin -
+                                        (title_width / PANGO_SCALE) - spacing -
+                                        right_margin;
 
             // Set subtle grey color for description
             if (i == selection_index) {
@@ -385,12 +393,15 @@ void draw(Display *display, Window window, const State &state, int width,
             }
 
             // Set description text with middle ellipsization
-            pango_layout_set_text(layout, dropdown_items.at(i).description.c_str(), -1);
+            pango_layout_set_text(layout,
+                                  dropdown_items.at(i).description.c_str(), -1);
             pango_layout_set_width(layout, available_width * PANGO_SCALE);
             pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
 
             // Draw description with some spacing after the title
-            cairo_move_to(cr, left_margin + (title_width / PANGO_SCALE) + spacing, y_pos + 8);
+            cairo_move_to(cr,
+                          left_margin + (title_width / PANGO_SCALE) + spacing,
+                          y_pos + 8);
             pango_cairo_show_layout(cr, layout);
 
             // Reset layout settings for next iteration

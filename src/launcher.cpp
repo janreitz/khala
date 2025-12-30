@@ -278,8 +278,7 @@ int main(int argc, char *argv[])
                                   new_results_available || first_iteration || height_changed;
 
         if (needs_redraw) {
-            ui::draw(display, window, state, config.width, current_window_height, config.input_height,
-                     config.item_height);
+            ui::draw(display, window, config, state, current_window_height);
         }
 
         first_iteration = false;
