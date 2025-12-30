@@ -1,6 +1,6 @@
 # Khala
 
-A lightweight application launcher and file finder for Linux, built with C++, cairo, pango, and X11.
+A lightweight application launcher and file finder for Linux and X11.
 
 - **File search**: Default mode - search for files and directories
 - **App search**: Prefix with `!` to search for applications only
@@ -12,7 +12,7 @@ A lightweight application launcher and file finder for Linux, built with C++, ca
 
 - C++ compiler with C++23 support (GCC 13+, Clang 14+)
 - CMake 3.20+
-- X11 development libraries (libX11, libXrandr)
+- X11 development libraries (libX11, libXrandr (extension for multi-monitor setups))
 - Cairo development libraries
 - Pango development libraries
 - Intel TBB (Threading Building Blocks) for parallel ranking
