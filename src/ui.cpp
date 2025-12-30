@@ -17,6 +17,61 @@
 namespace ui
 {
 
+enum class Corner : uint8_t {
+    NoCorners        = 0,
+    TopLeft     = 1 << 0,
+    TopRight    = 1 << 1,
+    BottomRight = 1 << 2,
+    BottomLeft  = 1 << 3,
+    All         = TopLeft | TopRight | BottomRight | BottomLeft
+};
+
+// Bitwise operators for Corner enum
+constexpr Corner operator|(Corner a, Corner b) {
+    return static_cast<Corner>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+}
+
+constexpr bool operator&(Corner a, Corner b) {
+    return static_cast<uint8_t>(a) & static_cast<uint8_t>(b);
+}
+
+static void draw_rounded_rect(cairo_t* cr, double x, double y, double width, double height,
+                               double radius, Corner corners) {
+    const double degrees = G_PI / 180.0;
+
+    cairo_new_sub_path(cr);
+
+    // Top-right corner
+    if (corners & Corner::TopRight) {
+        cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+    } else {
+        cairo_move_to(cr, x + width, y);
+    }
+
+    // Bottom-right corner
+    if (corners & Corner::BottomRight) {
+        cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
+    } else {
+        cairo_line_to(cr, x + width, y + height);
+    }
+
+    // Bottom-left corner
+    if (corners & Corner::BottomLeft) {
+        cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
+    } else {
+        cairo_line_to(cr, x, y + height);
+    }
+
+    // Top-left corner
+    if (corners & Corner::TopLeft) {
+        cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+    } else {
+        cairo_line_to(cr, x, y);
+    }
+
+    cairo_close_path(cr);
+}
+
 UserInput process_input_events(Display* display,  std::string& input_buffer, size_t selected_action_index, size_t max_action_index)
 {
     XEvent event;
@@ -84,9 +139,10 @@ void draw(Display *display, Window window, int width, int height,
           int input_height, const std::string &input_buffer, int action_height,
           const std::vector<Action> &actions, size_t selected_action_index)
 {
-    // Get the default visual
-    const int screen = DefaultScreen(display);
-    Visual *visual = DefaultVisual(display, screen);
+    // Get the window's visual (which should be ARGB for transparency)
+    XWindowAttributes window_attrs;
+    XGetWindowAttributes(display, window, &window_attrs);
+    Visual *visual = window_attrs.visual;
 
     // Create Cairo surface for X11 window
     cairo_surface_t *surface =
@@ -102,9 +158,25 @@ void draw(Display *display, Window window, int width, int height,
     PangoLayout *layout = pango_cairo_create_layout(cr);
     const defer cleanup_layout([layout]() noexcept { g_object_unref(layout); });
 
-    // Clear background with white
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    // Clear everything with transparent background
+    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     cairo_paint(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+
+    // Draw entire window background with rounded corners
+    const double corner_radius = 8.0;
+    draw_rounded_rect(cr, 0, 0, width, height, corner_radius, Corner::All);
+    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    cairo_fill(cr);
+
+    // Draw inset rounded rectangle for search input area
+    const double inset = 4.0;
+    const double input_corner_radius = 4.0;
+    draw_rounded_rect(cr, inset, inset, width - 2 * inset, input_height - inset,
+                      input_corner_radius, Corner::All);
+    cairo_set_source_rgb(cr, 0.5, 0.5, 0.5); // Light gray background
+    cairo_fill(cr);
 
     // Set font for launcher
     PangoFontDescription *font_desc =
@@ -112,11 +184,6 @@ void draw(Display *display, Window window, int width, int height,
     const defer cleanup_font(
         [font_desc]() noexcept { pango_font_description_free(font_desc); });
     pango_layout_set_font_description(layout, font_desc);
-
-    // Draw search input area
-    cairo_set_source_rgb(cr, 0.95, 0.95, 0.95); // Light gray background
-    cairo_rectangle(cr, 0, 0, width, input_height);
-    cairo_fill(cr);
 
     // Draw search prompt and buffer
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
@@ -143,12 +210,6 @@ void draw(Display *display, Window window, int width, int height,
                       15 + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
     }
-
-    // Draw separator line
-    cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
-    cairo_move_to(cr, 0, input_height);
-    cairo_line_to(cr, width, input_height);
-    cairo_stroke(cr);
 
     // Draw dropdown options
     for (size_t i = 0; i < actions.size(); ++i) {
