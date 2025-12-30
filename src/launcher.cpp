@@ -22,7 +22,7 @@ namespace fs = std::filesystem;
 
 int main(int argc, char *argv[])
 {
-    Config config = Config::load(Config::default_path());
+    const Config config = Config::load(Config::default_path());
 
     // Shared state
     PackedStrings indexed_paths;

@@ -82,7 +82,6 @@ Config Config::load(const fs::path& path) {
     
     // Window
     cfg.width = get_int_or(map, "width", cfg.width);
-    cfg.height = get_int_or(map, "height", cfg.height);
     cfg.input_height = get_int_or(map, "input_height", cfg.input_height);
     cfg.item_height = get_int_or(map, "item_height", cfg.item_height);
     cfg.max_visible_items = get_size_or(map, "max_visible_items", cfg.max_visible_items);
@@ -106,7 +105,6 @@ void Config::save(const fs::path& path) const {
     
     file << "# Window dimensions\n";
     file << "width=" << width << "\n";
-    file << "height=" << height << "\n";
     file << "input_height=" << input_height << "\n";
     file << "item_height=" << item_height << "\n";
     file << "max_visible_items=" << max_visible_items << "\n";
