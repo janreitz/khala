@@ -139,7 +139,7 @@ UserInput process_input_events(Display* display,  std::string& input_buffer, siz
 
 void draw(Display *display, Window window, int width, int height,
           int input_height, const std::string &input_buffer, int action_height,
-          const std::vector<Action> &actions, size_t selected_action_index)
+          const std::vector<Item> &actions, size_t selected_action_index)
 {
     // Get the window's visual (which should be ARGB for transparency)
     XWindowAttributes window_attrs;
@@ -179,6 +179,8 @@ void draw(Display *display, Window window, int width, int height,
                       input_corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 0.5, 0.5, 0.5); // Light gray background
     cairo_fill(cr);
+    cairo_set_source_rgb(cr, 0.5, 0.5, 0.5); // Light gray background
+    cairo_stroke(cr);
 
     // Set font for launcher
     PangoFontDescription *font_desc =
@@ -235,6 +237,26 @@ void draw(Display *display, Window window, int width, int height,
         cairo_move_to(cr, 15, y_pos + 8);
         pango_layout_set_text(layout, actions.at(i).title.c_str(), -1);
         pango_cairo_show_layout(cr, layout);
+
+        // Draw description to the right of the title in subtle grey
+        if (!actions.at(i).description.empty()) {
+            // Get the width of the title text
+            int title_width;
+            int title_height;
+            pango_layout_get_size(layout, &title_width, &title_height);
+
+            // Set subtle grey color for description
+            if (i == selected_action_index) {
+                cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);  // Light grey on blue background
+            } else {
+                cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);     // Medium grey on white background
+            }
+
+            // Draw description with some spacing after the title
+            cairo_move_to(cr, 15 + (title_width / PANGO_SCALE) + 10, y_pos + 8);
+            pango_layout_set_text(layout, actions.at(i).description.c_str(), -1);
+            pango_cairo_show_layout(cr, layout);
+        }
 
         // Reset font for next iteration
         pango_layout_set_font_description(layout, font_desc);

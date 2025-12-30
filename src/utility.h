@@ -24,6 +24,9 @@ struct defer {
     C _callable;
 };
 
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
 struct RankResult {
     size_t index;
     float score;

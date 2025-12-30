@@ -34,6 +34,7 @@ add_executable(launcher
     src/indexer.cpp
     src/utility.cpp
     src/fuzzy.cpp
+    src/actions.cpp
     src/ui.cpp
 )
 
