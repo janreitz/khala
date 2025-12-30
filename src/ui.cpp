@@ -208,18 +208,25 @@ void draw(Display *display, Window window, const State &state, int width,
 
     // Draw entire window background with rounded corners
     const double corner_radius = 8.0;
+    const double border_width = 3.0;
+
+    // Fill entire window with input color (grey)
     draw_rounded_rect(cr, 0, 0, width, height, corner_radius, Corner::All);
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    cairo_set_source_rgb(cr, 0.92, 0.92, 0.92);
     cairo_fill(cr);
 
-    // Draw inset rounded rectangle for search input area
-    const double inset = 4.0;
-    const double input_corner_radius = 4.0;
-    draw_rounded_rect(cr, inset, inset, width - 2 * inset, input_height - inset,
-                      input_corner_radius, Corner::All);
-    cairo_set_source_rgb(cr, 0.5, 0.5, 0.5); // Light gray background
-    cairo_fill(cr);
-    cairo_set_source_rgb(cr, 0.5, 0.5, 0.5); // Light gray background
+    // Draw white background for dropdown area if there are items
+    if (height > input_height) {
+        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        draw_rounded_rect(cr, 0, input_height, width, height - input_height,
+                          corner_radius, Corner::BottomLeft | Corner::BottomRight);
+        cairo_fill(cr);
+    }
+
+    // Draw white border around entire window
+    draw_rounded_rect(cr, 0, 0, width, height, corner_radius, Corner::All);
+    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    cairo_set_line_width(cr, border_width);
     cairo_stroke(cr);
 
     // Set font for launcher
@@ -230,9 +237,6 @@ void draw(Display *display, Window window, const State &state, int width,
     pango_layout_set_font_description(layout, font_desc);
 
     // Draw search prompt and buffer
-    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-    cairo_move_to(cr, 10, 15);
-
     std::string display_text = "> " + state.input_buffer;
     if (state.input_buffer.empty()) {
         display_text += "(type to search...)";
@@ -240,18 +244,23 @@ void draw(Display *display, Window window, const State &state, int width,
 
     pango_layout_set_text(layout, display_text.c_str(), -1);
     pango_layout_set_attributes(layout, nullptr);
+
+    // Get text dimensions for vertical centering
+    int text_width;
+    int text_height;
+    pango_layout_get_size(layout, &text_width, &text_height);
+    const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
+
+    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_move_to(cr, 10, text_y);
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor after text if there's content
     if (!state.input_buffer.empty()) {
-        int text_width;
-        int text_height;
-        pango_layout_get_size(layout, &text_width, &text_height);
-
         cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
-        cairo_move_to(cr, 10 + (text_width / PANGO_SCALE), 15);
+        cairo_move_to(cr, 10 + (text_width / PANGO_SCALE), text_y);
         cairo_line_to(cr, 10 + (text_width / PANGO_SCALE),
-                      15 + (text_height / PANGO_SCALE));
+                      text_y + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
     }
 
