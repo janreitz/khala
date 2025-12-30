@@ -5,10 +5,12 @@
 #include <filesystem>
 #include <string>
 #include <variant>
+#include <optional>
 #include <vector>
 
 namespace fs = std::filesystem;
 
+// File commands
 struct OpenFile {
     fs::path path;
 };
@@ -30,9 +32,14 @@ struct CopyUnixTimestamp {
 struct CopyUUID {
 };
 
+struct CustomCommand {
+    std::optional<fs::path> path;
+    std::string shell_cmd;
+};
+
 using Command = std::variant<OpenFile, OpenContainingFolder,
                              CopyPathToClipboard, CopyContentToClipboard,
-                             CopyISOTimestamp, CopyUnixTimestamp, CopyUUID>;
+                             CopyISOTimestamp, CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
 struct Action {
     std::string title;
@@ -42,6 +49,6 @@ struct Action {
 
 std::vector<Action> make_file_actions(const fs::path &path, const Config& config);
 
-const std::vector<Action>& get_utility_actions();
+std::vector<Action> get_global_actions(const Config& config);
 
 void process_command(const Command &command, const Config& config);
