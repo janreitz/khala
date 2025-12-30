@@ -1,6 +1,6 @@
+#include "actions.h"
 #include "fuzzy.h"
 #include "indexer.h"
-#include "actions.h"
 #include "ui.h"
 #include "utility.h"
 
@@ -136,8 +136,10 @@ int main(int argc, char *argv[])
     XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
 
     // Create colormap for ARGB visual
-    const Colormap colormap = XCreateColormap(display, RootWindow(display, screen), vinfo.visual, AllocNone);
-    const defer cleanup_colormap([display, colormap]() noexcept { XFreeColormap(display, colormap); });
+    const Colormap colormap = XCreateColormap(
+        display, RootWindow(display, screen), vinfo.visual, AllocNone);
+    const defer cleanup_colormap(
+        [display, colormap]() noexcept { XFreeColormap(display, colormap); });
 
     // Create window attributes
     XSetWindowAttributes attrs;
@@ -148,10 +150,12 @@ int main(int argc, char *argv[])
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
 
     // Create the window with ARGB visual for transparency
-    const Window window = XCreateWindow(
-        display, RootWindow(display, screen), x, y, WIDTH, TOTAL_HEIGHT, 0,
-        vinfo.depth, InputOutput, vinfo.visual,
-        CWOverrideRedirect | CWColormap | CWBackPixel | CWBorderPixel | CWEventMask, &attrs);
+    const Window window =
+        XCreateWindow(display, RootWindow(display, screen), x, y, WIDTH,
+                      TOTAL_HEIGHT, 0, vinfo.depth, InputOutput, vinfo.visual,
+                      CWOverrideRedirect | CWColormap | CWBackPixel |
+                          CWBorderPixel | CWEventMask,
+                      &attrs);
 
     const defer cleanup_window(
         [display, window]() noexcept { XDestroyWindow(display, window); });
@@ -180,47 +184,39 @@ int main(int argc, char *argv[])
     printf("Launcher window opened. Press ESC to close.\n");
 
     // Event loop
-    std::string input_buffer;
-    size_t action_index = 0;
-
-    std::vector<ui::Item> display_results;
-
+    ui::State state;
     bool first_iteration = true;
 
     while (true) {
-        const size_t max_action_index =
-            std::min(display_results.size() - 1, MAX_VISIBLE_OPTIONS - 1);
-        ui::UserInput input = ui::process_input_events(
-            display, input_buffer, action_index, max_action_index);
+        const auto event = ui::process_input_events(display, state);
 
-        if (input.exit_requested) {
+        if (event == ui::Event::NoEvent) {
+        } else if (event == ui::Event::ExitRequested) {
             break;
-        }
-
-        if (input.action_requested) {
-            printf("Selected: %s\n", current_matches.at(action_index).data());
-        }
-
-        if (input.input_buffer_changed) {
+        } else if (event == ui::Event::ActionRequested) {
+            printf("Selected: %s\n", current_matches.at(state.selected_item_index).data());
+        } else if (event == ui::Event::InputChanged) {
+            state.selected_item_index =
+                0; // Reset selection when search changes
             {
                 std::lock_guard lock(query_mutex);
-                query_buffer = input_buffer;
+                query_buffer = state.input_buffer;
             }
             query_changed.store(true, std::memory_order_release);
             query_changed.notify_one();
         }
-        
+
         // Check for new results
         bool new_results_available = false;
         if (results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
-            display_results.clear();
-            display_results.reserve(current_matches.size());
+            state.items.clear();
+            state.items.reserve(current_matches.size());
             const size_t visible_action_count =
                 std::min(current_matches.size(), MAX_VISIBLE_OPTIONS);
             for (size_t i = 0; i < visible_action_count; i++) {
                 fs::path path(current_matches.at(i).data());
-                display_results.push_back(ui::Item{
+                state.items.push_back(ui::Item{
                     .title = path.filename(),
                     .description = path.parent_path(),
                     .actions = make_file_actions(path),
@@ -229,13 +225,12 @@ int main(int argc, char *argv[])
             new_results_available = true;
         }
 
-        const bool needs_redraw = input.selected_action_index_changed ||
-                            input.input_buffer_changed || new_results_available || first_iteration;
+        const bool needs_redraw = event != ui::Event::NoEvent ||
+                                  new_results_available || first_iteration;
 
         if (needs_redraw) {
-            ui::draw(display, window, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT,
-                     query_buffer, OPTION_HEIGHT, display_results,
-                     action_index);
+            ui::draw(display, window, state, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT,
+                     OPTION_HEIGHT);
         }
 
         first_iteration = false;

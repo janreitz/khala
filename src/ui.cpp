@@ -18,53 +18,61 @@ namespace ui
 {
 
 enum class Corner : uint8_t {
-    NoCorners        = 0,
-    TopLeft     = 1 << 0,
-    TopRight    = 1 << 1,
+    NoCorners = 0,
+    TopLeft = 1 << 0,
+    TopRight = 1 << 1,
     BottomRight = 1 << 2,
-    BottomLeft  = 1 << 3,
-    All         = TopLeft | TopRight | BottomRight | BottomLeft
+    BottomLeft = 1 << 3,
+    All = TopLeft | TopRight | BottomRight | BottomLeft
 };
 
 // Bitwise operators for Corner enum
-constexpr Corner operator|(Corner a, Corner b) {
-    return static_cast<Corner>(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+constexpr Corner operator|(Corner a, Corner b)
+{
+    return static_cast<Corner>(static_cast<uint8_t>(a) |
+                               static_cast<uint8_t>(b));
 }
 
-constexpr bool operator&(Corner a, Corner b) {
+constexpr bool operator&(Corner a, Corner b)
+{
     return static_cast<uint8_t>(a) & static_cast<uint8_t>(b);
 }
 
-static void draw_rounded_rect(cairo_t* cr, double x, double y, double width, double height,
-                               double radius, Corner corners) {
+static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
+                              double height, double radius, Corner corners)
+{
     const double degrees = G_PI / 180.0;
 
     cairo_new_sub_path(cr);
 
     // Top-right corner
     if (corners & Corner::TopRight) {
-        cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+        cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees,
+                  0 * degrees);
     } else {
         cairo_move_to(cr, x + width, y);
     }
 
     // Bottom-right corner
     if (corners & Corner::BottomRight) {
-        cairo_arc(cr, x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
+        cairo_arc(cr, x + width - radius, y + height - radius, radius,
+                  0 * degrees, 90 * degrees);
     } else {
         cairo_line_to(cr, x + width, y + height);
     }
 
     // Bottom-left corner
     if (corners & Corner::BottomLeft) {
-        cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
+        cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees,
+                  180 * degrees);
     } else {
         cairo_line_to(cr, x, y + height);
     }
 
     // Top-left corner
     if (corners & Corner::TopLeft) {
-        cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+        cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees,
+                  270 * degrees);
     } else {
         cairo_line_to(cr, x, y);
     }
@@ -72,11 +80,11 @@ static void draw_rounded_rect(cairo_t* cr, double x, double y, double width, dou
     cairo_close_path(cr);
 }
 
-UserInput process_input_events(Display* display,  std::string& input_buffer, size_t& selected_action_index, size_t max_action_index)
+Event process_input_events(Display *display, State &state)
 {
     XEvent event;
 
-    UserInput state;
+    Event out_event = Event::NoEvent;
 
     while (XPending(display) > 0) {
         XNextEvent(display, &event);
@@ -88,29 +96,28 @@ UserInput process_input_events(Display* display,  std::string& input_buffer, siz
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
             if (keysym == XK_Escape) {
-                state.exit_requested = true;
+                out_event = Event::ExitRequested;
             } else if (keysym == XK_Up) {
                 // Move selection up
-                if (selected_action_index > 0) {
-                    selected_action_index--;
-                    state.selected_action_index_changed = true;
+                if (state.selected_item_index > 0) {
+                    state.selected_item_index--;
+                    out_event = Event::SelectionChanged;
                 }
-                printf("Selected index: %ld\n", selected_action_index);
+                printf("Selected index: %ld\n", state.selected_item_index);
             } else if (keysym == XK_Down) {
                 // Move selection down
-                if (selected_action_index < max_action_index) {
-                    selected_action_index++;
-                    state.selected_action_index_changed = true;
+                if (state.selected_item_index < state.items.size() - 1) {
+                    state.selected_item_index++;
+                    out_event = Event::SelectionChanged;
                 }
-                printf("Selected index: %ld\n", selected_action_index);
+                printf("Selected index: %ld\n", state.selected_item_index);
             } else if (keysym == XK_Return) {
-                    state.action_requested = true; // Exit for now
+                out_event = Event::ActionRequested;
             } else if (keysym == XK_BackSpace) {
                 // Handle backspace
-                if (!input_buffer.empty()) {
-                    input_buffer.pop_back();
-                    state.input_buffer_changed = true;
-                    selected_action_index = 0; // Reset selection when search changes
+                if (!state.input_buffer.empty()) {
+                    state.input_buffer.pop_back();
+                    out_event = Event::InputChanged;
                 }
             } else {
                 // Handle regular character input
@@ -123,10 +130,8 @@ UserInput process_input_events(Display* display,  std::string& input_buffer, siz
                     // Only add printable characters
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                            input_buffer += char_buffer[i];
-                            state.input_buffer_changed = true;
-                            selected_action_index =
-                                0; // Reset selection when search changes
+                            state.input_buffer += char_buffer[i];
+                            out_event = Event::InputChanged;
                         }
                     }
                 }
@@ -134,12 +139,11 @@ UserInput process_input_events(Display* display,  std::string& input_buffer, siz
             break;
         }
     }
-    return state;
+    return out_event;
 }
 
-void draw(Display *display, Window window, int width, int height,
-          int input_height, const std::string &input_buffer, int action_height,
-          const std::vector<Item> &actions, size_t selected_action_index)
+void draw(Display *display, Window window, const State &state, int width, int height,
+          int input_height, int action_height)
 {
     // Get the window's visual (which should be ARGB for transparency)
     XWindowAttributes window_attrs;
@@ -193,8 +197,8 @@ void draw(Display *display, Window window, int width, int height,
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, 15);
 
-    std::string display_text = "> " + input_buffer;
-    if (input_buffer.empty()) {
+    std::string display_text = "> " + state.input_buffer;
+    if (state.input_buffer.empty()) {
         display_text += "(type to search...)";
     }
 
@@ -203,7 +207,7 @@ void draw(Display *display, Window window, int width, int height,
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor after text if there's content
-    if (!input_buffer.empty()) {
+    if (!state.input_buffer.empty()) {
         int text_width;
         int text_height;
         pango_layout_get_size(layout, &text_width, &text_height);
@@ -216,18 +220,18 @@ void draw(Display *display, Window window, int width, int height,
     }
 
     // Draw dropdown options
-    for (size_t i = 0; i < actions.size(); ++i) {
+    for (size_t i = 0; i < state.items.size(); ++i) {
         const int y_pos = input_height + (i * action_height);
 
         // Draw selection highlight
-        if (i == selected_action_index) {
+        if (i == state.selected_item_index) {
             cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
             cairo_rectangle(cr, 0, y_pos, width, action_height);
             cairo_fill(cr);
         }
 
         // Set text color (white on selected, black on normal)
-        if (i == selected_action_index) {
+        if (i == state.selected_item_index) {
             cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
         } else {
             cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
@@ -235,26 +239,29 @@ void draw(Display *display, Window window, int width, int height,
 
         // Draw filename (main text)
         cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout, actions.at(i).title.c_str(), -1);
+        pango_layout_set_text(layout, state.items.at(i).title.c_str(), -1);
         pango_cairo_show_layout(cr, layout);
 
         // Draw description to the right of the title in subtle grey
-        if (!actions.at(i).description.empty()) {
+        if (!state.items.at(i).description.empty()) {
             // Get the width of the title text
             int title_width;
             int title_height;
             pango_layout_get_size(layout, &title_width, &title_height);
 
             // Set subtle grey color for description
-            if (i == selected_action_index) {
-                cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);  // Light grey on blue background
+            if (i == state.selected_item_index) {
+                cairo_set_source_rgb(cr, 0.85, 0.85,
+                                     0.85); // Light grey on blue background
             } else {
-                cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);     // Medium grey on white background
+                cairo_set_source_rgb(cr, 0.5, 0.5,
+                                     0.5); // Medium grey on white background
             }
 
             // Draw description with some spacing after the title
             cairo_move_to(cr, 15 + (title_width / PANGO_SCALE) + 10, y_pos + 8);
-            pango_layout_set_text(layout, actions.at(i).description.c_str(), -1);
+            pango_layout_set_text(layout, state.items.at(i).description.c_str(),
+                                  -1);
             pango_cairo_show_layout(cr, layout);
         }
 
