@@ -49,6 +49,7 @@ target_include_directories(launcher PRIVATE
 
 target_link_libraries(launcher PRIVATE
     ${X11_LIBRARIES}
+    ${X11_Xrandr_LIB}
     ${CAIRO_LIBRARIES}
     ${PANGO_LIBRARIES}
     ${PANGOCAIRO_LIBRARIES}
