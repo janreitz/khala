@@ -35,6 +35,7 @@ struct CopyUUID {
 struct CustomCommand {
     std::optional<fs::path> path;
     std::string shell_cmd;
+    bool stdout_to_clipboard = false;
 };
 
 using Command = std::variant<OpenFile, OpenContainingFolder,

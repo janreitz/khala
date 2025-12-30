@@ -137,6 +137,8 @@ Config Config::load(const fs::path &path)
 
             const bool is_file_action =
                 get_bool_or(map, "is_file_action", false);
+            const bool stdout_to_clipboard =
+                get_bool_or(map, "stdout_to_clipboard", false);
             std::string title = get_string_or(map, "title", "");
             std::string description = get_string_or(map, "description", "");
             std::string shell_cmd = get_string_or(map, "shell_cmd", "");
@@ -149,6 +151,7 @@ Config Config::load(const fs::path &path)
                 .description = description,
                 .shell_cmd = shell_cmd,
                 .is_file_action = is_file_action,
+                .stdout_to_clipboard = stdout_to_clipboard,
             });
         }
     }
