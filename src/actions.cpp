@@ -65,7 +65,7 @@ std::vector<Action> make_file_actions(const fs::path &path)
 {
     return {
         Action{.title = "Open File",
-               .description = "",
+               .description = "Description...",
                .command = OpenFile{path}},
         Action{.title = "Open Containing Folder",
                .description = "",
