@@ -28,8 +28,14 @@ static constexpr int WIDTH = 600;
 static constexpr int INPUT_HEIGHT = 40;
 static constexpr int OPTION_HEIGHT = 30;
 static constexpr size_t MAX_VISIBLE_OPTIONS = 8;
-static constexpr int DROPDOWN_HEIGHT = MAX_VISIBLE_OPTIONS * OPTION_HEIGHT;
-static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
+
+static int calculate_window_height(const ui::State& state) {
+    const size_t item_count = state.context_menu_open
+        ? state.get_selected_item().actions.size()
+        : state.items.size();
+    const size_t visible_items = std::min(item_count, MAX_VISIBLE_OPTIONS);
+    return INPUT_HEIGHT + (visible_items * OPTION_HEIGHT);
+}
 
 int main(int argc, char *argv[])
 {
@@ -149,10 +155,11 @@ int main(int argc, char *argv[])
     attrs.border_pixel = 0;
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
 
-    // Create the window with ARGB visual for transparency
+    // Create the window with ARGB visual for transparency (initial size)
+    const int initial_height = INPUT_HEIGHT + (MAX_VISIBLE_OPTIONS * OPTION_HEIGHT);
     const Window window =
         XCreateWindow(display, RootWindow(display, screen), x, y, WIDTH,
-                      TOTAL_HEIGHT, 0, vinfo.depth, InputOutput, vinfo.visual,
+                      initial_height, 0, vinfo.depth, InputOutput, vinfo.visual,
                       CWOverrideRedirect | CWColormap | CWBackPixel |
                           CWBorderPixel | CWEventMask,
                       &attrs);
@@ -185,6 +192,7 @@ int main(int argc, char *argv[])
 
     // Event loop
     ui::State state;
+    int current_window_height = initial_height;
     bool first_iteration = true;
 
     while (true) {
@@ -226,11 +234,21 @@ int main(int argc, char *argv[])
             new_results_available = true;
         }
 
+        // Calculate window height based on item count
+        const int new_height = calculate_window_height(state);
+        const bool height_changed = new_height != current_window_height;
+
+        // Resize window if height changed
+        if (height_changed) {
+            XResizeWindow(display, window, WIDTH, new_height);
+            current_window_height = new_height;
+        }
+
         const bool needs_redraw = event != ui::Event::NoEvent ||
-                                  new_results_available || first_iteration;
+                                  new_results_available || first_iteration || height_changed;
 
         if (needs_redraw) {
-            ui::draw(display, window, state, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT,
+            ui::draw(display, window, state, WIDTH, current_window_height, INPUT_HEIGHT,
                      OPTION_HEIGHT);
         }
 
