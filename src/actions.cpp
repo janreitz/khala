@@ -1,4 +1,5 @@
 #include "actions.h"
+#include "config.h"
 #include "utility.h"
 
 #include <unistd.h>
@@ -64,20 +65,20 @@ std::string read_file(const fs::path& path) {
 
 } // anonymous namespace
 
-std::vector<Action> make_file_actions(const fs::path &path)
+std::vector<Action> make_file_actions(const fs::path &path, const Config& config)
 {
     return {
         Action{.title = "Open File",
-               .description = "Description...",
+               .description = config.editor,
                .command = OpenFile{path}},
         Action{.title = "Open Containing Folder",
-               .description = "",
+               .description = config.file_manager,
                .command = OpenContainingFolder{path}},
         Action{.title = "Copy Path to Clipboard",
-               .description = "",
+               .description = "xclip -selection clipboard",
                .command = CopyPathToClipboard{path}},
         Action{.title = "Copy Content to Clipboard",
-               .description = "",
+               .description = "xclip -selection clipboard",
                .command = CopyContentToClipboard{path}},
     };
 }
@@ -98,13 +99,13 @@ const std::vector<Action>& get_utility_actions()
     return actions;
 }
 
-void process_command(const Command& cmd) {
+void process_command(const Command& cmd, const Config& config) {
     std::visit(overloaded{
-        [](const OpenFile& c) {
-            run_command({"xdg-open", c.path.string()});
+        [&](const OpenFile& c) {
+            run_command({config.editor, c.path.string()});
         },
-        [](const OpenContainingFolder& c) {
-            run_command({"xdg-open", c.path.parent_path().string()});
+        [&](const OpenContainingFolder& c) {
+            run_command({config.file_manager, c.path.parent_path().string()});
         },
         [](const CopyPathToClipboard& c) {
             copy_to_clipboard(c.path.string());

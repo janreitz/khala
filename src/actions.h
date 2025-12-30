@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <filesystem>
 #include <string>
 #include <variant>
@@ -38,8 +40,8 @@ struct Action {
     Command command;
 };
 
-std::vector<Action> make_file_actions(const fs::path &path);
+std::vector<Action> make_file_actions(const fs::path &path, const Config& config);
 
 const std::vector<Action>& get_utility_actions();
 
-void process_command(const Command &command);
+void process_command(const Command &command, const Config& config);
