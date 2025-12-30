@@ -12,6 +12,7 @@
 #include "pango/pango-types.h"
 #include <pango/pangocairo.h>
 
+#include <algorithm>
 #include <string>
 
 namespace ui
@@ -106,18 +107,46 @@ Event process_input_events(Display *display, State &state)
                 out_event = Event::ExitRequested;
             } else if (keysym == XK_Up) {
                 // Move selection up
-                if (state.selected_item_index > 0) {
-                    state.selected_item_index--;
-                    out_event = Event::SelectionChanged;
+                if (state.context_menu_open) {
+                    if (state.selected_action_index > 0) {
+                        state.selected_action_index--;
+                        out_event = Event::SelectionChanged;
+                    }
+                } else {
+                    if (state.selected_item_index > 0) {
+                        state.selected_item_index--;
+                        out_event = Event::SelectionChanged;
+                    }
                 }
-                printf("Selected index: %ld\n", state.selected_item_index);
             } else if (keysym == XK_Down) {
                 // Move selection down
-                if (state.selected_item_index < state.items.size() - 1) {
-                    state.selected_item_index++;
-                    out_event = Event::SelectionChanged;
+                if (state.context_menu_open) {
+                    const size_t max_action_index =
+                        state.get_selected_item().actions.size() - 1;
+                    if (state.selected_action_index < max_action_index) {
+                        state.selected_action_index++;
+                        out_event = Event::SelectionChanged;
+                    }
+                } else {
+                    if (state.selected_item_index < state.items.size() - 1) {
+                        state.selected_item_index++;
+                        out_event = Event::SelectionChanged;
+                    }
                 }
-                printf("Selected index: %ld\n", state.selected_item_index);
+            } else if (keysym == XK_Right) {
+                // Open context menu
+                if (!state.context_menu_open &&
+                    !state.get_selected_item().actions.empty()) {
+                    state.context_menu_open = true;
+                    state.selected_action_index = 0;
+                    out_event = Event::ContextMenuToggled;
+                }
+            } else if (keysym == XK_Left) {
+                // Close context menu
+                if (state.context_menu_open) {
+                    state.context_menu_open = false;
+                    out_event = Event::ContextMenuToggled;
+                }
             } else if (keysym == XK_Return) {
                 out_event = Event::ActionRequested;
             } else if (keysym == XK_BackSpace) {
@@ -226,19 +255,45 @@ void draw(Display *display, Window window, const State &state, int width,
         cairo_stroke(cr);
     }
 
-    // Draw dropdown options
-    for (size_t i = 0; i < state.items.size(); ++i) {
+    struct DropdownItem {
+        std::string title;
+        std::string description;
+    };
+    std::vector<DropdownItem> dropdown_items;
+    size_t selection_index;
+
+    if (state.context_menu_open) {
+        const auto &actions = state.get_selected_item().actions;
+        std::transform(actions.cbegin(), actions.cend(),
+                       std::back_inserter(dropdown_items), [](auto action) {
+                           return DropdownItem{.title = action.title,
+                                               .description =
+                                                   action.description};
+                       });
+            selection_index = state.selected_action_index;
+    } else {
+        const auto &items = state.items;
+        std::transform(items.cbegin(), items.cend(),
+                       std::back_inserter(dropdown_items), [](auto item) {
+                           return DropdownItem{.title = item.title,
+                                               .description = item.description};
+                       });
+                       selection_index = state.selected_item_index;
+    }
+
+    // Draw dropdown items
+    for (size_t i = 0; i < dropdown_items.size(); ++i) {
         const int y_pos = input_height + (i * action_height);
 
         // Draw selection highlight
-        if (i == state.selected_item_index) {
+        if (i == selection_index) {
             cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
             cairo_rectangle(cr, 0, y_pos, width, action_height);
             cairo_fill(cr);
         }
 
         // Set text color (white on selected, black on normal)
-        if (i == state.selected_item_index) {
+        if (i == selection_index) {
             cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
         } else {
             cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
@@ -246,29 +301,27 @@ void draw(Display *display, Window window, const State &state, int width,
 
         // Draw filename (main text)
         cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout, state.items.at(i).title.c_str(), -1);
+        pango_layout_set_text(layout, dropdown_items.at(i).title.c_str(), -1);
         pango_cairo_show_layout(cr, layout);
 
         // Draw description to the right of the title in subtle grey
-        if (!state.items.at(i).description.empty()) {
+        if (!dropdown_items.at(i).description.empty()) {
             // Get the width of the title text
             int title_width;
             int title_height;
             pango_layout_get_size(layout, &title_width, &title_height);
 
             // Set subtle grey color for description
-            if (i == state.selected_item_index) {
-                cairo_set_source_rgb(cr, 0.85, 0.85,
-                                     0.85); // Light grey on blue background
+            if (i == selection_index) {
+                cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);
             } else {
-                cairo_set_source_rgb(cr, 0.5, 0.5,
-                                     0.5); // Medium grey on white background
+                cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
             }
 
             // Draw description with some spacing after the title
             cairo_move_to(cr, 15 + (title_width / PANGO_SCALE) + 10, y_pos + 8);
-            pango_layout_set_text(layout, state.items.at(i).description.c_str(),
-                                  -1);
+            pango_layout_set_text(layout,
+                                  dropdown_items.at(i).description.c_str(), -1);
             pango_cairo_show_layout(cr, layout);
         }
 
