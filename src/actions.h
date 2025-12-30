@@ -26,7 +26,7 @@ using Command = std::variant<OpenFile, OpenContainingFolder,
 struct Action {
     std::string title;
     std::string description;
-    std::vector<Command> commands;
+    Command command;
 };
 
 std::vector<Action> make_file_actions(const fs::path &path);

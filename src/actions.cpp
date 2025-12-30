@@ -66,16 +66,16 @@ std::vector<Action> make_file_actions(const fs::path &path)
     return {
         Action{.title = "Open File",
                .description = "",
-               .commands = {OpenFile{path}}},
+               .command = OpenFile{path}},
         Action{.title = "Open Containing Folder",
                .description = "",
-               .commands = {OpenContainingFolder{path}}},
+               .command = OpenContainingFolder{path}},
         Action{.title = "Copy Path to Clipboard",
                .description = "",
-               .commands = {CopyPathToClipboard{path}}},
+               .command = CopyPathToClipboard{path}},
         Action{.title = "Copy Content to Clipboard",
                .description = "",
-               .commands = {CopyContentToClipboard{path}}},
+               .command = CopyContentToClipboard{path}},
     };
 }
 

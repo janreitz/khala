@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
             break;
         } else if (event == ui::Event::ActionRequested) {
             printf("Selected: %s\n", current_matches.at(state.selected_item_index).data());
+            process_command(state.get_selected_action().command);
         } else if (event == ui::Event::InputChanged) {
             state.selected_item_index =
                 0; // Reset selection when search changes

@@ -28,6 +28,9 @@ struct State {
     // Context menu
     bool context_menu_open = false;
     size_t selected_action_index = 0;
+
+    Item get_selected_item() const;
+    Action get_selected_action() const;
 };
 
 enum class Event {
