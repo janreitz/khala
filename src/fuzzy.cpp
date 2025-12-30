@@ -64,4 +64,32 @@ float fuzzy_score(std::string_view path, std::string_view query) {
     
     return score;
 }
+
+std::vector<size_t> fuzzy_match(std::string_view path, std::string_view query) {
+    std::vector<size_t> match_positions;
+    
+    if (query.empty() || path.empty()) {
+        return match_positions;
+    }
+    
+    size_t query_idx = 0;
+    
+    for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
+        char pc = std::tolower(static_cast<unsigned char>(path[i]));
+        char qc = std::tolower(static_cast<unsigned char>(query[query_idx]));
+        
+        if (pc == qc) {
+            match_positions.push_back(i);
+            query_idx++;
+        }
+    }
+    
+    // If we didn't match the entire query, return empty (no highlighting)
+    if (query_idx < query.size()) {
+        match_positions.clear();
+    }
+    
+    return match_positions;
+}
+
 }
