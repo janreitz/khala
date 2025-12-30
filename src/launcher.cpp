@@ -5,11 +5,6 @@
 #include "ui.h"
 #include "utility.h"
 
-#include <X11/X.h>
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-
 #include <algorithm>
 #include <ranges>
 #include <atomic>
@@ -24,14 +19,6 @@
 #include <utility>
 
 namespace fs = std::filesystem;
-
-static int calculate_window_height(const Config& config, const ui::State& state) {
-    const size_t item_count = state.context_menu_open
-        ? state.get_selected_item().actions.size()
-        : state.items.size();
-    const size_t visible_items = std::min(item_count, config.max_visible_items);
-    return config.input_height + (visible_items * config.item_height);
-}
 
 int main(int argc, char *argv[])
 {
@@ -117,84 +104,12 @@ int main(int argc, char *argv[])
 
     printf("Loaded %zu files\n", indexed_paths.size());
 
-    // Open connection to X server
-    Display *display = XOpenDisplay(nullptr);
-    if (display == nullptr) {
-        fprintf(stderr, "Cannot open display\n");
-        return 1;
-    }
-    const defer cleanup_display(
-        [display]() noexcept { XCloseDisplay(display); });
-
-    const int screen = DefaultScreen(display);
-
-    // Get screen dimensions for centering
-    const int screen_width = DisplayWidth(display, screen);
-    const int screen_height = DisplayHeight(display, screen);
-
-    const int x = (screen_width - config.width) / 2;
-    const int y = screen_height / 4;
-
-    // Find ARGB visual for transparency support
-    XVisualInfo vinfo;
-    XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
-
-    // Create colormap for ARGB visual
-    const Colormap colormap = XCreateColormap(
-        display, RootWindow(display, screen), vinfo.visual, AllocNone);
-    const defer cleanup_colormap(
-        [display, colormap]() noexcept { XFreeColormap(display, colormap); });
-
-    // Create window attributes
-    XSetWindowAttributes attrs;
-    attrs.override_redirect = True;
-    attrs.colormap = colormap;
-    attrs.background_pixel = 0;
-    attrs.border_pixel = 0;
-    attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
-
-    // Create the window with ARGB visual for transparency (initial size)
-    const int initial_height = config.input_height + (config.max_visible_items * config.item_height);
-    const Window window =
-        XCreateWindow(display, RootWindow(display, screen), x, y, config.width,
-                      initial_height, 0, vinfo.depth, InputOutput, vinfo.visual,
-                      CWOverrideRedirect | CWColormap | CWBackPixel |
-                          CWBorderPixel | CWEventMask,
-                      &attrs);
-
-    const defer cleanup_window(
-        [display, window]() noexcept { XDestroyWindow(display, window); });
-
-    // Set window type hint
-    const Atom windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
-    const Atom dialogType =
-        XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
-    XChangeProperty(display, window, windowType, XA_ATOM, 32, PropModeReplace,
-                    (unsigned char *)&dialogType, 1);
-
-    // Set window to stay on top
-    const Atom stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
-    const Atom stateAbove = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
-    XChangeProperty(display, window, stateAtom, XA_ATOM, 32, PropModeReplace,
-                    (unsigned char *)&stateAbove, 1);
-
-    // Map (show) the window
-    XMapRaised(display, window);
-
-    // Grab keyboard focus
-    XSetInputFocus(display, window, RevertToParent, CurrentTime);
-
-    XFlush(display);
-
-    printf("Launcher window opened. Press ESC to close.\n");
-
-    // Event loop
+    ui::XWindow window(config);
     ui::State state;
-    int current_window_height = initial_height;
     bool first_iteration = true;
 
     while (true) {
-        const auto event = ui::process_input_events(display, state);
+        const auto event = ui::process_input_events(window.display, state);
 
         if (event == ui::Event::NoEvent) {
         } else if (event == ui::Event::ExitRequested) {
@@ -264,21 +179,11 @@ int main(int argc, char *argv[])
             new_results_available = true;
         }
 
-        // Calculate window height based on item count
-        const int new_height = calculate_window_height(config, state);
-        const bool height_changed = new_height != current_window_height;
-
-        // Resize window if height changed
-        if (height_changed) {
-            XResizeWindow(display, window, config.width, new_height);
-            current_window_height = new_height;
-        }
-
         const bool needs_redraw = event != ui::Event::NoEvent ||
-                                  new_results_available || first_iteration || height_changed;
+                                  new_results_available || first_iteration;
 
         if (needs_redraw) {
-            ui::draw(display, window, config, state, current_window_height);
+            ui::draw(window, config, state);
         }
 
         first_iteration = false;

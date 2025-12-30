@@ -19,6 +19,70 @@
 namespace ui
 {
 
+XWindow::XWindow(const Config& config) : width(config.width) {
+    display = XOpenDisplay(nullptr);
+    if (!display) {
+        throw std::runtime_error("Cannot open display");
+    }
+    
+    const int screen = DefaultScreen(display);
+    const int screen_width = DisplayWidth(display, screen);
+    const int screen_height = DisplayHeight(display, screen);
+    const int x = (screen_width - config.width) / 2;
+    const int y = screen_height / 4;
+    
+    XVisualInfo vinfo;
+    XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
+    
+    colormap = XCreateColormap(
+        display, RootWindow(display, screen), vinfo.visual, AllocNone);
+    
+    XSetWindowAttributes attrs;
+    attrs.override_redirect = True;
+    attrs.colormap = colormap;
+    attrs.background_pixel = 0;
+    attrs.border_pixel = 0;
+    attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
+    
+    height = config.input_height + (config.max_visible_items * config.item_height);
+    
+    window = XCreateWindow(
+        display, RootWindow(display, screen), x, y, width, height,
+        0, vinfo.depth, InputOutput, vinfo.visual,
+        CWOverrideRedirect | CWColormap | CWBackPixel | CWBorderPixel | CWEventMask,
+        &attrs);
+    
+    Atom windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+    Atom dialogType = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+    XChangeProperty(display, window, windowType, XA_ATOM, 32, PropModeReplace,
+                    (unsigned char*)&dialogType, 1);
+    
+    Atom stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
+    Atom stateAbove = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
+    XChangeProperty(display, window, stateAtom, XA_ATOM, 32, PropModeReplace,
+                    (unsigned char*)&stateAbove, 1);
+    
+    XMapRaised(display, window);
+    XSetInputFocus(display, window, RevertToParent, CurrentTime);
+    XFlush(display);
+}
+
+XWindow::~XWindow() {
+    if (display) {
+        if (window) XDestroyWindow(display, window);
+        if (colormap) XFreeColormap(display, colormap);
+        XCloseDisplay(display);
+    }
+}
+
+int calculate_window_height(const Config& config, const State& state) {
+    const size_t item_count = state.context_menu_open
+        ? state.get_selected_item().actions.size()
+        : state.items.size();
+    const size_t visible_items = std::min(item_count, config.max_visible_items);
+    return config.input_height + (visible_items * config.item_height);
+}
+
 Item State::get_selected_item() const { return items.at(selected_item_index); }
 
 Action State::get_selected_action() const
@@ -207,17 +271,23 @@ Event process_input_events(Display *display, State &state)
     return out_event;
 }
 
-void draw(Display *display, Window window, const Config& config, const State &state, 
-          int height)
+void draw(XWindow& window, const Config& config, const State &state)
 {
+        // Calculate window height based on item count
+        const int new_height = calculate_window_height(config, state);
+        if (new_height != window.height) {
+            XResizeWindow(window.display, window.window, config.width, new_height);
+            window.height = new_height;
+        }
+
     // Get the window's visual (which should be ARGB for transparency)
     XWindowAttributes window_attrs;
-    XGetWindowAttributes(display, window, &window_attrs);
+    XGetWindowAttributes(window.display, window.window, &window_attrs);
     Visual *visual = window_attrs.visual;
 
     // Create Cairo surface for X11 window
     cairo_surface_t *surface =
-        cairo_xlib_surface_create(display, window, visual, config.width, height);
+        cairo_xlib_surface_create(window.display, window.window, visual, config.width, window.height);
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
@@ -240,21 +310,21 @@ void draw(Display *display, Window window, const Config& config, const State &st
     const double border_width = 3.0;
 
     // Fill entire window with input color (grey)
-    draw_rounded_rect(cr, 0, 0, config.width, height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, config.width, window.height, corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 0.92, 0.92, 0.92);
     cairo_fill(cr);
 
     // Draw white background for dropdown area if there are items
-    if (height > config.input_height) {
+    if (window.height > config.input_height) {
         cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
-        draw_rounded_rect(cr, 0, config.input_height, config.width, height - config.input_height,
+        draw_rounded_rect(cr, 0, config.input_height, config.width, window.height - config.input_height,
                           corner_radius,
                           Corner::BottomLeft | Corner::BottomRight);
         cairo_fill(cr);
     }
 
     // Draw white border around entire window
-    draw_rounded_rect(cr, 0, 0, config.width, height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, config.width, window.height, corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_set_line_width(cr, border_width);
     cairo_stroke(cr);
