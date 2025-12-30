@@ -1,5 +1,6 @@
 #include "fuzzy.h"
 #include "indexer.h"
+#include "actions.h"
 #include "ui.h"
 #include "utility.h"
 
@@ -182,7 +183,7 @@ int main(int argc, char *argv[])
     std::string input_buffer;
     size_t action_index = 0;
 
-    std::vector<ui::Action> display_results;
+    std::vector<ui::Item> display_results;
 
     bool first_iteration = true;
 
@@ -208,7 +209,7 @@ int main(int argc, char *argv[])
             query_changed.store(true, std::memory_order_release);
             query_changed.notify_one();
         }
-
+        
         // Check for new results
         bool new_results_available = false;
         if (results_ready.exchange(false, std::memory_order_acquire)) {
@@ -218,15 +219,17 @@ int main(int argc, char *argv[])
             const size_t visible_action_count =
                 std::min(current_matches.size(), MAX_VISIBLE_OPTIONS);
             for (size_t i = 0; i < visible_action_count; i++) {
-                display_results.push_back(ui::Action{
-                    .title = current_matches.at(i).data(),
-                    .description = "",
+                fs::path path(current_matches.at(i).data());
+                display_results.push_back(ui::Item{
+                    .title = path.filename(),
+                    .description = path.parent_path(),
+                    .actions = make_file_actions(path),
                 });
             }
             new_results_available = true;
         }
 
-        bool needs_redraw = input.selected_action_index_changed ||
+        const bool needs_redraw = input.selected_action_index_changed ||
                             input.input_buffer_changed || new_results_available || first_iteration;
 
         if (needs_redraw) {

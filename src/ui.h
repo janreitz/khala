@@ -1,6 +1,8 @@
 #include "utility.h"
+#include "actions.h"
 
 #include <string>
+#include <variant>
 
 #include <X11/X.h>
 #include <X11/Xatom.h>
@@ -19,12 +21,15 @@ struct UserInput {
 
 UserInput process_input_events(Display* display, std::string& input_buffer, size_t& selected_action_index, size_t max_action_index);
 
-struct Action {
+
+struct Item {
     std::string title;
     std::string description;
+    std::vector<Action> actions;
 };
 
 void draw(Display *display, Window window, int width, int height,
           int input_height, const std::string &input_buffer, int action_height,
-          const std::vector<Action> &actions, size_t selected_index);
+          const std::vector<Item> &actions, size_t selected_index);
+
 } // namespace ui
