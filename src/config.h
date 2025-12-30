@@ -3,8 +3,16 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
+
+struct CustomActionDef {
+    std::string title;
+    std::string description;
+    std::string shell_cmd;
+    bool is_file_action;  // true = file action, false = global
+};
 
 struct Config {
     // Window
@@ -22,10 +30,13 @@ struct Config {
     std::string file_manager = "xdg-open";
     bool quit_on_action = true;
 
+    // Custom Actions
+    std::vector<CustomActionDef> custom_actions;
+
     // Paths
     static fs::path default_path();
+    fs::path config_path;
+    
     static Config load(const fs::path &path);
     void save(const fs::path &path) const;
-
-    fs::path config_path;
 };

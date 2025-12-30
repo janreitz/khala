@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
     ui::XWindow window(config);
     ui::State state;
     bool first_iteration = true;
+    const auto global_actions = get_global_actions(config);
 
     while (true) {
         const auto event = ui::process_input_events(window.display, state);
@@ -131,8 +132,8 @@ int main(int argc, char *argv[])
                 // Command palette mode - search utility commands
                 const std::string query = state.input_buffer.substr(1); // Strip '>'
 
-                auto to_item = [](const RankResult& r) {
-                    const auto& action = get_utility_actions()[r.index];
+                auto to_item = [&global_actions](const RankResult& r) {
+                    const auto& action = global_actions[r.index];
                     return ui::Item{
                         .title = action.title,
                         .description = action.description,
@@ -140,7 +141,7 @@ int main(int argc, char *argv[])
                     };
                 };
 
-                auto ranked = rank(get_utility_actions(),
+                auto ranked = rank(global_actions,
                                    [&query](const Action& action) {
                                        return fuzzy::fuzzy_score(action.title, query);
                                    },
