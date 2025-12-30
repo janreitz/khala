@@ -204,6 +204,7 @@ int main(int argc, char *argv[])
         } else if (event == ui::Event::ActionRequested) {
             printf("Selected: %s\n", current_matches.at(state.selected_item_index).data());
             process_command(state.get_selected_action().command);
+            break;
         } else if (event == ui::Event::InputChanged) {
             state.selected_item_index =
                 0; // Reset selection when search changes
@@ -215,7 +216,6 @@ int main(int argc, char *argv[])
                 // Command palette mode - search utility commands
                 const std::string query = state.input_buffer.substr(1); // Strip '>'
 
-                // Rank and transform utility actions to items using ranges pipeline
                 auto to_item = [](const RankResult& r) {
                     const auto& action = get_utility_actions()[r.index];
                     return ui::Item{
