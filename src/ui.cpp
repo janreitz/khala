@@ -234,7 +234,7 @@ XWindow::XWindow(const Config& config) {
     attrs.colormap = colormap;
     attrs.background_pixel = 0;
     attrs.border_pixel = 0;
-    attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
+    attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | FocusChangeMask;
     
     window = XCreateWindow(
         display, RootWindow(display, screen), x, y, width, height,
@@ -366,6 +366,9 @@ Event process_input_events(Display *display, State &state)
         if (event.type == Expose) {
             if (event.xexpose.count == 0) {
             }
+        } else if (event.type == ButtonPress) {
+            // Regain focus when clicked
+            XSetInputFocus(display, event.xbutton.window, RevertToParent, CurrentTime);
         } else if (event.type == KeyPress) {
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
