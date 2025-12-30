@@ -12,6 +12,7 @@ struct CustomActionDef {
     std::string description;
     std::string shell_cmd;
     bool is_file_action;  // true = file action, false = global
+    bool stdout_to_clipboard = false;  // true = capture stdout to clipboard
 };
 
 struct Config {

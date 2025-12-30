@@ -74,6 +74,9 @@ shell_cmd=echo "Hello World"
 # `true`: Command appears as action in file context menus
 # `false`: Command appears as action in command search
 is_file_action=false
+# `true`: Capture command stdout and copy to clipboard
+# `false`: Run command normally (default)
+stdout_to_clipboard=false
 ```
 
 ### Examples
@@ -86,15 +89,11 @@ shell_cmd=rm "$FILEPATH"
 is_file_action=true
 ```
 
-
 ```ini
 # ~/.khala/commands/generate_password.ini
 title=Generate Password
 description=Generate 16-character password and copy to clipboard
-shell_cmd=openssl rand -base64 16 | tr -d '\n' | xclip -selection clipboard
+shell_cmd=openssl rand -base64 16 | tr -d '\n'
 is_file_action=false
+stdout_to_clipboard=true
 ```
-
-## Requirements
-
-- Linux system with X11

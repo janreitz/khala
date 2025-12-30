@@ -15,6 +15,31 @@
 namespace
 {
 
+
+void copy_to_clipboard(const std::string &content)
+{
+    int pipefd[2];
+    if (pipe(pipefd) == -1)
+        return;
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child: read from pipe, exec xclip
+        close(pipefd[1]);
+        dup2(pipefd[0], STDIN_FILENO);
+        close(pipefd[0]);
+
+        execlp("xclip", "xclip", "-selection", "clipboard", nullptr);
+        _exit(1);
+    } else if (pid > 0) {
+        // Parent: write to pipe
+        close(pipefd[0]);
+        write(pipefd[1], content.data(), content.size());
+        close(pipefd[1]);
+        waitpid(pid, nullptr, 0);
+    }
+}
+
 void run_command(const std::vector<std::string> &args)
 {
     const pid_t pid = fork();
@@ -45,8 +70,65 @@ void run_command(const std::vector<std::string> &args)
     }
 }
 
+void run_custom_command_with_capture(const CustomCommand &cmd) {
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        return;
+    }
+
+    const pid_t pid = fork();
+    if (pid == 0) {
+        // Child process
+        close(pipefd[0]); // Close read end
+        dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
+        close(pipefd[1]);
+
+        if (cmd.path.has_value()) {
+            const auto &path = cmd.path.value();
+            setenv("FILEPATH", path.string().c_str(), 1);
+            setenv("FILENAME", path.filename().string().c_str(), 1);
+            setenv("PARENT_DIR", path.parent_path().string().c_str(), 1);
+            setenv("EXTENSION", path.extension().string().c_str(), 1);
+        }
+
+        execlp("sh", "sh", "-c", cmd.shell_cmd.c_str(), nullptr);
+        _exit(1);
+    } else if (pid > 0) {
+        // Parent process
+        close(pipefd[1]); // Close write end
+        
+        // Read the output
+        std::string output;
+        char buffer[4096];
+        ssize_t bytes_read;
+        while ((bytes_read = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
+            output.append(buffer, bytes_read);
+        }
+        close(pipefd[0]);
+        
+        // Wait for child to finish
+        waitpid(pid, nullptr, 0);
+        
+        // Remove trailing newline if present
+        if (!output.empty() && output.back() == '\n') {
+            output.pop_back();
+        }
+        
+        // Copy to clipboard
+        if (!output.empty()) {
+            copy_to_clipboard(output);
+        }
+    }
+}
+
 void run_custom_command(const CustomCommand &cmd)
 {
+    if (cmd.stdout_to_clipboard) {
+        run_custom_command_with_capture(cmd);
+        return;
+    }
+
     const pid_t pid = fork();
     if (pid == 0) {
         setsid();
@@ -72,29 +154,6 @@ void run_custom_command(const CustomCommand &cmd)
     }
 }
 
-void copy_to_clipboard(const std::string &content)
-{
-    int pipefd[2];
-    if (pipe(pipefd) == -1)
-        return;
-
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Child: read from pipe, exec xclip
-        close(pipefd[1]);
-        dup2(pipefd[0], STDIN_FILENO);
-        close(pipefd[0]);
-
-        execlp("xclip", "xclip", "-selection", "clipboard", nullptr);
-        _exit(1);
-    } else if (pid > 0) {
-        // Parent: write to pipe
-        close(pipefd[0]);
-        write(pipefd[1], content.data(), content.size());
-        close(pipefd[1]);
-        waitpid(pid, nullptr, 0);
-    }
-}
 
 std::string read_file(const fs::path &path)
 {
@@ -136,6 +195,7 @@ std::vector<Action> make_file_actions(const fs::path &path,
                 CustomCommand{
                     .path = path,
                     .shell_cmd = action_def.shell_cmd,
+                    .stdout_to_clipboard = action_def.stdout_to_clipboard,
                 },
         });
     }
@@ -169,6 +229,7 @@ std::vector<Action> get_global_actions(const Config &config)
                 CustomCommand{
                     .path = std::nullopt,
                     .shell_cmd = action_def.shell_cmd,
+                    .stdout_to_clipboard = action_def.stdout_to_clipboard,
                 },
         });
     }
