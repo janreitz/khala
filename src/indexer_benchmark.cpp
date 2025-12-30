@@ -33,21 +33,33 @@ int main(int argc, char *argv[])
             std::chrono::duration_cast<std::chrono::milliseconds>(scan_end -
                                                                   total_start);
 
-        auto ranked = rank_parallel(paths, [](std::string_view path) {
-            return fuzzy::fuzzy_score(path, "query");
-        }, 20);
+        auto ranked = rank_parallel(
+            paths,
+            [](std::string_view path) {
+                return fuzzy::fuzzy_score(path, "query");
+            },
+            20);
 
         auto rank_end = std::chrono::steady_clock::now();
         auto rank_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(rank_end -
                                                                   scan_end);
+
+        const auto desktop_apps = indexer::scan_desktop_files();
+        auto scan_desktop_end = std::chrono::steady_clock::now();
+        auto scan_desktop_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                scan_desktop_end - rank_end);
+
         auto total_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(rank_end -
+            std::chrono::duration_cast<std::chrono::milliseconds>(scan_desktop_end -
                                                                   total_start);
 
         printf("=================================\n");
-        printf("Indexing complete! Scan time: %ldms Rank time %ldms Total time: %ldms\n",
-               scan_duration.count(), rank_duration.count(), total_duration.count());
+        printf("Indexing complete! Scan filesystem time: %ldms Rank time %ldms Scan Desktop files time: %ldms  Total "
+               "time: %ldms\n",
+               scan_duration.count(), rank_duration.count(), scan_desktop_duration.count(),
+               total_duration.count());
     } catch (const std::exception &e) {
         fprintf(stderr, "Error: %s\n", e.what());
         return 1;
