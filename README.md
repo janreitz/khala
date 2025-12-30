@@ -1,24 +1,37 @@
 # Khala
 
-A fast, lightweight application launcher and file finder for Linux, built with C++ and X11.
-
-## Features
+A lightweight application launcher and file finder for Linux, built with C++, cairo, pango, and X11.
 
 - **File search**: Default mode - search for files and directories
 - **App search**: Prefix with `!` to search for applications only
 - **Command mode**: Prefix with `>` to access utility commands
-- **Custom commands**: Define your own utility commands and actions
+- **Custom commands**: Define your own utility commands and file actions
 - **Responsive design**: Scales with your screen size for optimal viewing
-
-## Installation
 
 ### Prerequisites
 
-- C++ compiler with C++20 support
-- CMake 3.10+
-- X11 development libraries
-- Cairo and Pango development libraries
-- GTK development libraries (for clipboard support)
+- C++ compiler with C++23 support (GCC 13+, Clang 14+)
+- CMake 3.20+
+- X11 development libraries (libX11, libXrandr)
+- Cairo development libraries
+- Pango development libraries
+- Intel TBB (Threading Building Blocks) for parallel ranking
+- pkg-config
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install build-essential cmake libx11-dev libxrandr-dev libcairo2-dev libpango1.0-dev libtbb-dev pkg-config
+```
+
+**Fedora/RHEL/CentOS:**
+```bash
+sudo dnf install gcc-c++ cmake libX11-devel libXrandr-devel cairo-devel pango-devel tbb-devel pkgconfig
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S base-devel cmake libx11 libxrandr cairo pango intel-tbb pkgconf
+```
 
 ### Build from source
 
@@ -63,21 +76,22 @@ shell_cmd=echo "Hello World"
 is_file_action=false
 ```
 
-#### Example File Action:
+### Examples
 
 ```ini
+# ~/.khala/commands/rm.ini
 title=Remove
-description=Open this file in Visual Studio Code
+description=Delete File
 shell_cmd=rm "$FILEPATH"
 is_file_action=true
 ```
 
-#### Example Global Action:
 
 ```ini
-title=System Monitor
-description=Open system monitor
-shell_cmd=htop
+# ~/.khala/commands/generate_password.ini
+title=Generate Password
+description=Generate 16-character password and copy to clipboard
+shell_cmd=openssl rand -base64 16 | tr -d '\n' | xclip -selection clipboard
 is_file_action=false
 ```
 
