@@ -13,6 +13,22 @@
 namespace ui
 {
 
+
+struct XWindow {
+    Display* display = nullptr;
+    ::Window window = 0;
+    Colormap colormap = 0;
+    int width = 0;
+    int height = 0;
+    
+    XWindow(const Config& config);
+    ~XWindow();
+    
+    // Non-copyable
+    XWindow(const XWindow&) = delete;
+    XWindow& operator=(const XWindow&) = delete;
+};
+
 struct Item {
     std::string title;
     std::string description;
@@ -47,7 +63,6 @@ enum class Event {
 
 Event process_input_events(Display *display, State &state);
 
-void draw(Display *display, Window window, const Config& config, const State &state, 
-          int height);
+void draw(XWindow& window, const Config& config, const State &state);
 
 } // namespace ui
