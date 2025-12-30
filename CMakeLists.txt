@@ -31,11 +31,12 @@ endif()
 
 add_executable(launcher
     src/launcher.cpp
-    src/indexer.cpp
-    src/utility.cpp
-    src/fuzzy.cpp
     src/actions.cpp
+    src/config.cpp
+    src/fuzzy.cpp
+    src/indexer.cpp
     src/ui.cpp
+    src/utility.cpp
 )
 
 target_include_directories(launcher PRIVATE

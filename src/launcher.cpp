@@ -1,4 +1,5 @@
 #include "actions.h"
+#include "config.h"
 #include "fuzzy.h"
 #include "indexer.h"
 #include "ui.h"
@@ -24,21 +25,18 @@
 
 namespace fs = std::filesystem;
 
-static constexpr int WIDTH = 600;
-static constexpr int INPUT_HEIGHT = 40;
-static constexpr int OPTION_HEIGHT = 30;
-static constexpr size_t MAX_VISIBLE_OPTIONS = 8;
-
-static int calculate_window_height(const ui::State& state) {
+static int calculate_window_height(const Config& config, const ui::State& state) {
     const size_t item_count = state.context_menu_open
         ? state.get_selected_item().actions.size()
         : state.items.size();
-    const size_t visible_items = std::min(item_count, MAX_VISIBLE_OPTIONS);
-    return INPUT_HEIGHT + (visible_items * OPTION_HEIGHT);
+    const size_t visible_items = std::min(item_count, config.max_visible_items);
+    return config.input_height + (visible_items * config.item_height);
 }
 
 int main(int argc, char *argv[])
 {
+    Config config = Config::load(Config::default_path());
+
     // Shared state
     PackedStrings indexed_paths;
     std::atomic_bool index_loaded{false};
@@ -134,7 +132,7 @@ int main(int argc, char *argv[])
     const int screen_width = DisplayWidth(display, screen);
     const int screen_height = DisplayHeight(display, screen);
 
-    const int x = (screen_width - WIDTH) / 2;
+    const int x = (screen_width - config.width) / 2;
     const int y = screen_height / 4;
 
     // Find ARGB visual for transparency support
@@ -156,9 +154,9 @@ int main(int argc, char *argv[])
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
 
     // Create the window with ARGB visual for transparency (initial size)
-    const int initial_height = INPUT_HEIGHT + (MAX_VISIBLE_OPTIONS * OPTION_HEIGHT);
+    const int initial_height = config.input_height + (config.max_visible_items * config.item_height);
     const Window window =
-        XCreateWindow(display, RootWindow(display, screen), x, y, WIDTH,
+        XCreateWindow(display, RootWindow(display, screen), x, y, config.width,
                       initial_height, 0, vinfo.depth, InputOutput, vinfo.visual,
                       CWOverrideRedirect | CWColormap | CWBackPixel |
                           CWBorderPixel | CWEventMask,
@@ -204,7 +202,9 @@ int main(int argc, char *argv[])
         } else if (event == ui::Event::ActionRequested) {
             printf("Selected: %s\n", current_matches.at(state.selected_item_index).data());
             process_command(state.get_selected_action().command);
-            break;
+            if (config.quit_on_action) {
+                break;
+            }
         } else if (event == ui::Event::InputChanged) {
             state.selected_item_index =
                 0; // Reset selection when search changes
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
                                    [&query](const Action& action) {
                                        return fuzzy::fuzzy_score(action.title, query);
                                    },
-                                   MAX_VISIBLE_OPTIONS);
+                                   config.max_visible_items);
 
                 auto transformed = ranked | std::views::transform(to_item);
                 state.items.assign(transformed.begin(), transformed.end());
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
             state.items.clear();
             state.items.reserve(current_matches.size());
             const size_t visible_action_count =
-                std::min(current_matches.size(), MAX_VISIBLE_OPTIONS);
+                std::min(current_matches.size(), config.max_visible_items);
             for (size_t i = 0; i < visible_action_count; i++) {
                 fs::path path(current_matches.at(i).data());
                 state.items.push_back(ui::Item{
@@ -265,12 +265,12 @@ int main(int argc, char *argv[])
         }
 
         // Calculate window height based on item count
-        const int new_height = calculate_window_height(state);
+        const int new_height = calculate_window_height(config, state);
         const bool height_changed = new_height != current_window_height;
 
         // Resize window if height changed
         if (height_changed) {
-            XResizeWindow(display, window, WIDTH, new_height);
+            XResizeWindow(display, window, config.width, new_height);
             current_window_height = new_height;
         }
 
@@ -278,8 +278,8 @@ int main(int argc, char *argv[])
                                   new_results_available || first_iteration || height_changed;
 
         if (needs_redraw) {
-            ui::draw(display, window, state, WIDTH, current_window_height, INPUT_HEIGHT,
-                     OPTION_HEIGHT);
+            ui::draw(display, window, state, config.width, current_window_height, config.input_height,
+                     config.item_height);
         }
 
         first_iteration = false;
