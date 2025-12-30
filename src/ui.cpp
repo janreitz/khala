@@ -17,6 +17,13 @@
 namespace ui
 {
 
+Item State::get_selected_item() const { return items.at(selected_item_index); }
+
+Action State::get_selected_action() const
+{
+    return get_selected_item().actions.at(selected_action_index);
+}
+
 enum class Corner : uint8_t {
     NoCorners = 0,
     TopLeft = 1 << 0,
@@ -142,8 +149,8 @@ Event process_input_events(Display *display, State &state)
     return out_event;
 }
 
-void draw(Display *display, Window window, const State &state, int width, int height,
-          int input_height, int action_height)
+void draw(Display *display, Window window, const State &state, int width,
+          int height, int input_height, int action_height)
 {
     // Get the window's visual (which should be ARGB for transparency)
     XWindowAttributes window_attrs;
