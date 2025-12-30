@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
             break;
         } else if (event == ui::Event::ActionRequested) {
             printf("Selected: %s\n", current_matches.at(state.selected_item_index).data());
-            process_command(state.get_selected_action().command);
+            process_command(state.get_selected_action().command, config);
             if (config.quit_on_action) {
                 break;
             }
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
                 state.items.push_back(ui::Item{
                     .title = path.filename(),
                     .description = path.parent_path(),
-                    .actions = make_file_actions(path),
+                    .actions = make_file_actions(path, config),
                 });
             }
             new_results_available = true;
@@ -197,6 +197,8 @@ int main(int argc, char *argv[])
     // Wait for threads
     index_future.wait();
     rank_future.wait();
+
+    config.save(config.config_path);
 
     return 0;
 }

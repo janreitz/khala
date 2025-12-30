@@ -71,7 +71,8 @@ fs::path Config::default_path() {
 
 Config Config::load(const fs::path& path) {
     Config cfg;
-    
+    cfg.config_path = path;
+
     if (!fs::exists(path)) {
         fs::create_directories(path.parent_path());
         cfg.save(path);
@@ -92,6 +93,8 @@ Config Config::load(const fs::path& path) {
     
     // Behavior
     cfg.quit_on_action = get_bool_or(map, "quit_on_action", cfg.quit_on_action);
+    cfg.editor = get_string_or(map, "editor", cfg.editor);
+    cfg.file_manager = get_string_or(map, "file_manager", cfg.file_manager);
     
     return cfg;
 }
@@ -117,4 +120,6 @@ void Config::save(const fs::path& path) const {
     
     file << "# Behavior\n";
     file << "quit_on_action=" << (quit_on_action ? "true" : "false") << "\n";
+    file << "editor=" << editor << "\n";
+    file << "file_manager=" << file_manager << "\n";
 }
