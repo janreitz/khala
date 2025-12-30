@@ -17,19 +17,29 @@
 namespace {
 
 void run_command(const std::vector<std::string>& args) {
-    pid_t pid = fork();
+    const pid_t pid = fork();
     if (pid == 0) {
-        // Child process
-        std::vector<char*> argv;
-        for (const auto& arg : args) {
-            argv.push_back(const_cast<char*>(arg.c_str()));
-        }
-        argv.push_back(nullptr);
+        // Detach from parent completely
+        setsid();
         
-        execvp(argv[0], argv.data());
-        _exit(1); // exec failed
+        // Double fork to avoid zombies
+        const pid_t pid2 = fork();
+        if (pid2 > 0) {
+            _exit(0);  // First child exits
+        } else if (pid2 == 0) {
+            // Grandchild runs the command
+            std::vector<char*> argv;
+            for (const auto& arg : args) {
+                argv.push_back(const_cast<char*>(arg.c_str()));
+            }
+            argv.push_back(nullptr);
+            
+            execvp(argv[0], argv.data());
+            _exit(1);
+        }
+        _exit(1); // Grandchild is orphaned at this point and will be reaped by init
     } else if (pid > 0) {
-        // Parent - wait for child
+        // Reap first child immediately (it exits right away)
         waitpid(pid, nullptr, 0);
     }
 }
@@ -101,17 +111,17 @@ const std::vector<Action>& get_utility_actions()
 
 void process_command(const Command& cmd, const Config& config) {
     std::visit(overloaded{
-        [&](const OpenFile& c) {
-            run_command({config.editor, c.path.string()});
+        [&](const OpenFile& cmd) {
+            run_command({config.editor, cmd.path.string()});
         },
-        [&](const OpenContainingFolder& c) {
-            run_command({config.file_manager, c.path.parent_path().string()});
+        [&](const OpenContainingFolder& cmd) {
+            run_command({config.file_manager, cmd.path.parent_path().string()});
         },
-        [](const CopyPathToClipboard& c) {
-            copy_to_clipboard(c.path.string());
+        [](const CopyPathToClipboard& cmd) {
+            copy_to_clipboard(cmd.path.string());
         },
-        [](const CopyContentToClipboard& c) {
-            copy_to_clipboard(read_file(c.path));
+        [](const CopyContentToClipboard& cmd) {
+            copy_to_clipboard(read_file(cmd.path));
         },
         [](const CopyISOTimestamp&) {
             auto now = std::chrono::system_clock::now();
