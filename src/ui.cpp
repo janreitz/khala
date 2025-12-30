@@ -13,6 +13,7 @@
 #include <pango/pangocairo.h>
 
 #include <algorithm>
+#include <ranges>
 #include <string>
 
 namespace ui
@@ -268,27 +269,26 @@ void draw(Display *display, Window window, const State &state, int width,
         std::string title;
         std::string description;
     };
-    std::vector<DropdownItem> dropdown_items;
-    size_t selection_index;
 
-    if (state.context_menu_open) {
-        const auto &actions = state.get_selected_item().actions;
-        std::transform(actions.cbegin(), actions.cend(),
-                       std::back_inserter(dropdown_items), [](auto action) {
-                           return DropdownItem{.title = action.title,
-                                               .description =
-                                                   action.description};
-                       });
-            selection_index = state.selected_action_index;
-    } else {
-        const auto &items = state.items;
-        std::transform(items.cbegin(), items.cend(),
-                       std::back_inserter(dropdown_items), [](auto item) {
-                           return DropdownItem{.title = item.title,
-                                               .description = item.description};
-                       });
-                       selection_index = state.selected_item_index;
-    }
+    auto to_dropdown = [](const auto& x) {
+        return DropdownItem{.title = x.title, .description = x.description};
+    };
+
+    auto [dropdown_items, selection_index] = [&]() -> std::pair<std::vector<DropdownItem>, size_t> {
+        if (state.context_menu_open) {
+            auto transformed = state.get_selected_item().actions | std::views::transform(to_dropdown);
+            return {
+                std::vector<DropdownItem>(transformed.begin(), transformed.end()),
+                state.selected_action_index
+            };
+        } else {
+            auto transformed = state.items | std::views::transform(to_dropdown);
+            return {
+                std::vector<DropdownItem>(transformed.begin(), transformed.end()),
+                state.selected_item_index
+            };
+        }
+    }();
 
     // Draw dropdown items
     for (size_t i = 0; i < dropdown_items.size(); ++i) {
