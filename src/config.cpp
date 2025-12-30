@@ -73,6 +73,19 @@ get_string_or(const std::unordered_map<std::string, std::string> &map,
     return it->second;
 }
 
+double get_double_or(const std::unordered_map<std::string, std::string> &map,
+                     const std::string &key, double default_value)
+{
+    auto it = map.find(key);
+    if (it == map.end())
+        return default_value;
+    try {
+        return std::stod(it->second);
+    } catch (...) {
+        return default_value;
+    }
+}
+
 } // namespace
 
 fs::path Config::default_path()
@@ -96,10 +109,12 @@ Config Config::load(const fs::path &path)
 
     auto map = parse_ini(path);
 
-    // Window
-    cfg.width = get_int_or(map, "width", cfg.width);
-    cfg.input_height = get_int_or(map, "input_height", cfg.input_height);
-    cfg.item_height = get_int_or(map, "item_height", cfg.item_height);
+    // Window positioning and sizing
+    cfg.width_ratio = get_double_or(map, "width_ratio", cfg.width_ratio);
+    cfg.x_position = get_double_or(map, "x_position", cfg.x_position);
+    cfg.y_position = get_double_or(map, "y_position", cfg.y_position);
+    cfg.input_height_ratio = get_double_or(map, "input_height_ratio", cfg.input_height_ratio);
+    cfg.item_height_ratio = get_double_or(map, "item_height_ratio", cfg.item_height_ratio);
     cfg.max_visible_items =
         get_size_or(map, "max_visible_items", cfg.max_visible_items);
 
@@ -149,10 +164,12 @@ void Config::save(const fs::path &path) const
     file << "# This file is auto-generated with defaults on first run.\n";
     file << "\n";
 
-    file << "# Window dimensions\n";
-    file << "width=" << width << "\n";
-    file << "input_height=" << input_height << "\n";
-    file << "item_height=" << item_height << "\n";
+    file << "# Window positioning and sizing (as percentages 0.0-1.0)\n";
+    file << "width_ratio=" << width_ratio << "\n";
+    file << "x_position=" << x_position << "\n";
+    file << "y_position=" << y_position << "\n";
+    file << "input_height_ratio=" << input_height_ratio << "\n";
+    file << "item_height_ratio=" << item_height_ratio << "\n";
     file << "max_visible_items=" << max_visible_items << "\n";
     file << "\n";
 

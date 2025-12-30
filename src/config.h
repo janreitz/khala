@@ -15,10 +15,14 @@ struct CustomActionDef {
 };
 
 struct Config {
-    // Window
-    int width = 800;
-    int input_height = 40;
-    int item_height = 24;
+    // Window positioning and sizing (as percentages of screen size, 0.0-1.0)
+    double width_ratio = 0.4;      // 40% of screen width
+    double x_position = 0.5;       // center horizontally (0.5 = 50% from left)
+    double y_position = 0.25;      // 25% from top
+    
+    // Window appearance (as percentages of screen height)
+    double input_height_ratio = 0.025;   // 2.5% of screen height
+    double item_height_ratio = 0.018;    // 1.8% of screen height
     size_t max_visible_items = 10;
 
     // Appearance

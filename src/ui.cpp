@@ -19,7 +19,15 @@
 namespace ui
 {
 
-XWindow::XWindow(const Config& config) : width(config.width) {
+int calculate_actual_input_height(const Config& config, int screen_height) {
+    return static_cast<int>(screen_height * config.input_height_ratio);
+}
+
+int calculate_actual_item_height(const Config& config, int screen_height) {
+    return static_cast<int>(screen_height * config.item_height_ratio);
+}
+
+XWindow::XWindow(const Config& config) {
     display = XOpenDisplay(nullptr);
     if (!display) {
         throw std::runtime_error("Cannot open display");
@@ -27,9 +35,12 @@ XWindow::XWindow(const Config& config) : width(config.width) {
     
     const int screen = DefaultScreen(display);
     const int screen_width = DisplayWidth(display, screen);
-    const int screen_height = DisplayHeight(display, screen);
-    const int x = (screen_width - config.width) / 2;
-    const int y = screen_height / 4;
+    screen_height = DisplayHeight(display, screen);
+    
+    // Calculate window dimensions based on screen size and config ratios
+    width = static_cast<int>(screen_width * config.width_ratio);
+    const int x = static_cast<int>(screen_width * config.x_position - width / 2);
+    const int y = static_cast<int>(screen_height * config.y_position);
     
     XVisualInfo vinfo;
     XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
@@ -44,7 +55,9 @@ XWindow::XWindow(const Config& config) : width(config.width) {
     attrs.border_pixel = 0;
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
     
-    height = config.input_height + (config.max_visible_items * config.item_height);
+    const int input_height = calculate_actual_input_height(config, screen_height);
+    const int item_height = calculate_actual_item_height(config, screen_height);
+    height = input_height + (config.max_visible_items * item_height);
     
     window = XCreateWindow(
         display, RootWindow(display, screen), x, y, width, height,
@@ -75,12 +88,14 @@ XWindow::~XWindow() {
     }
 }
 
-int calculate_window_height(const Config& config, const State& state) {
+int calculate_window_height(const Config& config, const State& state, int screen_height) {
     const size_t item_count = state.context_menu_open
         ? state.get_selected_item().actions.size()
         : state.items.size();
     const size_t visible_items = std::min(item_count, config.max_visible_items);
-    return config.input_height + (visible_items * config.item_height);
+    const int input_height = calculate_actual_input_height(config, screen_height);
+    const int item_height = calculate_actual_item_height(config, screen_height);
+    return input_height + (visible_items * item_height);
 }
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
@@ -273,10 +288,14 @@ Event process_input_events(Display *display, State &state)
 
 void draw(XWindow& window, const Config& config, const State &state)
 {
+        // Calculate actual heights based on screen size
+        const int input_height = calculate_actual_input_height(config, window.screen_height);
+        const int item_height = calculate_actual_item_height(config, window.screen_height);
+        
         // Calculate window height based on item count
-        const int new_height = calculate_window_height(config, state);
+        const int new_height = calculate_window_height(config, state, window.screen_height);
         if (new_height != window.height) {
-            XResizeWindow(window.display, window.window, config.width, new_height);
+            XResizeWindow(window.display, window.window, window.width, new_height);
             window.height = new_height;
         }
 
@@ -287,7 +306,7 @@ void draw(XWindow& window, const Config& config, const State &state)
 
     // Create Cairo surface for X11 window
     cairo_surface_t *surface =
-        cairo_xlib_surface_create(window.display, window.window, visual, config.width, window.height);
+        cairo_xlib_surface_create(window.display, window.window, visual, window.width, window.height);
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
@@ -310,21 +329,21 @@ void draw(XWindow& window, const Config& config, const State &state)
     const double border_width = 3.0;
 
     // Fill entire window with input color (grey)
-    draw_rounded_rect(cr, 0, 0, config.width, window.height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 0.92, 0.92, 0.92);
     cairo_fill(cr);
 
     // Draw white background for dropdown area if there are items
-    if (window.height > config.input_height) {
+    if (window.height > input_height) {
         cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
-        draw_rounded_rect(cr, 0, config.input_height, config.width, window.height - config.input_height,
+        draw_rounded_rect(cr, 0, input_height, window.width, window.height - input_height,
                           corner_radius,
                           Corner::BottomLeft | Corner::BottomRight);
         cairo_fill(cr);
     }
 
     // Draw white border around entire window
-    draw_rounded_rect(cr, 0, 0, config.width, window.height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius, Corner::All);
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_set_line_width(cr, border_width);
     cairo_stroke(cr);
@@ -355,7 +374,7 @@ void draw(XWindow& window, const Config& config, const State &state)
     int text_width;
     int text_height;
     pango_layout_get_size(layout, &text_width, &text_height);
-    const double text_y = (config.input_height - (text_height / PANGO_SCALE)) / 2.0;
+    const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
 
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, text_y);
@@ -409,7 +428,7 @@ void draw(XWindow& window, const Config& config, const State &state)
 
     // Draw dropdown items
     for (size_t i = 0; i < dropdown_items.size(); ++i) {
-        const int y_pos = config.input_height + (i * config.item_height);
+        const int y_pos = input_height + (i * item_height);
 
         // Draw selection highlight
         if (i == selection_index) {
@@ -418,11 +437,11 @@ void draw(XWindow& window, const Config& config, const State &state)
             // Use rounded bottom corners if this is the last item
             const bool is_last_item = (i == dropdown_items.size() - 1);
             if (is_last_item) {
-                draw_rounded_rect(cr, 0, y_pos, config.width, config.item_height,
+                draw_rounded_rect(cr, 0, y_pos, window.width, item_height,
                                   corner_radius,
                                   Corner::BottomLeft | Corner::BottomRight);
             } else {
-                draw_rounded_rect(cr, 0, y_pos, config.width, config.item_height, 0,
+                draw_rounded_rect(cr, 0, y_pos, window.width, item_height, 0,
                                   Corner::NoCorners);
             }
             cairo_fill(cr);
@@ -435,9 +454,10 @@ void draw(XWindow& window, const Config& config, const State &state)
             cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
         }
 
-        // Draw filename (main text)
-        cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout, dropdown_items.at(i).title.c_str(), -1);
+        int text_width_unused, text_height;
+        pango_layout_get_size(layout, &text_width_unused, &text_height);
+        const double text_y_centered = y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;
+        cairo_move_to(cr, 15, text_y_centered);
         pango_cairo_show_layout(cr, layout);
 
         // Draw description to the right of the title in subtle grey
@@ -451,7 +471,7 @@ void draw(XWindow& window, const Config& config, const State &state)
             const int spacing = 10;
             const int left_margin = 15;
             const int right_margin = 15;
-            const int available_width = config.width - left_margin -
+            const int available_width = window.width - left_margin -
                                         (title_width / PANGO_SCALE) - spacing -
                                         right_margin;
 
@@ -471,7 +491,7 @@ void draw(XWindow& window, const Config& config, const State &state)
             // Draw description with some spacing after the title
             cairo_move_to(cr,
                           left_margin + (title_width / PANGO_SCALE) + spacing,
-                          y_pos + 8);
+                          text_y_centered);
             pango_cairo_show_layout(cr, layout);
 
             // Reset layout settings for next iteration
