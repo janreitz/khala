@@ -351,8 +351,17 @@ Event process_input_events(Display *display, State &state)
 
     Event out_event = Event::NoEvent;
 
+    // Always wait for at least one event to avoid busy looping
+    XNextEvent(display, &event);
+    
+    // Process the first event
+    goto process_event;
+    
+    // Then process any additional pending events without blocking
     while (XPending(display) > 0) {
         XNextEvent(display, &event);
+        
+    process_event:
 
         if (event.type == Expose) {
             if (event.xexpose.count == 0) {
