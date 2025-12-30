@@ -20,6 +20,7 @@ struct XWindow {
     Colormap colormap = 0;
     int width = 0;
     int height = 0;
+    int screen_height = 0;
     
     XWindow(const Config& config);
     ~XWindow();
