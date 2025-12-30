@@ -17,9 +17,8 @@
 namespace ui
 {
 void draw(Display *display, Window window, int width, int height,
-          int input_height, int option_height, int max_visible_options,
-          const std::string &query_buffer, const PackedStrings &results,
-          int selected_index)
+          int input_height, const std::string &input_buffer, int action_height,
+          const std::vector<Action> &actions, int selected_index)
 {
     // Get the default visual
     const int screen = DefaultScreen(display);
@@ -59,8 +58,8 @@ void draw(Display *display, Window window, int width, int height,
     cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
     cairo_move_to(cr, 10, 15);
 
-    std::string display_text = "> " + query_buffer;
-    if (query_buffer.empty()) {
+    std::string display_text = "> " + input_buffer;
+    if (input_buffer.empty()) {
         display_text += "(type to search...)";
     }
 
@@ -69,7 +68,7 @@ void draw(Display *display, Window window, int width, int height,
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor after text if there's content
-    if (!query_buffer.empty()) {
+    if (!input_buffer.empty()) {
         int text_width;
         int text_height;
         pango_layout_get_size(layout, &text_width, &text_height);
@@ -88,15 +87,13 @@ void draw(Display *display, Window window, int width, int height,
     cairo_stroke(cr);
 
     // Draw dropdown options
-    const int visible_count =
-        std::min(static_cast<int>(results.size()), max_visible_options);
-    for (int i = 0; i < visible_count; ++i) {
-        const int y_pos = input_height + (i * option_height);
+    for (int i = 0; i < actions.size(); ++i) {
+        const int y_pos = input_height + (i * action_height);
 
         // Draw selection highlight
         if (i == selected_index) {
             cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
-            cairo_rectangle(cr, 0, y_pos, width, option_height);
+            cairo_rectangle(cr, 0, y_pos, width, action_height);
             cairo_fill(cr);
         }
 
@@ -109,19 +106,11 @@ void draw(Display *display, Window window, int width, int height,
 
         // Draw filename (main text)
         cairo_move_to(cr, 15, y_pos + 8);
-        pango_layout_set_text(layout, results.at(i).data(), -1);
+        pango_layout_set_text(layout, actions.at(i).title.c_str(), -1);
         pango_cairo_show_layout(cr, layout);
 
         // Reset font for next iteration
         pango_layout_set_font_description(layout, font_desc);
-
-        // Draw separator between options
-        if (i < visible_count - 1) {
-            cairo_set_source_rgb(cr, 0.9, 0.9, 0.9);
-            cairo_move_to(cr, 10, y_pos + option_height);
-            cairo_line_to(cr, width - 10, y_pos + option_height);
-            cairo_stroke(cr);
-        }
     }
 
     // Flush to display

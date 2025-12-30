@@ -10,8 +10,12 @@
 namespace ui
 {
 
+struct Action {
+    std::string title;
+    std::string description;
+};
+
 void draw(Display *display, Window window, int width, int height,
-          int input_height, int option_height, int max_visible_options,
-          const std::string &query_buffer, const PackedStrings &results,
-          int selected_index);
+          int input_height, const std::string &input_buffer, int action_height,
+          const std::vector<Action> &actions, int selected_index);
 } // namespace ui

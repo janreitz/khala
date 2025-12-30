@@ -26,7 +26,7 @@ namespace fs = std::filesystem;
 static constexpr int WIDTH = 600;
 static constexpr int INPUT_HEIGHT = 40;
 static constexpr int OPTION_HEIGHT = 30;
-static constexpr int MAX_VISIBLE_OPTIONS = 8;
+static constexpr size_t MAX_VISIBLE_OPTIONS = 8;
 static constexpr int DROPDOWN_HEIGHT = MAX_VISIBLE_OPTIONS * OPTION_HEIGHT;
 static constexpr int TOTAL_HEIGHT = INPUT_HEIGHT + DROPDOWN_HEIGHT;
 
@@ -177,7 +177,7 @@ int main(int argc, char *argv[])
 
     std::string query_input;
     bool query_input_changed = false;
-    PackedStrings display_results;
+    std::vector<ui::Action> display_results;
 
     while (running) {
         while (XPending(display) > 0) {
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
                 } else if (keysym == XK_Down) {
                     // Move selection down
                     const int max_index =
-                        std::min(static_cast<int>(current_matches.size()) - 1,
+                        std::min(current_matches.size() - 1,
                                  MAX_VISIBLE_OPTIONS - 1);
                     if (!current_matches.empty() &&
                         selected_index < max_index) {
@@ -265,14 +265,21 @@ int main(int argc, char *argv[])
         // Check for new results
         if (results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
-            display_results = current_matches; // copy for GUI
+            display_results.clear();
+            display_results.reserve(current_matches.size());
+            const size_t visible_action_count = std::min(current_matches.size(), MAX_VISIBLE_OPTIONS);
+            for (size_t i = 0; i < visible_action_count; i++) {
+                display_results.push_back(ui::Action{
+                    .title = current_matches.at(i).data(),
+                    .description = "",
+                });
+            }
             needs_redraw = true;
         }
 
         if (needs_redraw) {
-            ui::draw(display, window, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT,
-                     OPTION_HEIGHT, MAX_VISIBLE_OPTIONS, query_buffer,
-                     current_matches, selected_index);
+            ui::draw(display, window, WIDTH, TOTAL_HEIGHT, INPUT_HEIGHT, query_buffer,
+                     OPTION_HEIGHT, display_results, selected_index);
             needs_redraw = false;
         }
     }
