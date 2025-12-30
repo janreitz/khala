@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "utility.h"
+#include "fuzzy.h"
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -102,6 +103,49 @@ MonitorInfo get_primary_monitor_xrandr(Display* display, int screen) {
     XRRFreeScreenResources(screen_resources);
     return info;
 }
+
+std::string create_highlighted_markup(const std::string& text, const std::vector<size_t>& match_positions) {
+    if (match_positions.empty()) {
+        // No highlighting needed, escape the text for markup
+        std::string escaped;
+        for (char c : text) {
+            if (c == '&') escaped += "&amp;";
+            else if (c == '<') escaped += "&lt;";
+            else if (c == '>') escaped += "&gt;";
+            else escaped += c;
+        }
+        return escaped;
+    }
+    
+    std::string result;
+    size_t match_idx = 0;
+    
+    for (size_t i = 0; i < text.size(); ++i) {
+        char c = text[i];
+        
+        // Check if this position should be highlighted
+        bool should_highlight = (match_idx < match_positions.size() && 
+                                match_positions[match_idx] == i);
+        
+        if (should_highlight) {
+            result += "<b>";
+        }
+        
+        // Escape special markup characters
+        if (c == '&') result += "&amp;";
+        else if (c == '<') result += "&lt;";
+        else if (c == '>') result += "&gt;";
+        else result += c;
+        
+        if (should_highlight) {
+            result += "</b>";
+            match_idx++;
+        }
+    }
+    
+    return result;
+}
+
 
 int calculate_actual_input_height(const Config& config, int screen_height) {
     return static_cast<int>(screen_height * config.input_height_ratio);
@@ -537,10 +581,26 @@ void draw(XWindow& window, const Config& config, const State &state)
     struct DropdownItem {
         std::string title;
         std::string description;
+        std::vector<size_t> title_match_positions;
+        std::vector<size_t> description_match_positions;
     };
 
-    auto to_dropdown = [](const auto &x) {
-        return DropdownItem{.title = x.title, .description = x.description};
+    auto to_dropdown = [&state](const auto &x) -> DropdownItem {
+        if constexpr (std::is_same_v<std::decay_t<decltype(x)>, Item>) {
+            return DropdownItem{
+                .title = x.title, 
+                .description = x.description, 
+                .title_match_positions = fuzzy::fuzzy_match(x.title, state.current_query),
+                .description_match_positions = fuzzy::fuzzy_match(x.description, state.current_query)
+            };
+        } else {
+            return DropdownItem{
+                .title = x.title, 
+                .description = x.description, 
+                .title_match_positions = fuzzy::fuzzy_match(x.title, state.current_query),
+                .description_match_positions = fuzzy::fuzzy_match(x.description, state.current_query)
+            };
+        }
     };
 
     auto [dropdown_items, selection_index] =
@@ -589,6 +649,9 @@ void draw(XWindow& window, const Config& config, const State &state)
 
         // Draw the title text
         pango_layout_set_text(layout, dropdown_items.at(i).title.c_str(), -1);
+        // Draw icon and filename (main text) with highlighting - center vertically within item_height
+        const std::string highlighted_title = create_highlighted_markup(dropdown_items.at(i).title, dropdown_items.at(i).title_match_positions);
+        pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
         int text_width_unused, text_height;
         pango_layout_get_size(layout, &text_width_unused, &text_height);
         const double text_y_centered = y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;
@@ -617,9 +680,9 @@ void draw(XWindow& window, const Config& config, const State &state)
                 cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
             }
 
-            // Set description text with middle ellipsization
-            pango_layout_set_text(layout,
-                                  dropdown_items.at(i).description.c_str(), -1);
+            // Set description text with highlighting and middle ellipsization
+            const std::string highlighted_description = create_highlighted_markup(dropdown_items.at(i).description, dropdown_items.at(i).description_match_positions);
+            pango_layout_set_markup(layout, highlighted_description.c_str(), -1);
             pango_layout_set_width(layout, available_width * PANGO_SCALE);
             pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
 
