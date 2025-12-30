@@ -328,6 +328,12 @@ void draw(Display *display, Window window, const State &state, int width,
             int title_height;
             pango_layout_get_size(layout, &title_width, &title_height);
 
+            // Calculate available width for description
+            const int spacing = 10;
+            const int left_margin = 15;
+            const int right_margin = 15;
+            const int available_width = width - left_margin - (title_width / PANGO_SCALE) - spacing - right_margin;
+
             // Set subtle grey color for description
             if (i == selection_index) {
                 cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);
@@ -335,11 +341,18 @@ void draw(Display *display, Window window, const State &state, int width,
                 cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
             }
 
+            // Set description text with middle ellipsization
+            pango_layout_set_text(layout, dropdown_items.at(i).description.c_str(), -1);
+            pango_layout_set_width(layout, available_width * PANGO_SCALE);
+            pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
+
             // Draw description with some spacing after the title
-            cairo_move_to(cr, 15 + (title_width / PANGO_SCALE) + 10, y_pos + 8);
-            pango_layout_set_text(layout,
-                                  dropdown_items.at(i).description.c_str(), -1);
+            cairo_move_to(cr, left_margin + (title_width / PANGO_SCALE) + spacing, y_pos + 8);
             pango_cairo_show_layout(cr, layout);
+
+            // Reset layout settings for next iteration
+            pango_layout_set_width(layout, -1);
+            pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
         }
 
         // Reset font for next iteration
