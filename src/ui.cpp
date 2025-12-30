@@ -237,9 +237,9 @@ void draw(Display *display, Window window, const State &state, int width,
     pango_layout_set_font_description(layout, font_desc);
 
     // Draw search prompt and buffer
-    std::string display_text = "> " + state.input_buffer;
+    std::string display_text = state.input_buffer;
     if (state.input_buffer.empty()) {
-        display_text += "(type to search...)";
+        display_text += "Search files... (prefix > for utility actions)";
     }
 
     pango_layout_set_text(layout, display_text.c_str(), -1);

@@ -20,8 +20,17 @@ struct CopyContentToClipboard {
     fs::path path;
 };
 
+// Utility commands (not file-specific)
+struct CopyISOTimestamp {
+};
+struct CopyUnixTimestamp {
+};
+struct CopyUUID {
+};
+
 using Command = std::variant<OpenFile, OpenContainingFolder,
-                             CopyPathToClipboard, CopyContentToClipboard>;
+                             CopyPathToClipboard, CopyContentToClipboard,
+                             CopyISOTimestamp, CopyUnixTimestamp, CopyUUID>;
 
 struct Action {
     std::string title;
@@ -31,4 +40,6 @@ struct Action {
 
 std::vector<Action> make_file_actions(const fs::path &path);
 
-void process_command(const Command& command);
+const std::vector<Action>& get_utility_actions();
+
+void process_command(const Command &command);
