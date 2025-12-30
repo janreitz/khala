@@ -10,6 +10,15 @@
 namespace ui
 {
 
+struct UserInput {
+    bool input_buffer_changed = false;
+    bool selected_action_index_changed = false;
+    bool exit_requested = false;
+    bool action_requested = false;
+};
+
+UserInput process_input_events(Display* display, std::string& input_buffer, size_t selected_action_index, size_t max_action_index);
+
 struct Action {
     std::string title;
     std::string description;
@@ -17,5 +26,5 @@ struct Action {
 
 void draw(Display *display, Window window, int width, int height,
           int input_height, const std::string &input_buffer, int action_height,
-          const std::vector<Action> &actions, int selected_index);
+          const std::vector<Action> &actions, size_t selected_index);
 } // namespace ui
