@@ -130,18 +130,27 @@ int main(int argc, char *argv[])
     const int x = (screen_width - WIDTH) / 2;
     const int y = screen_height / 4;
 
+    // Find ARGB visual for transparency support
+    XVisualInfo vinfo;
+    XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
+
+    // Create colormap for ARGB visual
+    const Colormap colormap = XCreateColormap(display, RootWindow(display, screen), vinfo.visual, AllocNone);
+    const defer cleanup_colormap([display, colormap]() noexcept { XFreeColormap(display, colormap); });
+
     // Create window attributes
     XSetWindowAttributes attrs;
     attrs.override_redirect = True;
-    attrs.background_pixel = WhitePixel(display, screen);
-    attrs.border_pixel = BlackPixel(display, screen);
+    attrs.colormap = colormap;
+    attrs.background_pixel = 0;
+    attrs.border_pixel = 0;
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask;
 
-    // Create the window
+    // Create the window with ARGB visual for transparency
     const Window window = XCreateWindow(
-        display, RootWindow(display, screen), x, y, WIDTH, TOTAL_HEIGHT, 2,
-        CopyFromParent, InputOutput, CopyFromParent,
-        CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &attrs);
+        display, RootWindow(display, screen), x, y, WIDTH, TOTAL_HEIGHT, 0,
+        vinfo.depth, InputOutput, vinfo.visual,
+        CWOverrideRedirect | CWColormap | CWBackPixel | CWBorderPixel | CWEventMask, &attrs);
 
     const defer cleanup_window(
         [display, window]() noexcept { XDestroyWindow(display, window); });
