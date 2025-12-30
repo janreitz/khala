@@ -7,6 +7,9 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <chrono>
+#include <iomanip>
+#include <random>
 
 
 
@@ -79,6 +82,22 @@ std::vector<Action> make_file_actions(const fs::path &path)
     };
 }
 
+const std::vector<Action>& get_utility_actions()
+{
+    static const std::vector<Action> actions = {
+        Action{.title = "Copy ISO Timestamp",
+               .description = "Copy current time in ISO 8601 format",
+               .command = CopyISOTimestamp{}},
+        Action{.title = "Copy Unix Timestamp",
+               .description = "Copy current Unix timestamp (seconds since epoch)",
+               .command = CopyUnixTimestamp{}},
+        Action{.title = "Copy UUID",
+               .description = "Generate and copy a new UUID v4",
+               .command = CopyUUID{}},
+    };
+    return actions;
+}
+
 void process_command(const Command& cmd) {
     std::visit(overloaded{
         [](const OpenFile& c) {
@@ -92,6 +111,39 @@ void process_command(const Command& cmd) {
         },
         [](const CopyContentToClipboard& c) {
             copy_to_clipboard(read_file(c.path));
+        },
+        [](const CopyISOTimestamp&) {
+            auto now = std::chrono::system_clock::now();
+            auto time_t = std::chrono::system_clock::to_time_t(now);
+            std::ostringstream oss;
+            oss << std::put_time(std::gmtime(&time_t), "%Y-%m-%dT%H:%M:%SZ");
+            copy_to_clipboard(oss.str());
+        },
+        [](const CopyUnixTimestamp&) {
+            auto now = std::chrono::system_clock::now();
+            auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+            copy_to_clipboard(std::to_string(seconds));
+        },
+        [](const CopyUUID&) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(0, 15);
+            std::uniform_int_distribution<> dis2(8, 11);
+
+            std::ostringstream oss;
+            oss << std::hex;
+            for (int i = 0; i < 8; i++) oss << dis(gen);
+            oss << "-";
+            for (int i = 0; i < 4; i++) oss << dis(gen);
+            oss << "-4";
+            for (int i = 0; i < 3; i++) oss << dis(gen);
+            oss << "-";
+            oss << dis2(gen);
+            for (int i = 0; i < 3; i++) oss << dis(gen);
+            oss << "-";
+            for (int i = 0; i < 12; i++) oss << dis(gen);
+
+            copy_to_clipboard(oss.str());
         },
     }, cmd);
 }

@@ -10,7 +10,7 @@
 #include <X11/Xutil.h>
 
 #include <algorithm>
-#include <array>
+#include <ranges>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -207,17 +207,47 @@ int main(int argc, char *argv[])
         } else if (event == ui::Event::InputChanged) {
             state.selected_item_index =
                 0; // Reset selection when search changes
-            {
-                std::lock_guard lock(query_mutex);
-                query_buffer = state.input_buffer;
+
+            // Check if we're in command mode (input starts with '>')
+            const bool command_mode = !state.input_buffer.empty() && state.input_buffer[0] == '>';
+
+            if (command_mode) {
+                // Command palette mode - search utility commands
+                const std::string query = state.input_buffer.substr(1); // Strip '>'
+
+                // Rank and transform utility actions to items using ranges pipeline
+                auto to_item = [](const RankResult& r) {
+                    const auto& action = get_utility_actions()[r.index];
+                    return ui::Item{
+                        .title = action.title,
+                        .description = action.description,
+                        .actions = {action},
+                    };
+                };
+
+                auto ranked = rank(get_utility_actions(),
+                                   [&query](const Action& action) {
+                                       return fuzzy::fuzzy_score(action.title, query);
+                                   },
+                                   MAX_VISIBLE_OPTIONS);
+
+                auto transformed = ranked | std::views::transform(to_item);
+                state.items.assign(transformed.begin(), transformed.end());
+            } else {
+                // File search mode
+                {
+                    std::lock_guard lock(query_mutex);
+                    query_buffer = state.input_buffer;
+                }
+                query_changed.store(true, std::memory_order_release);
+                query_changed.notify_one();
             }
-            query_changed.store(true, std::memory_order_release);
-            query_changed.notify_one();
         }
 
-        // Check for new results
+        // Check for new results (file search mode only)
         bool new_results_available = false;
-        if (results_ready.exchange(false, std::memory_order_acquire)) {
+        const bool command_mode = !state.input_buffer.empty() && state.input_buffer[0] == '>';
+        if (!command_mode && results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
             state.items.clear();
             state.items.reserve(current_matches.size());
