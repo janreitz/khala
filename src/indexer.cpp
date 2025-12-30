@@ -156,7 +156,7 @@ std::vector<DesktopApp> scan_desktop_files() {
                     .name = name_it->second,
                     .description = description,
                     .exec_command = exec_command,
-                    .desktop_file_path = entry.path().string()
+                    .desktop_file_path = entry.path()
                 });
             }
         } catch (const fs::filesystem_error&) {

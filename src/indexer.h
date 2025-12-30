@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 namespace indexer
 {
 PackedStrings scan_filesystem_parallel(const std::filesystem::path &root_path);
@@ -14,7 +16,7 @@ struct DesktopApp {
     std::string name;
     std::string description;
     std::string exec_command;
-    std::string desktop_file_path;
+    fs::path desktop_file_path;
 };
 
 std::vector<DesktopApp> scan_desktop_files();

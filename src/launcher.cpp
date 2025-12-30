@@ -6,7 +6,6 @@
 #include "utility.h"
 
 #include <algorithm>
-#include <ranges>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -15,6 +14,7 @@
 #include <filesystem>
 #include <future>
 #include <mutex>
+#include <ranges>
 #include <string>
 #include <utility>
 
@@ -26,6 +26,9 @@ int main(int argc, char *argv[])
 
     // Shared state
     PackedStrings indexed_paths;
+    std::vector<indexer::DesktopApp> desktop_apps =
+        indexer::scan_desktop_files();
+    printf("Loaded %zu desktop apps\n", desktop_apps.size());
     std::atomic_bool index_loaded{false};
 
     // Results shared between ranking thread and GUI
@@ -116,7 +119,8 @@ int main(int argc, char *argv[])
         } else if (event == ui::Event::ExitRequested) {
             break;
         } else if (event == ui::Event::ActionRequested) {
-            printf("Selected: %s\n", current_matches.at(state.selected_item_index).data());
+            printf("Selected: %s\n",
+                   current_matches.at(state.selected_item_index).data());
             process_command(state.get_selected_action().command, config);
             if (config.quit_on_action) {
                 break;
@@ -125,15 +129,21 @@ int main(int argc, char *argv[])
             state.selected_item_index =
                 0; // Reset selection when search changes
 
-            // Check if we're in command mode (input starts with '>')
-            const bool command_mode = !state.input_buffer.empty() && state.input_buffer[0] == '>';
+            // Check if we're in command mode (input starts with '>') or app
+            // mode (starts with '!')
+            const bool command_mode =
+                !state.input_buffer.empty() && state.input_buffer[0] == '>';
+            const bool app_mode =
+                !state.input_buffer.empty() && state.input_buffer[0] == '!';
 
             if (command_mode) {
                 // Command palette mode - search utility commands
-                const std::string query = state.input_buffer.substr(1); // Strip '>'
+                const std::string query =
+                    state.input_buffer.substr(1); // Strip '>'
+                state.current_query = query;
 
-                auto to_item = [&global_actions](const RankResult& r) {
-                    const auto& action = global_actions[r.index];
+                auto to_item = [&global_actions](const RankResult &r) {
+                    const auto &action = global_actions[r.index];
                     return ui::Item{
                         .title = action.title,
                         .description = action.description,
@@ -141,16 +151,52 @@ int main(int argc, char *argv[])
                     };
                 };
 
-                auto ranked = rank(global_actions,
-                                   [&query](const Action& action) {
-                                       return fuzzy::fuzzy_score(action.title, query);
-                                   },
-                                   config.max_visible_items);
+                auto ranked = rank(
+                    global_actions,
+                    [&query](const Action &action) {
+                        return fuzzy::fuzzy_score(action.title, query);
+                    },
+                    config.max_visible_items);
 
                 auto transformed = ranked | std::views::transform(to_item);
                 state.items.assign(transformed.begin(), transformed.end());
+            } else if (app_mode) {
+                // App search mode - search desktop applications only
+                const std::string query =
+                    state.input_buffer.substr(1); // Strip '!'
+                state.current_query = query;
+
+                auto to_item =
+                    [](const RankResult &r,
+                       const std::vector<indexer::DesktopApp> &apps) {
+                        const auto &app = apps[r.index];
+                        return ui::Item{
+                            .title = app.name,
+                            .description = app.description,
+                            .actions = {Action{
+                                .title = "Launch " + app.name,
+                                .description = "Launch this application",
+                                .command =
+                                    CustomCommand{.path = std::nullopt,
+                                                  .shell_cmd =
+                                                      app.exec_command}}},
+                        };
+                    };
+
+                auto ranked = rank(
+                    desktop_apps,
+                    [&query](const indexer::DesktopApp &app) {
+                        return fuzzy::fuzzy_score(app.name, query);
+                    },
+                    config.max_visible_items);
+
+                state.items.clear();
+                for (const auto &r : ranked) {
+                    state.items.push_back(to_item(r, desktop_apps));
+                }
             } else {
                 // File search mode
+                state.current_query = state.input_buffer;
                 {
                     std::lock_guard lock(query_mutex);
                     query_buffer = state.input_buffer;
@@ -162,8 +208,12 @@ int main(int argc, char *argv[])
 
         // Check for new results (file search mode only)
         bool new_results_available = false;
-        const bool command_mode = !state.input_buffer.empty() && state.input_buffer[0] == '>';
-        if (!command_mode && results_ready.exchange(false, std::memory_order_acquire)) {
+        const bool command_mode =
+            !state.input_buffer.empty() && state.input_buffer[0] == '>';
+        const bool app_mode =
+            !state.input_buffer.empty() && state.input_buffer[0] == '!';
+        if (!command_mode && !app_mode &&
+            results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
             state.items.clear();
             state.items.reserve(current_matches.size());
