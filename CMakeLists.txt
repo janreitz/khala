@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(launcher VERSION 0.1.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -29,7 +31,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-add_executable(launcher
+add_executable(khala
     src/launcher.cpp
     src/actions.cpp
     src/config.cpp
@@ -39,7 +41,10 @@ add_executable(launcher
     src/utility.cpp
 )
 
-target_include_directories(launcher PRIVATE
+target_compile_definitions(khala PRIVATE
+    KHALA_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
+
+target_include_directories(khala PRIVATE
     ${X11_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
     ${CAIRO_INCLUDE_DIRS}
@@ -47,7 +52,7 @@ target_include_directories(launcher PRIVATE
     ${PANGOCAIRO_INCLUDE_DIRS}
 )
 
-target_link_libraries(launcher PRIVATE
+target_link_libraries(khala PRIVATE
     ${X11_LIBRARIES}
     ${X11_Xrandr_LIB}
     ${CAIRO_LIBRARIES}
@@ -64,4 +69,6 @@ add_executable(indexer_benchmark
 )
 target_link_libraries(indexer_benchmark PRIVATE TBB::tbb)
 
-install(TARGETS launcher DESTINATION bin)
+install(TARGETS khala DESTINATION bin)
+install(DIRECTORY commands/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/khala/commands)
