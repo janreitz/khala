@@ -107,7 +107,7 @@ get_dir_or(const std::multimap<std::string, std::string> &map,
         return default_value;
     }
 
-    return path;
+    return fs::canonical(path);
 }
 
 std::string
@@ -141,7 +141,7 @@ std::set<fs::path> get_dirs_or(const std::multimap<std::string, std::string> &ma
     for (const auto& value : values) {
         fs::path dir_path(value);
         if (fs::exists(dir_path) && fs::is_directory(dir_path)) {
-            result.insert(dir_path);
+            result.insert(fs::canonical(dir_path));
         }
     }
     

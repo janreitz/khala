@@ -56,9 +56,9 @@ int main(int argc, char *argv[])
                                                                   total_start);
 
         printf("=================================\n");
-        printf("Indexing complete! Scan filesystem time: %ldms Rank time %ldms Scan Desktop files time: %ldms  Total "
+        printf("Indexing complete! Scan filesystem time (%ld entries): %ldms Rank time %ldms Scan Desktop files time: %ldms  Total "
                "time: %ldms\n",
-               scan_duration.count(), rank_duration.count(), scan_desktop_duration.count(),
+               paths.size(), scan_duration.count(), rank_duration.count(), scan_desktop_duration.count(),
                total_duration.count());
     } catch (const std::exception &e) {
         fprintf(stderr, "Error: %s\n", e.what());
