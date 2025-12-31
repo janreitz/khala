@@ -20,7 +20,7 @@
 
 namespace fs = std::filesystem;
 
-int main(int argc, char *argv[])
+int main()
 {
     const Config config = Config::load(Config::default_path());
 
@@ -42,15 +42,12 @@ int main(int argc, char *argv[])
     std::atomic_bool query_changed{false};
     std::atomic_bool should_exit{false};
 
-    const fs::path root_path =
-        (argc > 1) ? argv[1] : fs::path(std::getenv("HOME"));
-
-    printf("Loading index for %s...\n", root_path.c_str());
+    printf("Loading index for %s...\n", fs::canonical(config.index_root).generic_string().c_str());
 
     // Launch indexing thread
     auto index_future = std::async(
-        std::launch::async, [&indexed_paths, &index_loaded, &root_path]() {
-            indexed_paths = indexer::scan_filesystem_parallel(root_path);
+        std::launch::async, [&indexed_paths, &index_loaded, &config]() {
+            indexed_paths = indexer::scan_filesystem_parallel(config.index_root);
             index_loaded.store(true, std::memory_order_release);
             index_loaded.notify_all();
             printf("Loaded %zu files\n", indexed_paths.size());
