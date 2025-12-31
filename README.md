@@ -6,7 +6,7 @@ A lightweight application launcher and file finder for Linux and X11.
 - **App search**: Prefix with `!` to search for applications only
 - **Command mode**: Prefix with `>` to access utility commands
 - **Custom commands**: Define your own utility commands and file actions
-- **Responsive design**: Scales with your screen size for optimal viewing
+- **Responsive design**: Scales with your screen size
 
 ### Prerequisites
 
@@ -28,11 +28,6 @@ sudo apt install build-essential cmake libx11-dev libxrandr-dev libcairo2-dev li
 sudo dnf install gcc-c++ cmake libX11-devel libXrandr-devel cairo-devel pango-devel tbb-devel pkgconfig
 ```
 
-**Arch Linux:**
-```bash
-sudo pacman -S base-devel cmake libx11 libxrandr cairo pango intel-tbb pkgconf
-```
-
 ### Build from source
 
 ```bash
@@ -48,11 +43,9 @@ Set a global hotkey to the `./launcher` binary.
 
 - **Arrow keys**: Navigate through results
 - **Tab**: Open context menu for additional actions
+- **Left**: Close context menu
 - **Enter**: Execute selected action
 - **Escape**: Close launcher
-- **Left/Right**: Move cursor in search field
-- **Home/End**: Jump to beginning/end of search field
-- **Backspace**: Delete characters
 
 ## Configuration
 
