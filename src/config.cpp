@@ -5,13 +5,16 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <map>
+#include <optional>
+#include <vector>
 
 namespace
 {
 
-std::unordered_map<std::string, std::string> parse_ini(const fs::path &path)
+std::multimap<std::string, std::string> parse_ini(const fs::path &path)
 {
-    std::unordered_map<std::string, std::string> result;
+    std::multimap<std::string, std::string> result;
     std::ifstream file(path);
     std::string line;
 
@@ -23,56 +26,83 @@ std::unordered_map<std::string, std::string> parse_ini(const fs::path &path)
         if (pos != std::string::npos) {
             std::string key = line.substr(0, pos);
             std::string value = line.substr(pos + 1);
-            result[key] = value;
+            result.emplace(key, value);
         }
     }
     return result;
 }
 
-size_t get_size_or(const std::unordered_map<std::string, std::string> &map,
+std::optional<std::string> get_last(const std::multimap<std::string, std::string> &map,
+                                   const std::string &key)
+{
+    auto range = map.equal_range(key);
+    if (range.first == range.second)
+        return std::nullopt;
+    
+    auto last = std::prev(range.second);
+    return last->second;
+}
+
+std::vector<std::string> get_all(const std::multimap<std::string, std::string> &map,
+                                 const std::string &key)
+{
+    std::vector<std::string> result;
+    auto range = map.equal_range(key);
+    
+    for (auto it = range.first; it != range.second; ++it) {
+        result.push_back(it->second);
+    }
+    
+    return result;
+}
+
+size_t get_size_or(const std::multimap<std::string, std::string> &map,
                    const std::string &key, size_t default_value)
 {
-    auto it = map.find(key);
-    if (it == map.end())
+    auto value = get_last(map, key);
+    if (!value)
         return default_value;
+    
     try {
-        return std::stoul(it->second);
+        return std::stoul(*value);
     } catch (...) {
         return default_value;
     }
 }
 
-int get_int_or(const std::unordered_map<std::string, std::string> &map,
+int get_int_or(const std::multimap<std::string, std::string> &map,
                const std::string &key, int default_value)
 {
-    auto it = map.find(key);
-    if (it == map.end())
+    auto value = get_last(map, key);
+    if (!value)
         return default_value;
+    
     try {
-        return std::stoi(it->second);
+        return std::stoi(*value);
     } catch (...) {
         return default_value;
     }
 }
 
-bool get_bool_or(const std::unordered_map<std::string, std::string> &map,
+bool get_bool_or(const std::multimap<std::string, std::string> &map,
                  const std::string &key, bool default_value)
 {
-    auto it = map.find(key);
-    if (it == map.end())
+    auto value = get_last(map, key);
+    if (!value)
         return default_value;
-    return it->second == "true" || it->second == "1";
+    
+    return *value == "true" || *value == "1";
 }
 
 fs::path
-get_dir_path_or(const std::unordered_map<std::string, std::string> &map,
+get_dir_or(const std::multimap<std::string, std::string> &map,
               const std::string &key, fs::path default_value)
 {
-    auto it = map.find(key);
-    if (it == map.end())
+    auto value = get_last(map, key);
+    if (!value)
         return default_value;
 
-    const fs::path path(it->second);
+    const fs::path path(*value);
     if (!fs::exists(path) || !fs::is_directory(path)) {
         return default_value;
     }
@@ -81,26 +111,41 @@ get_dir_path_or(const std::unordered_map<std::string, std::string> &map,
 }
 
 std::string
-get_string_or(const std::unordered_map<std::string, std::string> &map,
+get_string_or(const std::multimap<std::string, std::string> &map,
               const std::string &key, std::string default_value)
 {
-    auto it = map.find(key);
-    if (it == map.end())
-        return default_value;
-    return it->second;
+    auto value = get_last(map, key);
+    return value ? *value : default_value;
 }
 
-double get_double_or(const std::unordered_map<std::string, std::string> &map,
+double get_double_or(const std::multimap<std::string, std::string> &map,
                      const std::string &key, double default_value)
 {
-    auto it = map.find(key);
-    if (it == map.end())
+    auto value = get_last(map, key);
+    if (!value)
         return default_value;
+    
     try {
-        return std::stod(it->second);
+        return std::stod(*value);
     } catch (...) {
         return default_value;
     }
+}
+
+std::set<fs::path> get_dirs_or(const std::multimap<std::string, std::string> &map,
+                               const std::string &key, std::set<fs::path> default_value)
+{
+    std::set<fs::path> result = default_value;
+    auto values = get_all(map, key);
+    
+    for (const auto& value : values) {
+        fs::path dir_path(value);
+        if (fs::exists(dir_path) && fs::is_directory(dir_path)) {
+            result.insert(dir_path);
+        }
+    }
+    
+    return result;
 }
 
 } // namespace
@@ -145,7 +190,8 @@ Config Config::load(const fs::path &path)
     cfg.file_manager = get_string_or(map, "file_manager", cfg.file_manager);
     
     // Indexing
-    cfg.index_root = get_dir_path_or(map, "index_root", cfg.index_root);
+    cfg.index_root = get_dir_or(map, "index_root", cfg.index_root);
+    cfg.ignore_dirs = get_dirs_or(map, "ignore_dir", cfg.ignore_dirs);
 
     fs::path commands_dir = path.parent_path() / "commands";
     if (fs::exists(commands_dir)) {
@@ -209,5 +255,8 @@ void Config::save(const fs::path &path) const
     
     file << "# Indexing\n";
     file << "index_root=" << fs::canonical(index_root).generic_string() << "\n";
+    for (const auto& dir : ignore_dirs) {
+        file << "ignore_dir=" << fs::canonical(dir).generic_string() << "\n";
+    }
     file << "\n";
 }
