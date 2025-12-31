@@ -1,8 +1,10 @@
 // config.cpp
 #include "config.h"
 
+#include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <unordered_map>
 
 namespace
@@ -61,6 +63,22 @@ bool get_bool_or(const std::unordered_map<std::string, std::string> &map,
     if (it == map.end())
         return default_value;
     return it->second == "true" || it->second == "1";
+}
+
+fs::path
+get_dir_path_or(const std::unordered_map<std::string, std::string> &map,
+              const std::string &key, fs::path default_value)
+{
+    auto it = map.find(key);
+    if (it == map.end())
+        return default_value;
+
+    const fs::path path(it->second);
+    if (!fs::exists(path) || !fs::is_directory(path)) {
+        return default_value;
+    }
+
+    return path;
 }
 
 std::string
@@ -126,6 +144,9 @@ Config Config::load(const fs::path &path)
     cfg.quit_on_action = get_bool_or(map, "quit_on_action", cfg.quit_on_action);
     cfg.editor = get_string_or(map, "editor", cfg.editor);
     cfg.file_manager = get_string_or(map, "file_manager", cfg.file_manager);
+    
+    // Indexing
+    cfg.index_root = get_dir_path_or(map, "index_root", cfg.index_root);
 
     fs::path commands_dir = path.parent_path() / "commands";
     if (fs::exists(commands_dir)) {
@@ -180,9 +201,14 @@ void Config::save(const fs::path &path) const
     file << "font_name=" << font_name << "\n";
     file << "font_size=" << font_size << "\n";
     file << "\n";
-
+    
     file << "# Behavior\n";
     file << "quit_on_action=" << (quit_on_action ? "true" : "false") << "\n";
     file << "editor=" << editor << "\n";
     file << "file_manager=" << file_manager << "\n";
+    file << "\n";
+    
+    file << "# Indexing\n";
+    file << "index_root=" << fs::canonical(index_root).generic_string() << "\n";
+    file << "\n";
 }
