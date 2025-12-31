@@ -51,9 +51,7 @@ Set a global hotkey to the `./launcher` binary.
 
 Khala creates a configuration file at `~/.khala/config.ini` and populates it with the default values for all available settings. Feel free to modify.
 
-You can define custom commands by creating `.ini` files in `~/.khala/commands/`.
-
-Each command file should follow this format:
+You can define custom commands by creating `.ini` files in `~/.khala/commands/`. Each command file should follow this format:
 
 ```ini
 title=My Custom Action # The name shown in search results
@@ -90,3 +88,5 @@ shell_cmd=openssl rand -base64 16 | tr -d '\n'
 is_file_action=false
 stdout_to_clipboard=true
 ```
+
+There are more examples in `commands` that will be installed to the default data dir (`/usr/local/share/khala`). You can change the install location via cmake, for example `-DCMAKE_INSTALL_PREFIX=$HOME/.local`.
