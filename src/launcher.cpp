@@ -47,7 +47,7 @@ int main()
     // Launch indexing thread
     auto index_future = std::async(
         std::launch::async, [&indexed_paths, &index_loaded, &config]() {
-            indexed_paths = indexer::scan_filesystem_parallel(config.index_root);
+            indexed_paths = indexer::scan_filesystem_parallel(config.index_root, config.ignore_dirs);
             index_loaded.store(true, std::memory_order_release);
             index_loaded.notify_all();
             printf("Loaded %zu files\n", indexed_paths.size());
