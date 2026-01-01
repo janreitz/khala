@@ -41,12 +41,14 @@ int main()
     std::atomic_bool query_changed{false};
     std::atomic_bool should_exit{false};
 
-    printf("Loading index for %s...\n", fs::canonical(config.index_root).generic_string().c_str());
+    printf("Loading index for %s...\n",
+           fs::canonical(config.index_root).generic_string().c_str());
 
     // Launch indexing thread
     auto index_future = std::async(
         std::launch::async, [&indexed_paths, &index_loaded, &config]() {
-            indexed_paths = indexer::scan_filesystem_parallel(config.index_root, config.ignore_dirs);
+            indexed_paths = indexer::scan_filesystem_parallel(
+                config.index_root, config.ignore_dirs);
             index_loaded.store(true, std::memory_order_release);
             index_loaded.notify_all();
             printf("Loaded %zu files\n", indexed_paths.size());
@@ -109,7 +111,8 @@ int main()
     const auto global_actions = get_global_actions(config);
 
     while (true) {
-        const auto event = ui::process_input_events(window.display, state, config);
+        const auto event =
+            ui::process_input_events(window.display, state, config);
 
         if (event == ui::Event::NoEvent) {
         } else if (event == ui::Event::ExitRequested) {
@@ -128,7 +131,7 @@ int main()
             // Command palette mode - search utility commands
             if (!state.input_buffer.empty() && state.input_buffer[0] == '>') {
                 const auto query = state.input_buffer.substr(1);
-                state.mode = ui::CommandSearch{ .query = query }; // Strip '>'
+                state.mode = ui::CommandSearch{.query = query}; // Strip '>'
                 auto to_item = [&global_actions](const RankResult &r) {
                     const auto &action = global_actions[r.index];
                     return ui::Item{
@@ -149,10 +152,11 @@ int main()
                 for (const auto &r : ranked) {
                     state.items.push_back(to_item(r));
                 }
-            // App search mode - search desktop applications only
-            } else if (!state.input_buffer.empty() && state.input_buffer[0] == '!') {
+                // App search mode - search desktop applications only
+            } else if (!state.input_buffer.empty() &&
+                       state.input_buffer[0] == '!') {
                 const auto query = state.input_buffer.substr(1);
-                state.mode = ui::AppSearch{ .query = query }; // Strip '!'
+                state.mode = ui::AppSearch{.query = query}; // Strip '!'
 
                 auto to_item =
                     [](const RankResult &r,
@@ -184,7 +188,7 @@ int main()
                 }
             } else {
                 // File search mode
-                state.mode = ui::FileSearch{ .query = state.input_buffer };
+                state.mode = ui::FileSearch{.query = state.input_buffer};
                 {
                     std::lock_guard lock(query_mutex);
                     query_buffer = state.input_buffer;
@@ -196,7 +200,7 @@ int main()
 
         // Check for new results (file search mode only)
         bool new_results_available = false;
-        if (std::holds_alternative<ui::FileSearch>(state.mode) && 
+        if (std::holds_alternative<ui::FileSearch>(state.mode) &&
             results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
             state.items.clear();

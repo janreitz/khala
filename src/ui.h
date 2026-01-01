@@ -14,21 +14,20 @@
 namespace ui
 {
 
-
 struct XWindow {
-    Display* display = nullptr;
+    Display *display = nullptr;
     ::Window window = 0;
     Colormap colormap = 0;
     int width = 0;
     int height = 0;
     int screen_height = 0;
-    
-    XWindow(const Config& config);
+
+    XWindow(const Config &config);
     ~XWindow();
-    
+
     // Non-copyable
-    XWindow(const XWindow&) = delete;
-    XWindow& operator=(const XWindow&) = delete;
+    XWindow(const XWindow &) = delete;
+    XWindow &operator=(const XWindow &) = delete;
 };
 
 struct Item {
@@ -37,14 +36,22 @@ struct Item {
     Action action;
 };
 
-struct FileSearch{ std::string query; };
-struct ContextMenu { fs::path selected_file; };
-struct AppSearch{ std::string query; };
-struct CommandSearch{ std::string query; };
+struct FileSearch {
+    std::string query;
+};
+struct ContextMenu {
+    fs::path selected_file;
+};
+struct AppSearch {
+    std::string query;
+};
+struct CommandSearch {
+    std::string query;
+};
 
 using AppMode = std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch>;
 
-std::optional<std::string> get_query(const AppMode& mode);
+std::optional<std::string> get_query(const AppMode &mode);
 
 struct State {
     std::string input_buffer;
@@ -59,7 +66,7 @@ struct State {
     std::optional<std::string> error_message;
 
     Item get_selected_item() const;
-    void set_error(const std::string& message);
+    void set_error(const std::string &message);
     void clear_error();
     bool has_error() const;
 };
@@ -74,8 +81,9 @@ enum class Event {
     ExitRequested,
 };
 
-Event process_input_events(Display *display, State &state, const Config &config);
+Event process_input_events(Display *display, State &state,
+                           const Config &config);
 
-void draw(XWindow& window, const Config& config, const State &state);
+void draw(XWindow &window, const Config &config, const State &state);
 
 } // namespace ui
