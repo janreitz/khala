@@ -37,6 +37,7 @@ add_executable(khala
     src/config.cpp
     src/fuzzy.cpp
     src/indexer.cpp
+    src/ranker.cpp
     src/streamingindex.cpp
     src/ui.cpp
     src/utility.cpp
@@ -65,6 +66,7 @@ target_link_libraries(khala PRIVATE
 add_executable(indexer_benchmark
     src/indexer_benchmark.cpp
     src/indexer.cpp
+    src/ranker.cpp
     src/streamingindex.cpp
     src/utility.cpp
     src/fuzzy.cpp

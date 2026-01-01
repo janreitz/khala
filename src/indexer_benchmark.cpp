@@ -1,5 +1,6 @@
 #include "fuzzy.h"
 #include "indexer.h"
+#include "ranker.h"
 #include "utility.h"
 
 #include <chrono>

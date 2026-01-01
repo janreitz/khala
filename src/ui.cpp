@@ -15,6 +15,7 @@
 #include <pango/pangocairo.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 namespace ui
