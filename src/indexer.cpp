@@ -79,6 +79,10 @@ void scan_filesystem_streaming(const fs::path &root_path,
                                StreamingIndex &index,
                                const std::set<fs::path> &ignore_dirs)
 {
+    const defer mark_complete([&index]() noexcept { 
+        index.mark_scan_complete(); 
+    });
+
     std::vector<fs::path> subdirs;
     PackedStrings root_files;
 
@@ -94,7 +98,6 @@ void scan_filesystem_streaming(const fs::path &root_path,
         }
     } catch (const fs::filesystem_error &e) {
         fprintf(stderr, "Error reading root: %s\n", e.what());
-        index.mark_scan_complete();
         return;
     }
 
@@ -120,8 +123,6 @@ void scan_filesystem_streaming(const fs::path &root_path,
     for (auto &fut : futures) {
         fut.get();
     }
-
-    index.mark_scan_complete();
 }
 
 std::unordered_map<std::string, std::string>
