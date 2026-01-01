@@ -1,6 +1,6 @@
 #include "ui.h"
-#include "utility.h"
 #include "fuzzy.h"
+#include "utility.h"
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -15,7 +15,6 @@
 #include <pango/pangocairo.h>
 
 #include <algorithm>
-#include <ranges>
 #include <string>
 
 namespace ui
@@ -29,146 +28,166 @@ struct MonitorInfo {
     bool found;
 };
 
-MonitorInfo get_primary_monitor_xrandr(Display* display, int screen) {
+MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
+{
     MonitorInfo info = {0, 0, 0, 0, false};
-    
+
     // Check if XRandR extension is available
     int xrandr_event_base, xrandr_error_base;
     if (!XRRQueryExtension(display, &xrandr_event_base, &xrandr_error_base)) {
         printf("XRandR extension not available\n");
         return info;
     }
-    
+
     // Check XRandR version
     int major_version, minor_version;
     if (!XRRQueryVersion(display, &major_version, &minor_version)) {
         printf("XRandR version query failed\n");
         return info;
     }
-    
+
     printf("XRandR version: %d.%d\n", major_version, minor_version);
-    
+
     // We need at least XRandR 1.2 for monitor info
     if (major_version < 1 || (major_version == 1 && minor_version < 2)) {
         printf("XRandR version too old (need 1.2+)\n");
         return info;
     }
-    
+
     Window root = RootWindow(display, screen);
-    
+
     // Get screen resources
-    XRRScreenResources* screen_resources = XRRGetScreenResources(display, root);
+    XRRScreenResources *screen_resources = XRRGetScreenResources(display, root);
     if (!screen_resources) {
         printf("Failed to get XRandR screen resources\n");
         return info;
     }
-    
+
     // Find primary output
     RROutput primary = XRRGetOutputPrimary(display, root);
-    
+
     // If no primary is set, use the first connected output
     if (primary == None) {
         printf("No primary output set, looking for first connected output\n");
         for (int i = 0; i < screen_resources->noutput; i++) {
-            XRROutputInfo* output_info = XRRGetOutputInfo(display, screen_resources, screen_resources->outputs[i]);
-            if (output_info && output_info->connection == RR_Connected && output_info->crtc) {
+            XRROutputInfo *output_info = XRRGetOutputInfo(
+                display, screen_resources, screen_resources->outputs[i]);
+            if (output_info && output_info->connection == RR_Connected &&
+                output_info->crtc) {
                 primary = screen_resources->outputs[i];
                 XRRFreeOutputInfo(output_info);
                 break;
             }
-            if (output_info) XRRFreeOutputInfo(output_info);
+            if (output_info)
+                XRRFreeOutputInfo(output_info);
         }
     }
-    
+
     if (primary != None) {
-        XRROutputInfo* output_info = XRRGetOutputInfo(display, screen_resources, primary);
+        XRROutputInfo *output_info =
+            XRRGetOutputInfo(display, screen_resources, primary);
         if (output_info && output_info->crtc) {
-            XRRCrtcInfo* crtc_info = XRRGetCrtcInfo(display, screen_resources, output_info->crtc);
+            XRRCrtcInfo *crtc_info =
+                XRRGetCrtcInfo(display, screen_resources, output_info->crtc);
             if (crtc_info) {
                 info.width = crtc_info->width;
                 info.height = crtc_info->height;
                 info.x = crtc_info->x;
                 info.y = crtc_info->y;
                 info.found = true;
-                
-                printf("Primary monitor found: %dx%d at (%d,%d)\n", 
-                       info.width, info.height, info.x, info.y);
-                
+
+                printf("Primary monitor found: %dx%d at (%d,%d)\n", info.width,
+                       info.height, info.x, info.y);
+
                 XRRFreeCrtcInfo(crtc_info);
             }
         }
-        if (output_info) XRRFreeOutputInfo(output_info);
+        if (output_info)
+            XRRFreeOutputInfo(output_info);
     }
-    
+
     XRRFreeScreenResources(screen_resources);
     return info;
 }
 
-std::string create_highlighted_markup(const std::string& text, const std::vector<size_t>& match_positions) {
+std::string
+create_highlighted_markup(const std::string &text,
+                          const std::vector<size_t> &match_positions)
+{
     if (match_positions.empty()) {
         // No highlighting needed, escape the text for markup
         std::string escaped;
         for (char c : text) {
-            if (c == '&') escaped += "&amp;";
-            else if (c == '<') escaped += "&lt;";
-            else if (c == '>') escaped += "&gt;";
-            else escaped += c;
+            if (c == '&')
+                escaped += "&amp;";
+            else if (c == '<')
+                escaped += "&lt;";
+            else if (c == '>')
+                escaped += "&gt;";
+            else
+                escaped += c;
         }
         return escaped;
     }
-    
+
     std::string result;
     size_t match_idx = 0;
-    
+
     for (size_t i = 0; i < text.size(); ++i) {
         char c = text[i];
-        
+
         // Check if this position should be highlighted
-        bool should_highlight = (match_idx < match_positions.size() && 
-                                match_positions[match_idx] == i);
-        
+        bool should_highlight = (match_idx < match_positions.size() &&
+                                 match_positions[match_idx] == i);
+
         if (should_highlight) {
             result += "<b>";
         }
-        
+
         // Escape special markup characters
-        if (c == '&') result += "&amp;";
-        else if (c == '<') result += "&lt;";
-        else if (c == '>') result += "&gt;";
-        else result += c;
-        
+        if (c == '&')
+            result += "&amp;";
+        else if (c == '<')
+            result += "&lt;";
+        else if (c == '>')
+            result += "&gt;";
+        else
+            result += c;
+
         if (should_highlight) {
             result += "</b>";
             match_idx++;
         }
     }
-    
+
     return result;
 }
 
-
-int calculate_actual_input_height(const Config& config, int screen_height) {
+int calculate_actual_input_height(const Config &config, int screen_height)
+{
     return static_cast<int>(screen_height * config.input_height_ratio);
 }
 
-int calculate_actual_item_height(const Config& config, int screen_height) {
+int calculate_actual_item_height(const Config &config, int screen_height)
+{
     return static_cast<int>(screen_height * config.item_height_ratio);
 }
 
-XWindow::XWindow(const Config& config) {
+XWindow::XWindow(const Config &config)
+{
     display = XOpenDisplay(nullptr);
     if (!display) {
         throw std::runtime_error("Cannot open display");
     }
-    
+
     const int screen = DefaultScreen(display);
-    
+
     // Get primary monitor info using XRandR first
     int primary_screen_width, primary_screen_height;
     int primary_screen_x = 0, primary_screen_y = 0;
-    
+
     MonitorInfo primary_monitor = get_primary_monitor_xrandr(display, screen);
-    
+
     if (primary_monitor.found) {
         // Use XRandR info
         primary_screen_width = primary_monitor.width;
@@ -181,11 +200,13 @@ XWindow::XWindow(const Config& config) {
         printf("Falling back to heuristic monitor detection\n");
         const int total_width = DisplayWidth(display, screen);
         const int total_height = DisplayHeight(display, screen);
-        
+
         // Simple heuristic for multi-monitor detection:
-        // If aspect ratio suggests multiple monitors, estimate primary monitor size
-        const double aspect_ratio = static_cast<double>(total_width) / total_height;
-        
+        // If aspect ratio suggests multiple monitors, estimate primary monitor
+        // size
+        const double aspect_ratio =
+            static_cast<double>(total_width) / total_height;
+
         if (aspect_ratio > 3.0) {
             // Very wide screen, likely dual monitor setup
             primary_screen_width = total_width / 2;
@@ -204,73 +225,87 @@ XWindow::XWindow(const Config& config) {
         primary_screen_x = 0;
         primary_screen_y = 0;
     }
-    
+
     screen_height = primary_screen_height;
-    
-    // Calculate window dimensions based on primary screen size and config ratios
+
+    // Calculate window dimensions based on primary screen size and config
+    // ratios
     width = static_cast<int>(primary_screen_width * config.width_ratio);
-    const int input_height = calculate_actual_input_height(config, primary_screen_height);
-    const int item_height = calculate_actual_item_height(config, primary_screen_height);
+    const int input_height =
+        calculate_actual_input_height(config, primary_screen_height);
+    const int item_height =
+        calculate_actual_item_height(config, primary_screen_height);
     height = input_height + (config.max_visible_items * item_height);
-    
-    // Center the window properly: position is relative to center, not top-left corner
-    // Also account for monitor offset in multi-monitor setups
-    const int x = primary_screen_x + static_cast<int>(primary_screen_width * config.x_position - width / 2);
-    const int y = primary_screen_y + static_cast<int>(primary_screen_height * config.y_position - height / 2);
-    
+
+    // Center the window properly: position is relative to center, not top-left
+    // corner Also account for monitor offset in multi-monitor setups
+    const int x =
+        primary_screen_x +
+        static_cast<int>(primary_screen_width * config.x_position - width / 2);
+    const int y = primary_screen_y +
+                  static_cast<int>(primary_screen_height * config.y_position -
+                                   height / 2);
+
     // Debug output
-    printf("Primary monitor: %dx%d at (%d,%d)\n", 
-           primary_screen_width, primary_screen_height, primary_screen_x, primary_screen_y);
+    printf("Primary monitor: %dx%d at (%d,%d)\n", primary_screen_width,
+           primary_screen_height, primary_screen_x, primary_screen_y);
     printf("Window: %dx%d at (%d,%d)\n", width, height, x, y);
-    
+
     XVisualInfo vinfo;
     XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
-    
-    colormap = XCreateColormap(
-        display, RootWindow(display, screen), vinfo.visual, AllocNone);
-    
+
+    colormap = XCreateColormap(display, RootWindow(display, screen),
+                               vinfo.visual, AllocNone);
+
     XSetWindowAttributes attrs;
     attrs.override_redirect = True;
     attrs.colormap = colormap;
     attrs.background_pixel = 0;
     attrs.border_pixel = 0;
-    attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | FocusChangeMask;
-    
-    window = XCreateWindow(
-        display, RootWindow(display, screen), x, y, width, height,
-        0, vinfo.depth, InputOutput, vinfo.visual,
-        CWOverrideRedirect | CWColormap | CWBackPixel | CWBorderPixel | CWEventMask,
-        &attrs);
-    
+    attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask |
+                       ButtonPressMask | FocusChangeMask;
+
+    window = XCreateWindow(display, RootWindow(display, screen), x, y, width,
+                           height, 0, vinfo.depth, InputOutput, vinfo.visual,
+                           CWOverrideRedirect | CWColormap | CWBackPixel |
+                               CWBorderPixel | CWEventMask,
+                           &attrs);
+
     Atom windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
     Atom dialogType = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
     XChangeProperty(display, window, windowType, XA_ATOM, 32, PropModeReplace,
-                    (unsigned char*)&dialogType, 1);
-    
+                    (unsigned char *)&dialogType, 1);
+
     Atom stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
     Atom stateAbove = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
     XChangeProperty(display, window, stateAtom, XA_ATOM, 32, PropModeReplace,
-                    (unsigned char*)&stateAbove, 1);
-    
+                    (unsigned char *)&stateAbove, 1);
+
     XMapRaised(display, window);
     XSetInputFocus(display, window, RevertToParent, CurrentTime);
     XFlush(display);
 }
 
-XWindow::~XWindow() {
+XWindow::~XWindow()
+{
     if (display) {
-        if (window) XDestroyWindow(display, window);
-        if (colormap) XFreeColormap(display, colormap);
+        if (window)
+            XDestroyWindow(display, window);
+        if (colormap)
+            XFreeColormap(display, colormap);
         XCloseDisplay(display);
     }
 }
 
-int calculate_window_height(const Config& config, const State& state, int screen_height) {
+int calculate_window_height(const Config &config, const State &state,
+                            int screen_height)
+{
     const size_t item_count = state.context_menu_open
-        ? state.get_selected_item().actions.size()
-        : state.items.size();
+                                  ? state.get_selected_item().actions.size()
+                                  : state.items.size();
     const size_t visible_items = std::min(item_count, config.max_visible_items);
-    const int input_height = calculate_actual_input_height(config, screen_height);
+    const int input_height =
+        calculate_actual_input_height(config, screen_height);
     const int item_height = calculate_actual_item_height(config, screen_height);
     return input_height + (visible_items * item_height);
 }
@@ -282,20 +317,14 @@ Action State::get_selected_action() const
     return get_selected_item().actions.at(selected_action_index);
 }
 
-void State::set_error(const std::string& message)
+void State::set_error(const std::string &message)
 {
     error_message = message + " (Esc to clear)";
 }
 
-void State::clear_error()
-{
-    error_message = std::nullopt;
-}
+void State::clear_error() { error_message = std::nullopt; }
 
-bool State::has_error() const
-{
-    return error_message.has_value();
-}
+bool State::has_error() const { return error_message.has_value(); }
 
 enum class Corner : uint8_t {
     NoCorners = 0,
@@ -368,14 +397,14 @@ Event process_input_events(Display *display, State &state)
 
     // Always wait for at least one event to avoid busy looping
     XNextEvent(display, &event);
-    
+
     // Process the first event
     goto process_event;
-    
+
     // Then process any additional pending events without blocking
     while (XPending(display) > 0) {
         XNextEvent(display, &event);
-        
+
     process_event:
 
         if (event.type == Expose) {
@@ -383,7 +412,8 @@ Event process_input_events(Display *display, State &state)
             }
         } else if (event.type == ButtonPress) {
             // Regain focus when clicked
-            XSetInputFocus(display, event.xbutton.window, RevertToParent, CurrentTime);
+            XSetInputFocus(display, event.xbutton.window, RevertToParent,
+                           CurrentTime);
         } else if (event.type == KeyPress) {
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
@@ -490,18 +520,21 @@ Event process_input_events(Display *display, State &state)
     return out_event;
 }
 
-void draw(XWindow& window, const Config& config, const State &state)
+void draw(XWindow &window, const Config &config, const State &state)
 {
-        // Calculate actual heights based on screen size
-        const int input_height = calculate_actual_input_height(config, window.screen_height);
-        const int item_height = calculate_actual_item_height(config, window.screen_height);
-        
-        // Calculate window height based on item count
-        const int new_height = calculate_window_height(config, state, window.screen_height);
-        if (new_height != window.height) {
-            XResizeWindow(window.display, window.window, window.width, new_height);
-            window.height = new_height;
-        }
+    // Calculate actual heights based on screen size
+    const int input_height =
+        calculate_actual_input_height(config, window.screen_height);
+    const int item_height =
+        calculate_actual_item_height(config, window.screen_height);
+
+    // Calculate window height based on item count
+    const int new_height =
+        calculate_window_height(config, state, window.screen_height);
+    if (new_height != window.height) {
+        XResizeWindow(window.display, window.window, window.width, new_height);
+        window.height = new_height;
+    }
 
     // Get the window's visual (which should be ARGB for transparency)
     XWindowAttributes window_attrs;
@@ -509,8 +542,8 @@ void draw(XWindow& window, const Config& config, const State &state)
     Visual *visual = window_attrs.visual;
 
     // Create Cairo surface for X11 window
-    cairo_surface_t *surface =
-        cairo_xlib_surface_create(window.display, window.window, visual, window.width, window.height);
+    cairo_surface_t *surface = cairo_xlib_surface_create(
+        window.display, window.window, visual, window.width, window.height);
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
@@ -533,21 +566,23 @@ void draw(XWindow& window, const Config& config, const State &state)
     const double border_width = 3.0;
 
     // Fill entire window with input color (grey)
-    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius,
+                      Corner::All);
     cairo_set_source_rgb(cr, 0.92, 0.92, 0.92);
     cairo_fill(cr);
 
     // Draw white background for dropdown area if there are items
     if (window.height > input_height) {
         cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
-        draw_rounded_rect(cr, 0, input_height, window.width, window.height - input_height,
-                          corner_radius,
+        draw_rounded_rect(cr, 0, input_height, window.width,
+                          window.height - input_height, corner_radius,
                           Corner::BottomLeft | Corner::BottomRight);
         cairo_fill(cr);
     }
 
     // Draw white border around entire window
-    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius, Corner::All);
+    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius,
+                      Corner::All);
     cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
     cairo_set_line_width(cr, border_width);
     cairo_stroke(cr);
@@ -567,7 +602,8 @@ void draw(XWindow& window, const Config& config, const State &state)
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
-            display_text = "Search files... (prefix > for utility actions, ! for applications)";
+            display_text = "Search files... (prefix > for utility actions, ! "
+                           "for applications)";
         }
     }
 
@@ -675,12 +711,16 @@ void draw(XWindow& window, const Config& config, const State &state)
 
         // Draw the title text
         pango_layout_set_text(layout, dropdown_items.at(i).title.c_str(), -1);
-        // Draw icon and filename (main text) with highlighting - center vertically within item_height
-        const std::string highlighted_title = create_highlighted_markup(dropdown_items.at(i).title, dropdown_items.at(i).title_match_positions);
+        // Draw icon and filename (main text) with highlighting - center
+        // vertically within item_height
+        const std::string highlighted_title = create_highlighted_markup(
+            dropdown_items.at(i).title,
+            dropdown_items.at(i).title_match_positions);
         pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
         int text_width_unused, text_height;
         pango_layout_get_size(layout, &text_width_unused, &text_height);
-        const double text_y_centered = y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;
+        const double text_y_centered =
+            y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;
         cairo_move_to(cr, 15, text_y_centered);
         pango_cairo_show_layout(cr, layout);
 
@@ -706,9 +746,14 @@ void draw(XWindow& window, const Config& config, const State &state)
                 cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
             }
 
-            // Set description text with highlighting and middle ellipsization
-            const std::string highlighted_description = create_highlighted_markup(dropdown_items.at(i).description, dropdown_items.at(i).description_match_positions);
-            pango_layout_set_markup(layout, highlighted_description.c_str(), -1);
+            // Set description text with highlighting and middle
+            // ellipsization
+            const std::string highlighted_description =
+                create_highlighted_markup(
+                    dropdown_items.at(i).description,
+                    dropdown_items.at(i).description_match_positions);
+            pango_layout_set_markup(layout, highlighted_description.c_str(),
+                                    -1);
             pango_layout_set_width(layout, available_width * PANGO_SCALE);
             pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
 
