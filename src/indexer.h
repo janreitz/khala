@@ -17,7 +17,8 @@ PackedStrings scan_filesystem_parallel(const std::filesystem::path &root_path,
 
 void scan_filesystem_streaming(const std::filesystem::path &root_path,
                                StreamingIndex &index,
-                               const std::set<fs::path> &ignore_dirs = {});
+                               const std::set<fs::path> &ignore_dirs = {}, 
+                               size_t chunk_size = 1000);
 
 struct DesktopApp {
     std::string name;
