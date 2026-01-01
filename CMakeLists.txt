@@ -65,12 +65,17 @@ target_link_libraries(khala PRIVATE
 
 add_executable(indexer_benchmark
     src/indexer_benchmark.cpp
+    src/config.cpp
     src/indexer.cpp
     src/ranker.cpp
     src/streamingindex.cpp
     src/utility.cpp
     src/fuzzy.cpp
 )
+
+target_compile_definitions(indexer_benchmark PRIVATE
+    KHALA_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
+
 target_link_libraries(indexer_benchmark PRIVATE TBB::tbb)
 
 install(TARGETS khala DESTINATION bin)
