@@ -34,27 +34,31 @@ struct XWindow {
 struct Item {
     std::string title;
     std::string description;
-    std::vector<Action> actions;
+    Action action;
 };
+
+struct FileSearch{ std::string query; };
+struct ContextMenu { fs::path selected_file; };
+struct AppSearch{ std::string query; };
+struct CommandSearch{ std::string query; };
+
+using AppMode = std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch>;
+
+std::optional<std::string> get_query(const AppMode& mode);
 
 struct State {
     std::string input_buffer;
     size_t cursor_position = 0;
-    std::string current_query; // Current search query for highlighting
+    AppMode mode;
 
     // Results
     std::vector<Item> items;
     size_t selected_item_index = 0;
 
-    // Context menu
-    bool context_menu_open = false;
-    size_t selected_action_index = 0;
-
     // Error display
     std::optional<std::string> error_message;
 
     Item get_selected_item() const;
-    Action get_selected_action() const;
     void set_error(const std::string& message);
     void clear_error();
     bool has_error() const;
@@ -70,7 +74,7 @@ enum class Event {
     ExitRequested,
 };
 
-Event process_input_events(Display *display, State &state);
+Event process_input_events(Display *display, State &state, const Config &config);
 
 void draw(XWindow& window, const Config& config, const State &state);
 
