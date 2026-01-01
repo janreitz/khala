@@ -282,6 +282,21 @@ Action State::get_selected_action() const
     return get_selected_item().actions.at(selected_action_index);
 }
 
+void State::set_error(const std::string& message)
+{
+    error_message = message + " (Esc to clear)";
+}
+
+void State::clear_error()
+{
+    error_message = std::nullopt;
+}
+
+bool State::has_error() const
+{
+    return error_message.has_value();
+}
+
 enum class Corner : uint8_t {
     NoCorners = 0,
     TopLeft = 1 << 0,

@@ -2,6 +2,7 @@
 #include "config.h"
 #include "utility.h"
 
+#include <optional>
 #include <string>
 #include <variant>
 
@@ -49,8 +50,14 @@ struct State {
     bool context_menu_open = false;
     size_t selected_action_index = 0;
 
+    // Error display
+    std::optional<std::string> error_message;
+
     Item get_selected_item() const;
     Action get_selected_action() const;
+    void set_error(const std::string& message);
+    void clear_error();
+    bool has_error() const;
 };
 
 enum class Event {
