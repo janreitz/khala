@@ -75,9 +75,47 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
     return result;
 }
 
+void scan_subtree_streaming(const fs::path &root,
+                                     const std::set<fs::path> &ignore_dirs,
+                                     StreamingIndex &index,
+                                     size_t chunk_size = 1000)
+{
+    PackedStrings current_chunk;
+    
+    try {
+        for (auto it = fs::recursive_directory_iterator(
+                 root, fs::directory_options::skip_permission_denied);
+             it != fs::end(it); ++it) {
+
+            if (it->is_directory() && ignore_dirs.contains(it->path())) {
+                it.disable_recursion_pending();
+                continue;
+            }
+
+            if (it->is_regular_file()) {
+                current_chunk.push(it->path().string());
+                
+                if (current_chunk.size() >= chunk_size) {
+                    current_chunk.shrink_to_fit();
+                    index.add_chunk(std::move(current_chunk));
+                    current_chunk = PackedStrings{};
+                }
+            }
+        }
+    } catch (const fs::filesystem_error &) {
+    }
+    
+    // Emit remaining files
+    if (!current_chunk.empty()) {
+        current_chunk.shrink_to_fit();
+        index.add_chunk(std::move(current_chunk));
+    }
+}
+
 void scan_filesystem_streaming(const fs::path &root_path,
                                StreamingIndex &index,
-                               const std::set<fs::path> &ignore_dirs)
+                               const std::set<fs::path> &ignore_dirs,
+                               size_t chunk_size)
 {
     const defer mark_complete([&index]() noexcept { 
         index.mark_scan_complete(); 
@@ -106,22 +144,25 @@ void scan_filesystem_streaming(const fs::path &root_path,
         index.add_chunk(std::move(root_files));
     }
 
-    // Process subdirectories concurrently, emitting chunks as they complete
-    std::vector<std::future<void>> futures;
-    futures.reserve(subdirs.size());
-    
-    for (const auto &subdir : subdirs) {
-        futures.push_back(std::async(std::launch::async, [&index, subdir, &ignore_dirs]() {
-            auto chunk = scan_subtree(subdir, ignore_dirs);
-            if (!chunk.empty()) {
-                index.add_chunk(std::move(chunk));
+    const size_t num_threads = std::min(subdirs.size(), 
+                                         static_cast<size_t>(std::thread::hardware_concurrency()));
+    std::atomic<size_t> next_dir{0};
+    std::vector<std::thread> workers;
+    workers.reserve(num_threads);
+
+    for (size_t i = 0; i < num_threads; i++) {
+        workers.emplace_back([&]() {
+            for (;;) {
+                size_t idx = next_dir.fetch_add(1, std::memory_order_relaxed);
+                if (idx >= subdirs.size()) break;
+                
+                scan_subtree_streaming(subdirs[idx], ignore_dirs, index, chunk_size);
             }
-        }));
+        });
     }
 
-    // Wait for all tasks to complete
-    for (auto &fut : futures) {
-        fut.get();
+    for (auto &w : workers) {
+        w.join();
     }
 }
 
