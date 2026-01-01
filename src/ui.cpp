@@ -610,39 +610,38 @@ void draw(XWindow& window, const Config& config, const State &state)
         std::string description;
         std::vector<size_t> title_match_positions;
         std::vector<size_t> description_match_positions;
-    };
-
-    auto to_dropdown = [&state](const auto &x) -> DropdownItem {
-        if constexpr (std::is_same_v<std::decay_t<decltype(x)>, Item>) {
-            return DropdownItem{
-                .title = x.title, 
-                .description = x.description, 
-                .title_match_positions = fuzzy::fuzzy_match(x.title, state.current_query),
-                .description_match_positions = fuzzy::fuzzy_match(x.description, state.current_query)
-            };
-        } else {
-            return DropdownItem{
-                .title = x.title, 
-                .description = x.description, 
-                .title_match_positions = fuzzy::fuzzy_match(x.title, state.current_query),
-                .description_match_positions = fuzzy::fuzzy_match(x.description, state.current_query)
-            };
-        }
+        // Add style info
     };
 
     auto [dropdown_items, selection_index] =
         [&]() -> std::pair<std::vector<DropdownItem>, size_t> {
+        std::vector<DropdownItem> dropdown_items;
         if (state.context_menu_open) {
-            auto transformed = state.get_selected_item().actions |
-                               std::views::transform(to_dropdown);
-            return {std::vector<DropdownItem>(transformed.begin(),
-                                              transformed.end()),
-                    state.selected_action_index};
+            const auto &file_actions = state.get_selected_item().actions;
+            dropdown_items.reserve(file_actions.size());
+            for (const auto &file_action : file_actions) {
+                dropdown_items.push_back(DropdownItem{
+                    .title = file_action.title,
+                    .description = file_action.description,
+                    .title_match_positions = fuzzy::fuzzy_match(
+                        file_action.title, state.current_query),
+                    .description_match_positions = fuzzy::fuzzy_match(
+                        file_action.description, state.current_query)});
+            }
+
+            return {dropdown_items, state.selected_action_index};
         } else {
-            auto transformed = state.items | std::views::transform(to_dropdown);
-            return {std::vector<DropdownItem>(transformed.begin(),
-                                              transformed.end()),
-                    state.selected_item_index};
+            dropdown_items.reserve(state.items.size());
+            for (const auto &item : state.items) {
+                dropdown_items.push_back(DropdownItem{
+                    .title = item.title,
+                    .description = item.description,
+                    .title_match_positions =
+                        fuzzy::fuzzy_match(item.title, state.current_query),
+                    .description_match_positions = fuzzy::fuzzy_match(
+                        item.description, state.current_query)});
+            }
+            return {dropdown_items, state.selected_item_index};
         }
     }();
 
