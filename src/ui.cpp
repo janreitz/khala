@@ -20,16 +20,18 @@
 namespace ui
 {
 
-std::optional<std::string> get_query(const AppMode& mode) {
-    return std::visit([](auto& m) -> std::optional<std::string> {
-        if constexpr (requires { m.query; }) {
-            return m.query;
-        } else {
-            return std::nullopt;
-        }
-    }, mode);
+std::optional<std::string> get_query(const AppMode &mode)
+{
+    return std::visit(
+        [](auto &m) -> std::optional<std::string> {
+            if constexpr (requires { m.query; }) {
+                return m.query;
+            } else {
+                return std::nullopt;
+            }
+        },
+        mode);
 };
-
 
 struct MonitorInfo {
     int width;
@@ -425,27 +427,30 @@ Event process_input_events(Display *display, State &state, const Config &config)
                 out_event = Event::ExitRequested;
             } else if (keysym == XK_Up) {
                 // Move selection up
-                    if (state.selected_item_index > 0) {
-                        state.selected_item_index--;
-                        out_event = Event::SelectionChanged;
-                    }
+                if (state.selected_item_index > 0) {
+                    state.selected_item_index--;
+                    out_event = Event::SelectionChanged;
+                }
             } else if (keysym == XK_Down) {
                 // Move selection down
-                    if (state.selected_item_index < state.items.size() - 1) {
-                        state.selected_item_index++;
-                        out_event = Event::SelectionChanged;
-                    }
+                if (state.selected_item_index < state.items.size() - 1) {
+                    state.selected_item_index++;
+                    out_event = Event::SelectionChanged;
+                }
             } else if (keysym == XK_Tab) {
                 // Open context menu
-                if (!std::holds_alternative<ContextMenu>(state.mode) && !state.items.empty()) {
-                    const auto& file_item = state.get_selected_item();
-                    const auto selected_file = fs::path(file_item.description) / fs::path(file_item.title);
-                    state.mode = ContextMenu { .selected_file = selected_file };
+                if (!std::holds_alternative<ContextMenu>(state.mode) &&
+                    !state.items.empty()) {
+                    const auto &file_item = state.get_selected_item();
+                    const auto selected_file = fs::path(file_item.description) /
+                                               fs::path(file_item.title);
+                    state.mode = ContextMenu{.selected_file = selected_file};
                     state.selected_item_index = 0;
-                    const auto file_actions = make_file_actions(selected_file, config);
+                    const auto file_actions =
+                        make_file_actions(selected_file, config);
                     state.items.clear();
                     state.items.reserve(file_actions.size());
-                    for (const auto& file_action : file_actions) {
+                    for (const auto &file_action : file_actions) {
                         state.items.push_back(Item{
                             .title = file_action.title,
                             .description = file_action.description,
@@ -457,7 +462,7 @@ Event process_input_events(Display *display, State &state, const Config &config)
             } else if (keysym == XK_Left) {
                 if (std::holds_alternative<ContextMenu>(state.mode)) {
                     // Close context menu
-                    state.mode = FileSearch {.query = state.input_buffer };
+                    state.mode = FileSearch{.query = state.input_buffer};
                     out_event = Event::ContextMenuToggled;
                 } else {
                     // Move cursor left
@@ -597,7 +602,10 @@ void draw(XWindow &window, const Config &config, const State &state)
     std::string display_text;
     if (std::holds_alternative<ContextMenu>(state.mode)) {
         // Show selected item title when in context menu
-        display_text = fs::canonical(std::get<ContextMenu>(state.mode).selected_file).generic_string() + " › Actions";
+        display_text =
+            fs::canonical(std::get<ContextMenu>(state.mode).selected_file)
+                .generic_string() +
+            " › Actions";
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
@@ -648,23 +656,23 @@ void draw(XWindow &window, const Config &config, const State &state)
         // Add style info
     };
 
+    std::vector<DropdownItem> dropdown_items;
 
-        std::vector<DropdownItem> dropdown_items;
-
-            const auto query_opt = get_query(state.mode);
-            const std::string query = query_opt.value_or("");
-            dropdown_items.reserve(state.items.size());
-            for (const auto &item : state.items) {
-                dropdown_items.push_back(DropdownItem{
-                    .title = item.title,
-                    .description = item.description,
-                    .title_match_positions = query_opt ? 
-                        fuzzy::fuzzy_match(item.title, query) : std::vector<size_t>{},
-                    .description_match_positions = query_opt ?
-                        fuzzy::fuzzy_match(item.description, query) : std::vector<size_t>{}});
-            }
-            const auto selection_index = state.selected_item_index;
-
+    const auto query_opt = get_query(state.mode);
+    const std::string query = query_opt.value_or("");
+    dropdown_items.reserve(state.items.size());
+    for (const auto &item : state.items) {
+        dropdown_items.push_back(DropdownItem{
+            .title = item.title,
+            .description = item.description,
+            .title_match_positions = query_opt
+                                         ? fuzzy::fuzzy_match(item.title, query)
+                                         : std::vector<size_t>{},
+            .description_match_positions =
+                query_opt ? fuzzy::fuzzy_match(item.description, query)
+                          : std::vector<size_t>{}});
+    }
+    const auto selection_index = state.selected_item_index;
 
     // Draw dropdown items
     for (size_t i = 0; i < dropdown_items.size(); ++i) {

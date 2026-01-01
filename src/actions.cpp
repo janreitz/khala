@@ -15,7 +15,6 @@
 namespace
 {
 
-
 void copy_to_clipboard(const std::string &content)
 {
     int pipefd[2];
@@ -70,7 +69,8 @@ void run_command(const std::vector<std::string> &args)
     }
 }
 
-void run_custom_command_with_capture(const CustomCommand &cmd) {
+void run_custom_command_with_capture(const CustomCommand &cmd)
+{
     int pipefd[2];
     if (pipe(pipefd) == -1) {
         perror("pipe");
@@ -80,7 +80,7 @@ void run_custom_command_with_capture(const CustomCommand &cmd) {
     const pid_t pid = fork();
     if (pid == 0) {
         // Child process
-        close(pipefd[0]); // Close read end
+        close(pipefd[0]);               // Close read end
         dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
         close(pipefd[1]);
 
@@ -97,7 +97,7 @@ void run_custom_command_with_capture(const CustomCommand &cmd) {
     } else if (pid > 0) {
         // Parent process
         close(pipefd[1]); // Close write end
-        
+
         // Read the output
         std::string output;
         char buffer[4096];
@@ -106,15 +106,15 @@ void run_custom_command_with_capture(const CustomCommand &cmd) {
             output.append(buffer, bytes_read);
         }
         close(pipefd[0]);
-        
+
         // Wait for child to finish
         waitpid(pid, nullptr, 0);
-        
+
         // Remove trailing newline if present
         if (!output.empty() && output.back() == '\n') {
             output.pop_back();
         }
-        
+
         // Copy to clipboard
         if (!output.empty()) {
             copy_to_clipboard(output);
@@ -153,7 +153,6 @@ void run_custom_command(const CustomCommand &cmd)
         waitpid(pid, nullptr, 0);
     }
 }
-
 
 std::string read_file(const fs::path &path)
 {
