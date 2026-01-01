@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utility.h"
+#include "streamingindex.h"
 #include "actions.h"
 
 #include <filesystem>
@@ -13,6 +14,10 @@ namespace indexer
 {
 PackedStrings scan_filesystem_parallel(const std::filesystem::path &root_path,
                                       const std::set<fs::path> &ignore_dirs = {});
+
+void scan_filesystem_streaming(const std::filesystem::path &root_path,
+                               StreamingIndex &index,
+                               const std::set<fs::path> &ignore_dirs = {});
 
 struct DesktopApp {
     std::string name;
