@@ -120,7 +120,7 @@ int main()
         } else if (event == ui::Event::ActionRequested) {
             printf("Selected: %s\n",
                    current_matches.at(state.selected_item_index).data());
-            process_command(state.get_selected_item().action.command, config);
+            process_command(state.get_selected_item().command, config);
             if (config.quit_on_action) {
                 break;
             }
@@ -133,18 +133,13 @@ int main()
                 const auto query = state.input_buffer.substr(1);
                 state.mode = ui::CommandSearch{.query = query}; // Strip '>'
                 auto to_item = [&global_actions](const RankResult &r) {
-                    const auto &action = global_actions[r.index];
-                    return ui::Item{
-                        .title = action.title,
-                        .description = action.description,
-                        .action = {action},
-                    };
+                    return global_actions[r.index];
                 };
 
                 auto ranked = rank(
                     global_actions,
-                    [&query](const Action &action) {
-                        return fuzzy::fuzzy_score(action.title, query);
+                    [&query](const ui::Item &item) {
+                        return fuzzy::fuzzy_score(item.title, query);
                     },
                     config.max_visible_items);
 
@@ -165,13 +160,8 @@ int main()
                         return ui::Item{
                             .title = app.name,
                             .description = app.description,
-                            .action = {Action{
-                                .title = "Launch " + app.name,
-                                .description = "Launch this application",
-                                .command =
-                                    CustomCommand{.path = std::nullopt,
-                                                  .shell_cmd =
-                                                      app.exec_command}}},
+                            .command = CustomCommand{.path = std::nullopt,
+                                                   .shell_cmd = app.exec_command},
                         };
                     };
 
@@ -209,10 +199,11 @@ int main()
                 std::min(current_matches.size(), config.max_visible_items);
             for (size_t i = 0; i < visible_action_count; i++) {
                 fs::path path(current_matches.at(i).data());
+                const auto file_actions = make_file_actions(path, config);
                 state.items.push_back(ui::Item{
                     .title = path.filename(),
                     .description = path.parent_path(),
-                    .action = make_file_actions(path, config)[0],
+                    .command = file_actions[0].command,
                 });
             }
             new_results_available = true;
