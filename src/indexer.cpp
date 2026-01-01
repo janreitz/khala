@@ -8,6 +8,7 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -17,7 +18,8 @@ namespace indexer
 {
 
 PackedStrings scan_subtree(const fs::path &root,
-                           const std::set<fs::path> &ignore_dirs)
+                           const std::set<fs::path> &ignore_dirs,
+                           const std::set<std::string> &ignore_dir_names)
 {
     PackedStrings paths;
     try {
@@ -25,9 +27,13 @@ PackedStrings scan_subtree(const fs::path &root,
         for (auto it = fs::recursive_directory_iterator(
                  canon_root, fs::directory_options::skip_permission_denied); it != fs::end(it); ++it) {
 
-            if (it->is_directory() && ignore_dirs.contains(it->path())) {
-                it.disable_recursion_pending();
-                continue;
+            if (it->is_directory()) {
+                // Check both full paths and directory names
+                if (ignore_dirs.contains(it->path()) || 
+                    ignore_dir_names.contains(it->path().filename().string())) {
+                    it.disable_recursion_pending();
+                    continue;
+                }
             }
 
             if (it->is_regular_file()) {
@@ -41,7 +47,8 @@ PackedStrings scan_subtree(const fs::path &root,
 }
 
 PackedStrings scan_filesystem_parallel(const fs::path &root_path,
-                                       const std::set<fs::path> &ignore_dirs)
+                                       const std::set<fs::path> &ignore_dirs,
+                                       const std::set<std::string> &ignore_dir_names)
 {
     PackedStrings result;
     std::vector<fs::path> subdirs;
@@ -50,8 +57,12 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
     try {
         const auto canon_root = fs::canonical(root_path);
         for (const auto &entry : fs::directory_iterator(canon_root)) {
-            if (!ignore_dirs.contains(entry.path()) && entry.is_directory()) {
-                subdirs.push_back(entry.path());
+            if (entry.is_directory()) {
+                // Check both full paths and directory names
+                if (!ignore_dirs.contains(entry.path()) && 
+                    !ignore_dir_names.contains(entry.path().filename().string())) {
+                    subdirs.push_back(entry.path());
+                }
             } else if (entry.is_regular_file()) {
                 result.push(entry.path().string());
             }
@@ -65,7 +76,7 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
     futures.reserve(subdirs.size());
     for (const auto &subdir : subdirs) {
         futures.push_back(
-            std::async(std::launch::async, scan_subtree, subdir, ignore_dirs));
+            std::async(std::launch::async, scan_subtree, subdir, ignore_dirs, ignore_dir_names));
     }
 
     for (auto &fut : futures) {
@@ -77,6 +88,7 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
 
 void scan_subtree_streaming(const fs::path &root,
                                      const std::set<fs::path> &ignore_dirs,
+                                     const std::set<std::string> &ignore_dir_names,
                                      StreamingIndex &index,
                                      size_t chunk_size = 1000)
 {
@@ -87,9 +99,13 @@ void scan_subtree_streaming(const fs::path &root,
                  root, fs::directory_options::skip_permission_denied);
              it != fs::end(it); ++it) {
 
-            if (it->is_directory() && ignore_dirs.contains(it->path())) {
-                it.disable_recursion_pending();
-                continue;
+            if (it->is_directory()) {
+                // Check both full paths and directory names
+                if (ignore_dirs.contains(it->path()) || 
+                    ignore_dir_names.contains(it->path().filename().string())) {
+                    it.disable_recursion_pending();
+                    continue;
+                }
             }
 
             if (it->is_regular_file()) {
@@ -115,6 +131,7 @@ void scan_subtree_streaming(const fs::path &root,
 void scan_filesystem_streaming(const fs::path &root_path,
                                StreamingIndex &index,
                                const std::set<fs::path> &ignore_dirs,
+                               const std::set<std::string> &ignore_dir_names,
                                size_t chunk_size)
 {
     const defer mark_complete([&index]() noexcept { 
@@ -128,8 +145,12 @@ void scan_filesystem_streaming(const fs::path &root_path,
     try {
         const auto canon_root = fs::canonical(root_path);
         for (const auto &entry : fs::directory_iterator(canon_root)) {
-            if (!ignore_dirs.contains(entry.path()) && entry.is_directory()) {
-                subdirs.push_back(entry.path());
+            if (entry.is_directory()) {
+                // Check both full paths and directory names
+                if (!ignore_dirs.contains(entry.path()) && 
+                    !ignore_dir_names.contains(entry.path().filename().string())) {
+                    subdirs.push_back(entry.path());
+                }
             } else if (entry.is_regular_file()) {
                 root_files.push(entry.path().string());
             }
@@ -156,7 +177,7 @@ void scan_filesystem_streaming(const fs::path &root_path,
                 size_t idx = next_dir.fetch_add(1, std::memory_order_relaxed);
                 if (idx >= subdirs.size()) break;
                 
-                scan_subtree_streaming(subdirs[idx], ignore_dirs, index, chunk_size);
+                scan_subtree_streaming(subdirs[idx], ignore_dirs, ignore_dir_names, index, chunk_size);
             }
         });
     }

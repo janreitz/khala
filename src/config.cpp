@@ -150,6 +150,22 @@ get_dirs_or(const std::multimap<std::string, std::string> &map,
     return result;
 }
 
+std::set<std::string>
+get_strings_or(const std::multimap<std::string, std::string> &map,
+                 const std::string &key, std::set<std::string> default_value)
+{
+    std::set<std::string> result = default_value;
+    auto values = get_all(map, key);
+
+    for (const auto &value : values) {
+        if (!value.empty()) {
+            result.insert(value);
+        }
+    }
+
+    return result;
+}
+
 } // namespace
 
 fs::path Config::default_path()
@@ -196,6 +212,7 @@ Config Config::load(const fs::path &path)
     // Indexing
     cfg.index_root = get_dir_or(map, "index_root", cfg.index_root);
     cfg.ignore_dirs = get_dirs_or(map, "ignore_dir", cfg.ignore_dirs);
+    cfg.ignore_dir_names = get_strings_or(map, "ignore_dir_name", cfg.ignore_dir_names);
 
     std::vector<fs::path> commands_dirs{fs::path(KHALA_DATADIR) / "commands",
                                         path.parent_path() / "commands"};
@@ -239,6 +256,7 @@ Config Config::load(const fs::path &path)
 
 void Config::save(const fs::path &path) const
 {
+    printf("Writing config to %s", fs::canonical(path).generic_string().c_str());
     std::ofstream file(path);
 
     file << "# Khala Launcher Configuration\n";
@@ -269,6 +287,9 @@ void Config::save(const fs::path &path) const
     file << "index_root=" << fs::canonical(index_root).generic_string() << "\n";
     for (const auto &dir : ignore_dirs) {
         file << "ignore_dir=" << fs::canonical(dir).generic_string() << "\n";
+    }
+    for (const auto &dir_name : ignore_dir_names) {
+        file << "ignore_dir_name=" << dir_name << "\n";
     }
     file << "\n";
 }
