@@ -446,17 +446,7 @@ Event process_input_events(Display *display, State &state, const Config &config)
                                                fs::path(file_item.title);
                     state.mode = ContextMenu{.selected_file = selected_file};
                     state.selected_item_index = 0;
-                    const auto file_actions =
-                        make_file_actions(selected_file, config);
-                    state.items.clear();
-                    state.items.reserve(file_actions.size());
-                    for (const auto &file_action : file_actions) {
-                        state.items.push_back(Item{
-                            .title = file_action.title,
-                            .description = file_action.description,
-                            .action = file_action,
-                        });
-                    }
+                    state.items = make_file_actions(selected_file, config);
                     out_event = Event::ContextMenuToggled;
                 }
             } else if (keysym == XK_Left) {

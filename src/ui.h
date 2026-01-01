@@ -33,7 +33,7 @@ struct XWindow {
 struct Item {
     std::string title;
     std::string description;
-    Action action;
+    Command command;
 };
 
 struct FileSearch {

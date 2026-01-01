@@ -1,5 +1,6 @@
 #include "actions.h"
 #include "config.h"
+#include "ui.h"
 #include "utility.h"
 
 #include <chrono>
@@ -164,22 +165,22 @@ std::string read_file(const fs::path &path)
 
 } // anonymous namespace
 
-std::vector<Action> make_file_actions(const fs::path &path,
-                                      const Config &config)
+std::vector<ui::Item> make_file_actions(const fs::path &path,
+                                        const Config &config)
 {
-    std::vector<Action> actions = {
-        Action{.title = "Open File",
-               .description = config.editor,
-               .command = OpenFile{path}},
-        Action{.title = "Open Containing Folder",
-               .description = config.file_manager,
-               .command = OpenContainingFolder{path}},
-        Action{.title = "Copy Path to Clipboard",
-               .description = "",
-               .command = CopyPathToClipboard{path}},
-        Action{.title = "Copy Content to Clipboard",
-               .description = "",
-               .command = CopyContentToClipboard{path}},
+    std::vector<ui::Item> items = {
+        ui::Item{.title = "Open File",
+                 .description = config.editor,
+                 .command = OpenFile{path}},
+        ui::Item{.title = "Open Containing Folder",
+                 .description = config.file_manager,
+                 .command = OpenContainingFolder{path}},
+        ui::Item{.title = "Copy Path to Clipboard",
+                 .description = "",
+                 .command = CopyPathToClipboard{path}},
+        ui::Item{.title = "Copy Content to Clipboard",
+                 .description = "",
+                 .command = CopyContentToClipboard{path}},
     };
 
     // Append custom file actions, filling in the path
@@ -187,7 +188,7 @@ std::vector<Action> make_file_actions(const fs::path &path,
         if (!action_def.is_file_action)
             continue;
 
-        actions.push_back(Action{
+        items.push_back(ui::Item{
             .title = action_def.title,
             .description = action_def.description,
             .command =
@@ -199,29 +200,29 @@ std::vector<Action> make_file_actions(const fs::path &path,
         });
     }
 
-    return actions;
+    return items;
 }
 
-std::vector<Action> get_global_actions(const Config &config)
+std::vector<ui::Item> get_global_actions(const Config &config)
 {
-    std::vector<Action> actions = {
-        Action{.title = "Copy ISO Timestamp",
-               .description = "Copy current time in ISO 8601 format",
-               .command = CopyISOTimestamp{}},
-        Action{.title = "Copy Unix Timestamp",
-               .description =
-                   "Copy current Unix timestamp (seconds since epoch)",
-               .command = CopyUnixTimestamp{}},
-        Action{.title = "Copy UUID",
-               .description = "Generate and copy a new UUID v4",
-               .command = CopyUUID{}},
+    std::vector<ui::Item> items = {
+        ui::Item{.title = "Copy ISO Timestamp",
+                 .description = "Copy current time in ISO 8601 format",
+                 .command = CopyISOTimestamp{}},
+        ui::Item{.title = "Copy Unix Timestamp",
+                 .description =
+                     "Copy current Unix timestamp (seconds since epoch)",
+                 .command = CopyUnixTimestamp{}},
+        ui::Item{.title = "Copy UUID",
+                 .description = "Generate and copy a new UUID v4",
+                 .command = CopyUUID{}},
     };
 
     for (const auto &action_def : config.custom_actions) {
         if (action_def.is_file_action)
             continue;
 
-        actions.push_back(Action{
+        items.push_back(ui::Item{
             .title = action_def.title,
             .description = action_def.description,
             .command =
@@ -232,7 +233,7 @@ std::vector<Action> get_global_actions(const Config &config)
                 },
         });
     }
-    return actions;
+    return items;
 }
 
 void process_command(const Command &cmd, const Config &config)

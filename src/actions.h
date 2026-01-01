@@ -8,6 +8,8 @@
 #include <optional>
 #include <vector>
 
+namespace ui { struct Item; }
+
 namespace fs = std::filesystem;
 
 // File commands
@@ -42,14 +44,8 @@ using Command = std::variant<OpenFile, OpenContainingFolder,
                              CopyPathToClipboard, CopyContentToClipboard,
                              CopyISOTimestamp, CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
-struct Action {
-    std::string title;
-    std::string description;
-    Command command;
-};
+std::vector<ui::Item> make_file_actions(const fs::path &path, const Config& config);
 
-std::vector<Action> make_file_actions(const fs::path &path, const Config& config);
-
-std::vector<Action> get_global_actions(const Config& config);
+std::vector<ui::Item> get_global_actions(const Config& config);
 
 void process_command(const Command &command, const Config& config);
