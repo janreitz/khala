@@ -7,35 +7,6 @@
 #include <deque>
 #include <mutex>
 
-enum class RankerMode {
-    Inactive,   // Desktop apps mode - ranker sleeps
-    FileSearch, // Active file searching
-    Paused      // Query changing - pause work
-};
-
-struct FileResult {
-    std::string path;
-    float score;
-
-    bool operator>(const FileResult &other) const
-    {
-        return score > other.score;
-    }
-};
-
-struct ResultUpdate {
-    std::vector<FileResult> results;
-    bool scan_complete = false;
-    size_t total_files = 0;
-    size_t processed_chunks = 0;
-
-    ResultUpdate() = default;
-    ResultUpdate(std::vector<FileResult> &&results_)
-        : results(std::move(results_))
-    {
-    }
-};
-
 class StreamingIndex
 {
   private:
