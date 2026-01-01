@@ -20,6 +20,17 @@
 namespace ui
 {
 
+std::optional<std::string> get_query(const AppMode& mode) {
+    return std::visit([](auto& m) -> std::optional<std::string> {
+        if constexpr (requires { m.query; }) {
+            return m.query;
+        } else {
+            return std::nullopt;
+        }
+    }, mode);
+};
+
+
 struct MonitorInfo {
     int width;
     int height;
@@ -300,9 +311,7 @@ XWindow::~XWindow()
 int calculate_window_height(const Config &config, const State &state,
                             int screen_height)
 {
-    const size_t item_count = state.context_menu_open
-                                  ? state.get_selected_item().actions.size()
-                                  : state.items.size();
+    const size_t item_count = state.items.size();
     const size_t visible_items = std::min(item_count, config.max_visible_items);
     const int input_height =
         calculate_actual_input_height(config, screen_height);
@@ -311,11 +320,6 @@ int calculate_window_height(const Config &config, const State &state,
 }
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
-
-Action State::get_selected_action() const
-{
-    return get_selected_item().actions.at(selected_action_index);
-}
 
 void State::set_error(const std::string &message)
 {
@@ -389,7 +393,7 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
     cairo_close_path(cr);
 }
 
-Event process_input_events(Display *display, State &state)
+Event process_input_events(Display *display, State &state, const Config &config)
 {
     XEvent event;
 
@@ -421,44 +425,39 @@ Event process_input_events(Display *display, State &state)
                 out_event = Event::ExitRequested;
             } else if (keysym == XK_Up) {
                 // Move selection up
-                if (state.context_menu_open) {
-                    if (state.selected_action_index > 0) {
-                        state.selected_action_index--;
-                        out_event = Event::SelectionChanged;
-                    }
-                } else {
                     if (state.selected_item_index > 0) {
                         state.selected_item_index--;
                         out_event = Event::SelectionChanged;
                     }
-                }
             } else if (keysym == XK_Down) {
                 // Move selection down
-                if (state.context_menu_open) {
-                    const size_t max_action_index =
-                        state.get_selected_item().actions.size() - 1;
-                    if (state.selected_action_index < max_action_index) {
-                        state.selected_action_index++;
-                        out_event = Event::SelectionChanged;
-                    }
-                } else {
                     if (state.selected_item_index < state.items.size() - 1) {
                         state.selected_item_index++;
                         out_event = Event::SelectionChanged;
                     }
-                }
             } else if (keysym == XK_Tab) {
                 // Open context menu
-                if (!state.context_menu_open && !state.items.empty() &&
-                    !state.get_selected_item().actions.empty()) {
-                    state.context_menu_open = true;
-                    state.selected_action_index = 0;
+                if (!std::holds_alternative<ContextMenu>(state.mode) && !state.items.empty()) {
+                    const auto& file_item = state.get_selected_item();
+                    const auto selected_file = fs::path(file_item.description) / fs::path(file_item.title);
+                    state.mode = ContextMenu { .selected_file = selected_file };
+                    state.selected_item_index = 0;
+                    const auto file_actions = make_file_actions(selected_file, config);
+                    state.items.clear();
+                    state.items.reserve(file_actions.size());
+                    for (const auto& file_action : file_actions) {
+                        state.items.push_back(Item{
+                            .title = file_action.title,
+                            .description = file_action.description,
+                            .action = file_action,
+                        });
+                    }
                     out_event = Event::ContextMenuToggled;
                 }
             } else if (keysym == XK_Left) {
-                if (state.context_menu_open) {
+                if (std::holds_alternative<ContextMenu>(state.mode)) {
                     // Close context menu
-                    state.context_menu_open = false;
+                    state.mode = FileSearch {.query = state.input_buffer };
                     out_event = Event::ContextMenuToggled;
                 } else {
                     // Move cursor left
@@ -469,20 +468,20 @@ Event process_input_events(Display *display, State &state)
                 }
             } else if (keysym == XK_Right) {
                 // Move cursor right (only when not in context menu)
-                if (!state.context_menu_open &&
+                if (!std::holds_alternative<ContextMenu>(state.mode) &&
                     state.cursor_position < state.input_buffer.size()) {
                     state.cursor_position++;
                     out_event = Event::CursorPositionChanged;
                 }
             } else if (keysym == XK_Home) {
                 // Jump to beginning
-                if (!state.context_menu_open) {
+                if (!std::holds_alternative<ContextMenu>(state.mode)) {
                     state.cursor_position = 0;
                     out_event = Event::CursorPositionChanged;
                 }
             } else if (keysym == XK_End) {
                 // Jump to end
-                if (!state.context_menu_open) {
+                if (!std::holds_alternative<ContextMenu>(state.mode)) {
                     state.cursor_position = state.input_buffer.size();
                     out_event = Event::CursorPositionChanged;
                 }
@@ -596,9 +595,9 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Draw search prompt and buffer
     std::string display_text;
-    if (state.context_menu_open) {
+    if (std::holds_alternative<ContextMenu>(state.mode)) {
         // Show selected item title when in context menu
-        display_text = state.get_selected_item().title + " › Actions";
+        display_text = fs::canonical(std::get<ContextMenu>(state.mode).selected_file).generic_string() + " › Actions";
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
@@ -621,7 +620,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor at cursor position when not in context menu
-    if (!state.context_menu_open) {
+    if (!std::holds_alternative<ContextMenu>(state.mode)) {
         // Get width of text up to cursor position
         const std::string text_before_cursor =
             state.input_buffer.substr(0, state.cursor_position);
@@ -649,37 +648,23 @@ void draw(XWindow &window, const Config &config, const State &state)
         // Add style info
     };
 
-    auto [dropdown_items, selection_index] =
-        [&]() -> std::pair<std::vector<DropdownItem>, size_t> {
-        std::vector<DropdownItem> dropdown_items;
-        if (state.context_menu_open) {
-            const auto &file_actions = state.get_selected_item().actions;
-            dropdown_items.reserve(file_actions.size());
-            for (const auto &file_action : file_actions) {
-                dropdown_items.push_back(DropdownItem{
-                    .title = file_action.title,
-                    .description = file_action.description,
-                    .title_match_positions = fuzzy::fuzzy_match(
-                        file_action.title, state.current_query),
-                    .description_match_positions = fuzzy::fuzzy_match(
-                        file_action.description, state.current_query)});
-            }
 
-            return {dropdown_items, state.selected_action_index};
-        } else {
+        std::vector<DropdownItem> dropdown_items;
+
+            const auto query_opt = get_query(state.mode);
+            const std::string query = query_opt.value_or("");
             dropdown_items.reserve(state.items.size());
             for (const auto &item : state.items) {
                 dropdown_items.push_back(DropdownItem{
                     .title = item.title,
                     .description = item.description,
-                    .title_match_positions =
-                        fuzzy::fuzzy_match(item.title, state.current_query),
-                    .description_match_positions = fuzzy::fuzzy_match(
-                        item.description, state.current_query)});
+                    .title_match_positions = query_opt ? 
+                        fuzzy::fuzzy_match(item.title, query) : std::vector<size_t>{},
+                    .description_match_positions = query_opt ?
+                        fuzzy::fuzzy_match(item.description, query) : std::vector<size_t>{}});
             }
-            return {dropdown_items, state.selected_item_index};
-        }
-    }();
+            const auto selection_index = state.selected_item_index;
+
 
     // Draw dropdown items
     for (size_t i = 0; i < dropdown_items.size(); ++i) {

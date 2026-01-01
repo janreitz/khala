@@ -14,7 +14,6 @@
 #include <filesystem>
 #include <future>
 #include <mutex>
-#include <ranges>
 #include <string>
 #include <utility>
 
@@ -110,7 +109,7 @@ int main()
     const auto global_actions = get_global_actions(config);
 
     while (true) {
-        const auto event = ui::process_input_events(window.display, state);
+        const auto event = ui::process_input_events(window.display, state, config);
 
         if (event == ui::Event::NoEvent) {
         } else if (event == ui::Event::ExitRequested) {
@@ -118,7 +117,7 @@ int main()
         } else if (event == ui::Event::ActionRequested) {
             printf("Selected: %s\n",
                    current_matches.at(state.selected_item_index).data());
-            process_command(state.get_selected_action().command, config);
+            process_command(state.get_selected_item().action.command, config);
             if (config.quit_on_action) {
                 break;
             }
@@ -126,25 +125,16 @@ int main()
             state.selected_item_index =
                 0; // Reset selection when search changes
 
-            // Check if we're in command mode (input starts with '>') or app
-            // mode (starts with '!')
-            const bool command_mode =
-                !state.input_buffer.empty() && state.input_buffer[0] == '>';
-            const bool app_mode =
-                !state.input_buffer.empty() && state.input_buffer[0] == '!';
-
-            if (command_mode) {
-                // Command palette mode - search utility commands
-                const std::string query =
-                    state.input_buffer.substr(1); // Strip '>'
-                state.current_query = query;
-
+            // Command palette mode - search utility commands
+            if (!state.input_buffer.empty() && state.input_buffer[0] == '>') {
+                const auto query = state.input_buffer.substr(1);
+                state.mode = ui::CommandSearch{ .query = query }; // Strip '>'
                 auto to_item = [&global_actions](const RankResult &r) {
                     const auto &action = global_actions[r.index];
                     return ui::Item{
                         .title = action.title,
                         .description = action.description,
-                        .actions = {action},
+                        .action = {action},
                     };
                 };
 
@@ -155,13 +145,14 @@ int main()
                     },
                     config.max_visible_items);
 
-                auto transformed = ranked | std::views::transform(to_item);
-                state.items.assign(transformed.begin(), transformed.end());
-            } else if (app_mode) {
-                // App search mode - search desktop applications only
-                const std::string query =
-                    state.input_buffer.substr(1); // Strip '!'
-                state.current_query = query;
+                state.items.clear();
+                for (const auto &r : ranked) {
+                    state.items.push_back(to_item(r));
+                }
+            // App search mode - search desktop applications only
+            } else if (!state.input_buffer.empty() && state.input_buffer[0] == '!') {
+                const auto query = state.input_buffer.substr(1);
+                state.mode = ui::AppSearch{ .query = query }; // Strip '!'
 
                 auto to_item =
                     [](const RankResult &r,
@@ -170,7 +161,7 @@ int main()
                         return ui::Item{
                             .title = app.name,
                             .description = app.description,
-                            .actions = {Action{
+                            .action = {Action{
                                 .title = "Launch " + app.name,
                                 .description = "Launch this application",
                                 .command =
@@ -193,7 +184,7 @@ int main()
                 }
             } else {
                 // File search mode
-                state.current_query = state.input_buffer;
+                state.mode = ui::FileSearch{ .query = state.input_buffer };
                 {
                     std::lock_guard lock(query_mutex);
                     query_buffer = state.input_buffer;
@@ -205,11 +196,7 @@ int main()
 
         // Check for new results (file search mode only)
         bool new_results_available = false;
-        const bool command_mode =
-            !state.input_buffer.empty() && state.input_buffer[0] == '>';
-        const bool app_mode =
-            !state.input_buffer.empty() && state.input_buffer[0] == '!';
-        if (!command_mode && !app_mode &&
+        if (std::holds_alternative<ui::FileSearch>(state.mode) && 
             results_ready.exchange(false, std::memory_order_acquire)) {
             std::lock_guard lock(results_mutex);
             state.items.clear();
@@ -221,7 +208,7 @@ int main()
                 state.items.push_back(ui::Item{
                     .title = path.filename(),
                     .description = path.parent_path(),
-                    .actions = make_file_actions(path, config),
+                    .action = make_file_actions(path, config)[0],
                 });
             }
             new_results_available = true;
