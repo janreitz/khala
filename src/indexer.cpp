@@ -1,13 +1,12 @@
 #include "indexer.h"
 #include "utility.h"
 
+#include <atomic>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <future>
-#include <iterator>
 #include <set>
-#include <sstream>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -25,11 +24,12 @@ PackedStrings scan_subtree(const fs::path &root,
     try {
         const auto canon_root = fs::canonical(root);
         for (auto it = fs::recursive_directory_iterator(
-                 canon_root, fs::directory_options::skip_permission_denied); it != fs::end(it); ++it) {
+                 canon_root, fs::directory_options::skip_permission_denied);
+             it != fs::end(it); ++it) {
 
             if (it->is_directory()) {
                 // Check both full paths and directory names
-                if (ignore_dirs.contains(it->path()) || 
+                if (ignore_dirs.contains(it->path()) ||
                     ignore_dir_names.contains(it->path().filename().string())) {
                     it.disable_recursion_pending();
                     continue;
@@ -46,9 +46,10 @@ PackedStrings scan_subtree(const fs::path &root,
     return paths;
 }
 
-PackedStrings scan_filesystem_parallel(const fs::path &root_path,
-                                       const std::set<fs::path> &ignore_dirs,
-                                       const std::set<std::string> &ignore_dir_names)
+PackedStrings
+scan_filesystem_parallel(const fs::path &root_path,
+                         const std::set<fs::path> &ignore_dirs,
+                         const std::set<std::string> &ignore_dir_names)
 {
     PackedStrings result;
     std::vector<fs::path> subdirs;
@@ -59,8 +60,9 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
         for (const auto &entry : fs::directory_iterator(canon_root)) {
             if (entry.is_directory()) {
                 // Check both full paths and directory names
-                if (!ignore_dirs.contains(entry.path()) && 
-                    !ignore_dir_names.contains(entry.path().filename().string())) {
+                if (!ignore_dirs.contains(entry.path()) &&
+                    !ignore_dir_names.contains(
+                        entry.path().filename().string())) {
                     subdirs.push_back(entry.path());
                 }
             } else if (entry.is_regular_file()) {
@@ -75,8 +77,8 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
     std::vector<std::future<PackedStrings>> futures;
     futures.reserve(subdirs.size());
     for (const auto &subdir : subdirs) {
-        futures.push_back(
-            std::async(std::launch::async, scan_subtree, subdir, ignore_dirs, ignore_dir_names));
+        futures.push_back(std::async(std::launch::async, scan_subtree, subdir,
+                                     ignore_dirs, ignore_dir_names));
     }
 
     for (auto &fut : futures) {
@@ -87,13 +89,12 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
 }
 
 void scan_subtree_streaming(const fs::path &root,
-                                     const std::set<fs::path> &ignore_dirs,
-                                     const std::set<std::string> &ignore_dir_names,
-                                     StreamingIndex &index,
-                                     size_t chunk_size = 1000)
+                            const std::set<fs::path> &ignore_dirs,
+                            const std::set<std::string> &ignore_dir_names,
+                            StreamingIndex &index, size_t chunk_size = 1000)
 {
     PackedStrings current_chunk;
-    
+
     try {
         for (auto it = fs::recursive_directory_iterator(
                  root, fs::directory_options::skip_permission_denied);
@@ -101,7 +102,7 @@ void scan_subtree_streaming(const fs::path &root,
 
             if (it->is_directory()) {
                 // Check both full paths and directory names
-                if (ignore_dirs.contains(it->path()) || 
+                if (ignore_dirs.contains(it->path()) ||
                     ignore_dir_names.contains(it->path().filename().string())) {
                     it.disable_recursion_pending();
                     continue;
@@ -110,7 +111,7 @@ void scan_subtree_streaming(const fs::path &root,
 
             if (it->is_regular_file()) {
                 current_chunk.push(it->path().string());
-                
+
                 if (current_chunk.size() >= chunk_size) {
                     current_chunk.shrink_to_fit();
                     index.add_chunk(std::move(current_chunk));
@@ -120,7 +121,7 @@ void scan_subtree_streaming(const fs::path &root,
         }
     } catch (const fs::filesystem_error &) {
     }
-    
+
     // Emit remaining files
     if (!current_chunk.empty()) {
         current_chunk.shrink_to_fit();
@@ -128,36 +129,45 @@ void scan_subtree_streaming(const fs::path &root,
     }
 }
 
-void scan_filesystem_streaming(const fs::path &root_path,
-                               StreamingIndex &index,
+void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
                                const std::set<fs::path> &ignore_dirs,
                                const std::set<std::string> &ignore_dir_names,
                                size_t chunk_size)
 {
-    const defer mark_complete([&index]() noexcept { 
-        index.mark_scan_complete(); 
-    });
+    const defer mark_complete(
+        [&index]() noexcept { index.mark_scan_complete(); });
 
-    std::vector<fs::path> subdirs;
     PackedStrings root_files;
 
-    // Collect top-level entries
+    const auto min_work_units = std::thread::hardware_concurrency() * 4;
+    std::deque<fs::path> to_expand;
     try {
-        const auto canon_root = fs::canonical(root_path);
-        for (const auto &entry : fs::directory_iterator(canon_root)) {
-            if (entry.is_directory()) {
-                // Check both full paths and directory names
-                if (!ignore_dirs.contains(entry.path()) && 
-                    !ignore_dir_names.contains(entry.path().filename().string())) {
-                    subdirs.push_back(entry.path());
-                }
-            } else if (entry.is_regular_file()) {
-                root_files.push(entry.path().string());
-            }
-        }
+        to_expand.push_back(fs::canonical(root_path));
     } catch (const fs::filesystem_error &e) {
         fprintf(stderr, "Error reading root: %s\n", e.what());
         return;
+    }
+
+    while (!to_expand.empty() && to_expand.size() < min_work_units) {
+        const auto path = to_expand.front();
+        to_expand.pop_front();
+
+        try {
+            for (const auto &entry : fs::directory_iterator(path)) {
+                if (entry.is_directory()) {
+                    if (ignore_dir_names.contains(
+                            entry.path().filename().string()) ||
+                        ignore_dirs.contains(entry.path())) {
+                        continue;
+                    }
+                    to_expand.push_back(entry.path());
+                } else if (entry.is_regular_file()) {
+                    root_files.push(entry.path().string());
+                }
+            }
+        } catch (const fs::filesystem_error &) {
+            // TODO log errors but continue
+        }
     }
 
     // Add root files as first chunk
@@ -165,19 +175,26 @@ void scan_filesystem_streaming(const fs::path &root_path,
         index.add_chunk(std::move(root_files));
     }
 
-    const size_t num_threads = std::min(subdirs.size(), 
-                                         static_cast<size_t>(std::thread::hardware_concurrency()));
+    std::vector<fs::path> work_units(to_expand.cbegin(), to_expand.cend());
     std::atomic<size_t> next_dir{0};
     std::vector<std::thread> workers;
+    const size_t num_threads =
+        std::min(work_units.size(),
+                 static_cast<size_t>(std::thread::hardware_concurrency()));
+
+    printf("Number of work units %ld, hardware_concurrency: %d, number of threads: %ld", work_units.size(), std::thread::hardware_concurrency(), num_threads);
     workers.reserve(num_threads);
 
     for (size_t i = 0; i < num_threads; i++) {
         workers.emplace_back([&]() {
             for (;;) {
-                size_t idx = next_dir.fetch_add(1, std::memory_order_relaxed);
-                if (idx >= subdirs.size()) break;
-                
-                scan_subtree_streaming(subdirs[idx], ignore_dirs, ignore_dir_names, index, chunk_size);
+                const size_t idx =
+                    next_dir.fetch_add(1, std::memory_order_relaxed);
+                if (idx >= work_units.size())
+                    break;
+
+                scan_subtree_streaming(work_units[idx], ignore_dirs,
+                                       ignore_dir_names, index, chunk_size);
             }
         });
     }

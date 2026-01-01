@@ -2,9 +2,9 @@
 #pragma once
 
 #include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
-#include <set>
 
 namespace fs = std::filesystem;
 
@@ -12,18 +12,18 @@ struct CustomActionDef {
     std::string title;
     std::string description;
     std::string shell_cmd;
-    bool is_file_action;  // true = file action, false = global
-    bool stdout_to_clipboard = false;  // true = capture stdout to clipboard
+    bool is_file_action;              // true = file action, false = global
+    bool stdout_to_clipboard = false; // true = capture stdout to clipboard
 };
 
 struct Config {
     // Appearance
     // Window positioning and sizing (as percentages of screen size, 0.0-1.0)
-    double width_ratio = 0.4;      // 40% of screen width
-    double x_position = 0.5;       // center horizontally (0.5 = 50% from left)
-    double y_position = 0.25;      // 25% from top
-    double input_height_ratio = 0.025;   // 2.5% of screen height
-    double item_height_ratio = 0.018;    // 1.8% of screen height
+    double width_ratio = 0.4; // 40% of screen width
+    double x_position = 0.5;  // center horizontally (0.5 = 50% from left)
+    double y_position = 0.25; // 25% from top
+    double input_height_ratio = 0.025; // 2.5% of screen height
+    double item_height_ratio = 0.018;  // 1.8% of screen height
     size_t max_visible_items = 10;
 
     // Styling
@@ -37,8 +37,10 @@ struct Config {
 
     // Indexing
     fs::path index_root = std::getenv("HOME");
-    std::set<fs::path> ignore_dirs;
-    std::set<std::string> ignore_dir_names = {".git", "node_modules", ".svn", ".hg", "__pycache__", ".vscode", ".idea"};
+    std::set<fs::path> ignore_dirs{"/proc"};
+    std::set<std::string> ignore_dir_names = {".git", "node_modules", ".svn",
+                                              ".hg",  "__pycache__",  ".vscode",
+                                              ".idea"};
 
     // Custom Actions
     std::vector<CustomActionDef> custom_actions;
@@ -46,7 +48,7 @@ struct Config {
     // Paths
     static fs::path default_path();
     fs::path config_path;
-    
+
     static Config load(const fs::path &path);
     void save(const fs::path &path) const;
 };

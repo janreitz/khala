@@ -13,20 +13,19 @@
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 
-int main(int argc, char *argv[])
+int main()
 {
     // Get root path from args or use home directory
-    const fs::path root_path =
-        (argc > 1) ? argv[1] : fs::path(std::getenv("HOME"));
+    const Config config = Config::load(Config::default_path());
 
     printf("=======================\n\n");
     printf("Khala Indexer Benchmark\n");
 
     try {
-        printf("  Root: %s\n", root_path.string().c_str());
+        printf("  Root: %s\n", config.index_root.string().c_str());
         printf("================ Batch Approach =================\n");
         auto batch_start = std::chrono::steady_clock::now();
-        auto paths = indexer::scan_filesystem_parallel(root_path);
+        auto paths = indexer::scan_filesystem_parallel(config.index_root, config.ignore_dirs, config.ignore_dir_names);
         auto scan_end = std::chrono::steady_clock::now();
         auto scan_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(scan_end -
@@ -64,7 +63,7 @@ int main(int argc, char *argv[])
         const auto streaming_start = std::chrono::steady_clock::now();
 
         StreamingIndex stream_index;
-        indexer::scan_filesystem_streaming(root_path, stream_index, {}, {},
+        indexer::scan_filesystem_streaming(config.index_root, stream_index, config.ignore_dirs, config.ignore_dir_names,
                                            1000);
         while (!stream_index.is_scan_complete()) {
             std::this_thread::sleep_for(10ms);
