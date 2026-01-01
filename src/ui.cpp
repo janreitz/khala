@@ -361,7 +361,6 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
 
     cairo_new_sub_path(cr);
 
-    // Top-right corner
     if (corners & Corner::TopRight) {
         cairo_arc(cr, x + width - radius, y + radius, radius, -90 * degrees,
                   0 * degrees);
@@ -369,7 +368,6 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
         cairo_move_to(cr, x + width, y);
     }
 
-    // Bottom-right corner
     if (corners & Corner::BottomRight) {
         cairo_arc(cr, x + width - radius, y + height - radius, radius,
                   0 * degrees, 90 * degrees);
@@ -377,7 +375,6 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
         cairo_line_to(cr, x + width, y + height);
     }
 
-    // Bottom-left corner
     if (corners & Corner::BottomLeft) {
         cairo_arc(cr, x + radius, y + height - radius, radius, 90 * degrees,
                   180 * degrees);
@@ -385,7 +382,6 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
         cairo_line_to(cr, x, y + height);
     }
 
-    // Top-left corner
     if (corners & Corner::TopLeft) {
         cairo_arc(cr, x + radius, y + radius, radius, 180 * degrees,
                   270 * degrees);

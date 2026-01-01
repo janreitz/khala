@@ -91,7 +91,7 @@ scan_filesystem_parallel(const fs::path &root_path,
 void scan_subtree_streaming(const fs::path &root,
                             const std::set<fs::path> &ignore_dirs,
                             const std::set<std::string> &ignore_dir_names,
-                            StreamingIndex &index, size_t chunk_size = 1000)
+                            StreamingIndex &index, size_t chunk_size)
 {
     PackedStrings current_chunk;
 

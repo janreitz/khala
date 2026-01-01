@@ -41,7 +41,7 @@ int main()
     printf("Loaded %zu desktop apps\n", desktop_apps.size());
 
     // Communication channels
-    RingBuffer<ResultUpdate, 64> result_updates;
+    RingBuffer<ResultUpdate, 1024> result_updates;
     std::atomic<RankerMode> ranker_mode{RankerMode::FileSearch};
 
     // Query state - GUI writes, ranker reads
@@ -56,7 +56,7 @@ int main()
     // Launch streaming indexer
     auto index_future = std::async(std::launch::async, [&]() {
         indexer::scan_filesystem_streaming(config.index_root, streaming_index,
-                                           config.ignore_dirs, config.ignore_dir_names);
+                                           config.ignore_dirs, config.ignore_dir_names, 10'000);
         printf("Scan complete - %zu total files\n",
                streaming_index.get_total_files());
     });
