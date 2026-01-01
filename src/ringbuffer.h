@@ -1,10 +1,10 @@
 #pragma once
 
-#include <array>
 #include <atomic>
 #include <new>
+#include <vector>
 
-template <typename T, size_t N = 64>
+template <typename T, size_t N>
 class RingBuffer {
     static_assert((N & (N - 1)) == 0, "Size must be power of 2");
     static_assert(N >= 2, "Size must be at least 2");
@@ -14,7 +14,7 @@ private:
     alignas(64) std::atomic<size_t> write_pos_{0};
     alignas(64) std::atomic<size_t> read_pos_{0};
     
-    std::array<T, N> buffer_;
+    std::vector<T> buffer_{N};
     static constexpr size_t mask_ = N - 1;
 
 public:
