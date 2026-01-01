@@ -75,6 +75,55 @@ PackedStrings scan_filesystem_parallel(const fs::path &root_path,
     return result;
 }
 
+void scan_filesystem_streaming(const fs::path &root_path,
+                               StreamingIndex &index,
+                               const std::set<fs::path> &ignore_dirs)
+{
+    std::vector<fs::path> subdirs;
+    PackedStrings root_files;
+
+    // Collect top-level entries
+    try {
+        const auto canon_root = fs::canonical(root_path);
+        for (const auto &entry : fs::directory_iterator(canon_root)) {
+            if (!ignore_dirs.contains(entry.path()) && entry.is_directory()) {
+                subdirs.push_back(entry.path());
+            } else if (entry.is_regular_file()) {
+                root_files.push(entry.path().string());
+            }
+        }
+    } catch (const fs::filesystem_error &e) {
+        fprintf(stderr, "Error reading root: %s\n", e.what());
+        index.mark_scan_complete();
+        return;
+    }
+
+    // Add root files as first chunk
+    if (!root_files.empty()) {
+        index.add_chunk(std::move(root_files));
+    }
+
+    // Process subdirectories concurrently, emitting chunks as they complete
+    std::vector<std::future<void>> futures;
+    futures.reserve(subdirs.size());
+    
+    for (const auto &subdir : subdirs) {
+        futures.push_back(std::async(std::launch::async, [&index, subdir, &ignore_dirs]() {
+            auto chunk = scan_subtree(subdir, ignore_dirs);
+            if (!chunk.empty()) {
+                index.add_chunk(std::move(chunk));
+            }
+        }));
+    }
+
+    // Wait for all tasks to complete
+    for (auto &fut : futures) {
+        fut.get();
+    }
+
+    index.mark_scan_complete();
+}
+
 std::unordered_map<std::string, std::string>
 parse_desktop_file(const fs::path &desktop_file_path)
 {
