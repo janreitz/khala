@@ -27,7 +27,13 @@ namespace fs = std::filesystem;
 int main()
 {
     const Config config = Config::load(Config::default_path());
-
+    const defer save_config([config]() noexcept {
+        try {
+            config.save(config.config_path);
+        } catch (const std::exception& e) {
+            printf("Could not write config to %s: %s", config.config_path.c_str(), e.what());
+        }
+    });
     // Shared state
     StreamingIndex streaming_index;
     std::vector<indexer::DesktopApp> desktop_apps =
@@ -50,7 +56,7 @@ int main()
     // Launch streaming indexer
     auto index_future = std::async(std::launch::async, [&]() {
         indexer::scan_filesystem_streaming(config.index_root, streaming_index,
-                                           config.ignore_dirs);
+                                           config.ignore_dirs, config.ignore_dir_names);
         printf("Scan complete - %zu total files\n",
                streaming_index.get_total_files());
     });
@@ -307,6 +313,5 @@ int main()
         index_future.wait();
     if (rank_future.valid())
         rank_future.wait();
-
     return 0;
 }

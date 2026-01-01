@@ -38,6 +38,7 @@ struct Config {
     // Indexing
     fs::path index_root = std::getenv("HOME");
     std::set<fs::path> ignore_dirs;
+    std::set<std::string> ignore_dir_names = {".git", "node_modules", ".svn", ".hg", "__pycache__", ".vscode", ".idea"};
 
     // Custom Actions
     std::vector<CustomActionDef> custom_actions;
