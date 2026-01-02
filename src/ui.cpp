@@ -123,9 +123,8 @@ size_t calculate_max_visible_items(int window_height, int font_size)
 }
 
 int calculate_window_height(int font_size, size_t item_count,
-                            int max_height)
+                            size_t max_visible_items)
 {
-    const size_t max_visible_items = calculate_max_visible_items(max_height, font_size);
     const size_t visible_items = std::min(item_count, max_visible_items);
 
     // Account for: top border + input area + spacing + items + bottom border
@@ -208,7 +207,8 @@ void draw(XWindow &window, const Config &config, const State &state)
     const double content_width = window.width - 2.0 * BORDER_WIDTH;
     // Calculate window height based on item count and max window height
     const int max_height = static_cast<int>(window.screen_height * config.height_ratio);
-    const int new_height = calculate_window_height(config.font_size, state.items.size(), max_height);
+    const size_t max_visible_items = calculate_max_visible_items(max_height, config.font_size);
+    const int new_height = calculate_window_height(config.font_size, state.items.size(), max_visible_items);
 
     if (new_height != window.height) {
         XResizeWindow(window.display, window.window, window.width, new_height);
@@ -379,11 +379,13 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Draw dropdown items
     const int item_height = calculate_abs_item_height(config.font_size);
-    for (size_t i = 0; i < dropdown_items.size(); ++i) {
-        const double y_pos = dropdown_start_y + (i * item_height);
+    const size_t range_end = std::min(state.visible_range_offset + max_visible_items, dropdown_items.size());
+    for (size_t i = state.visible_range_offset; i < range_end; ++i) {
+        const double y_pos = dropdown_start_y + ((i - state.visible_range_offset) * item_height);
 
         // Draw selection highlight
-        if (i == selection_index) {
+        const bool item_is_selected = (i == selection_index);
+        if (item_is_selected) {
             set_color(cr, config.selection_color);
             draw_rounded_rect(cr, BORDER_WIDTH, y_pos, content_width,
                               item_height, CORNER_RADIUS, Corner::All);
@@ -391,7 +393,7 @@ void draw(XWindow &window, const Config &config, const State &state)
         }
 
         // Set text color (selected vs normal)
-        if (i == selection_index) {
+        if (item_is_selected) {
             set_color(cr, config.selection_text_color);
         } else {
             set_color(cr, config.text_color);
@@ -429,7 +431,7 @@ void draw(XWindow &window, const Config &config, const State &state)
                                         DESCRIPTION_SPACING;
 
             // Set description color
-            if (i == selection_index) {
+            if (item_is_selected) {
                 set_color(cr, config.selection_description_color);
             } else {
                 set_color(cr, config.description_color);
@@ -478,16 +480,20 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Up:
-        if (state.selected_item_index > 0) {
-            state.selected_item_index--;
-            events.push_back(SelectionChanged{});
+        if (!state.items.empty()) {
+            if (state.selected_item_index > 0) {
+                state.selected_item_index--;
+                events.push_back(SelectionChanged{});
+            }
         }
         break;
 
     case KeyCode::Down:
-        if (state.selected_item_index < state.items.size() - 1) {
-            state.selected_item_index++;
-            events.push_back(SelectionChanged{});
+        if (!state.items.empty()) {
+            if (state.selected_item_index < state.items.size() - 1) {
+                state.selected_item_index++;
+                events.push_back(SelectionChanged{});
+            }
         }
         break;
 
@@ -574,6 +580,28 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                input);
 
     return events;
+}
+
+void adjust_visible_range(State &state, size_t max_visible_items)
+{
+    if (state.items.empty()) {
+        state.visible_range_offset = 0;
+        return;
+    }
+
+    // Ensure selected item is within bounds
+    if (state.selected_item_index >= state.items.size()) {
+        state.selected_item_index = state.items.size() - 1;
+    }
+
+    // Adjust visible range to keep selected item visible
+    if (state.selected_item_index < state.visible_range_offset) {
+        // Selected item is above visible range, scroll up
+        state.visible_range_offset = state.selected_item_index;
+    } else if (state.selected_item_index >= state.visible_range_offset + max_visible_items) {
+        // Selected item is below visible range, scroll down
+        state.visible_range_offset = state.selected_item_index - max_visible_items + 1;
+    }
 }
 
 } // namespace ui

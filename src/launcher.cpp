@@ -51,6 +51,8 @@ int main()
         static_cast<int>(window.screen_height * config.height_ratio);
     const size_t max_visible_items =
         ui::calculate_max_visible_items(max_window_height, config.font_size);
+    // Request more results from ranker to support scrolling
+    const size_t max_ranked_results = std::max(size_t(100), max_visible_items * 10);
 
     // Shared state
     StreamingIndex streaming_index;
@@ -133,7 +135,7 @@ int main()
                     *chunk,
                     [&current_query](std::string_view path) {
                         return fuzzy::fuzzy_score(path, current_query);
-                    }, max_visible_items);
+                    }, max_ranked_results);
 
                 // Convert RankResult to FileResult with actual paths
                 std::vector<FileResult> file_results;
@@ -146,7 +148,7 @@ int main()
 
                 // Merge with accumulated results
                 accumulated_results =
-                    merge_top_results(accumulated_results, file_results, max_visible_items);
+                    merge_top_results(accumulated_results, file_results, max_ranked_results);
 
                 ++processed_chunks;
 
@@ -215,6 +217,9 @@ int main()
             if (std::holds_alternative<ui::ExitRequested>(event)) {
                 should_exit = true;
                 break;
+            } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
+                // Adjust visible range to keep selected item visible
+                ui::adjust_visible_range(state, max_visible_items);
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
                 if (std::holds_alternative<ui::FileSearch>(state.mode) &&
                     !current_file_results.empty() &&
@@ -241,8 +246,8 @@ int main()
                     break;
                 }
             } else if (std::holds_alternative<ui::InputChanged>(event)) {
-                state.selected_item_index =
-                    0; // Reset selection when search changes
+                state.selected_item_index = 0; // Reset selection when search changes
+                state.visible_range_offset = 0; // Reset scroll position
 
                 // Command palette mode - search utility commands
                 if (!state.input_buffer.empty() &&
@@ -258,7 +263,7 @@ int main()
                         [&query](const ui::Item &item) {
                             return fuzzy::fuzzy_score(item.title, query);
                         },
-                        max_visible_items);
+                        max_ranked_results);
 
                     state.items.clear();
                     for (const auto &r : ranked) {
@@ -278,7 +283,7 @@ int main()
                         [&query](const indexer::DesktopApp &app) {
                             return fuzzy::fuzzy_score(app.name, query);
                         },
-                        max_visible_items);
+                        max_ranked_results);
 
                     state.items.clear();
                     for (const auto &r : ranked) {
@@ -324,13 +329,11 @@ int main()
                 state.total_files = update.total_files;
                 state.processed_chunks = update.processed_chunks;
 
-                // Convert results to UI items
-                const auto item_count =
-                    std::min(current_file_results.size(), max_visible_items);
+                // Convert results to UI items (keep all ranked results for scrolling)
                 state.items.clear();
-                state.items.reserve(item_count);
+                state.items.reserve(current_file_results.size());
 
-                for (size_t i = 0; i < item_count; ++i) {
+                for (size_t i = 0; i < current_file_results.size(); ++i) {
                     const auto &result = current_file_results[i];
                     state.items.push_back(ui::Item{
                         // Display actual file paths from results
