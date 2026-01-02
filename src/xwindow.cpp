@@ -10,7 +10,8 @@
 #include <stdexcept>
 #include <string>
 
-namespace {
+namespace
+{
 
 struct MonitorInfo {
     int width;
@@ -167,7 +168,8 @@ XWindow::XWindow(const Config &config)
     const int item_height =
         ui::calculate_actual_item_height(config, primary_screen_height);
     // Account for: top border + input area + spacing + items + bottom border
-    height = static_cast<int>(2 * ui::BORDER_WIDTH + input_height + ui::ITEMS_SPACING +
+    height = static_cast<int>(2 * ui::BORDER_WIDTH + input_height +
+                              ui::ITEMS_SPACING +
                               (config.max_visible_items * item_height));
 
     // Center the window properly: position is relative to center, not top-left
@@ -230,12 +232,14 @@ XWindow::~XWindow()
     }
 }
 
-std::vector<ui::UserInputEvent> get_input_events(Display *display, bool blocking)
+std::vector<ui::UserInputEvent> get_input_events(Display *display,
+                                                 bool blocking)
 {
     std::vector<ui::UserInputEvent> events;
     XEvent event;
 
-    // If blocking, wait for at least one event; otherwise only process pending events
+    // If blocking, wait for at least one event; otherwise only process pending
+    // events
     if (blocking) {
         XNextEvent(display, &event);
         // Process the first event
@@ -260,25 +264,46 @@ std::vector<ui::UserInputEvent> get_input_events(Display *display, bool blocking
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
             if (keysym == XK_Escape) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Escape, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Escape,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Up) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Up, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Up,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Down) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Down, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Down,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Tab) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Tab, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Tab,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Left) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Left, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Left,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Right) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Right, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Right,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Home) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Home, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Home,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_End) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::End, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::End,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_Return) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Return, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Return,
+                                                   .modifier = std::nullopt,
+                                                   .character = std::nullopt});
             } else if (keysym == XK_BackSpace) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::BackSpace, .modifier = std::nullopt, .character = std::nullopt });
+                events.push_back(
+                    ui::KeyboardEvent{.key = ui::KeyCode::BackSpace,
+                                      .modifier = std::nullopt,
+                                      .character = std::nullopt});
             } else {
                 // Handle regular character input
                 std::array<char, 32> char_buffer;

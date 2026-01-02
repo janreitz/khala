@@ -31,15 +31,20 @@ std::optional<std::string> get_query(const AppMode &mode)
         mode);
 };
 
-void set_color(cairo_t *cr, const Color &color) {
+void set_color(cairo_t *cr, const Color &color)
+{
     cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
 }
 
-double calculate_text_y_centered(double container_y, double container_height, int text_height_pango) {
-    return container_y + (container_height - (text_height_pango / PANGO_SCALE)) / 2.0;
+double calculate_text_y_centered(double container_y, double container_height,
+                                 int text_height_pango)
+{
+    return container_y +
+           (container_height - (text_height_pango / PANGO_SCALE)) / 2.0;
 }
 
-std::string format_file_count(size_t count) {
+std::string format_file_count(size_t count)
+{
     if (count >= 1'000'000) {
         double millions = count / 1'000'000.0;
         char buffer[32];
@@ -214,7 +219,6 @@ void draw(XWindow &window, const Config &config, const State &state)
     const int new_height =
         calculate_window_height(config, state, window.screen_height);
 
-
     if (new_height != window.height) {
         XResizeWindow(window.display, window.window, window.width, new_height);
         window.height = new_height;
@@ -244,17 +248,16 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-    
+
     // Draw background
     set_color(cr, config.background_color);
-    draw_rounded_rect(cr, 0, 0, window.width,
-                        window.height, CORNER_RADIUS,
-                        Corner::All);
+    draw_rounded_rect(cr, 0, 0, window.width, window.height, CORNER_RADIUS,
+                      Corner::All);
     cairo_fill(cr);
 
     // Draw Input Area
-    draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width, input_height, CORNER_RADIUS,
-                      Corner::All);
+    draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width,
+                      input_height, CORNER_RADIUS, Corner::All);
     set_color(cr, config.input_background_color);
     cairo_fill_preserve(cr);
 
@@ -292,22 +295,26 @@ void draw(XWindow &window, const Config &config, const State &state)
     int text_height;
     pango_layout_get_size(layout, &text_width, &text_height);
     const double input_area_y = BORDER_WIDTH;
-    const double text_y = calculate_text_y_centered(input_area_y, input_height, text_height);
+    const double text_y =
+        calculate_text_y_centered(input_area_y, input_height, text_height);
 
     set_color(cr, config.text_color);
     cairo_move_to(cr, BORDER_WIDTH + INPUT_TEXT_MARGIN, text_y);
     pango_cairo_show_layout(cr, layout);
 
     // Draw progress indicator (file count) in file search mode, right-aligned
-    if (std::holds_alternative<ui::FileSearch>(state.mode) && state.total_files > 0) {
-        const std::string file_count_text = format_file_count(state.total_files);
+    if (std::holds_alternative<ui::FileSearch>(state.mode) &&
+        state.total_files > 0) {
+        const std::string file_count_text =
+            format_file_count(state.total_files);
         pango_layout_set_text(layout, file_count_text.c_str(), -1);
 
         // Get text dimensions for right alignment
         int count_width, count_height;
         pango_layout_get_size(layout, &count_width, &count_height);
 
-        // Choose color based on scan status: yellow if scanning, green if complete
+        // Choose color based on scan status: yellow if scanning, green if
+        // complete
         if (state.scan_complete) {
             cairo_set_source_rgb(cr, 0.0, 0.8, 0.0); // Green
         } else {
@@ -315,8 +322,10 @@ void draw(XWindow &window, const Config &config, const State &state)
         }
 
         // Position at right edge of input area, with margin
-        const double count_x = BORDER_WIDTH + content_width - (count_width / PANGO_SCALE) - INPUT_TEXT_MARGIN;
-        const double count_y = calculate_text_y_centered(input_area_y, input_height, count_height);
+        const double count_x = BORDER_WIDTH + content_width -
+                               (count_width / PANGO_SCALE) - INPUT_TEXT_MARGIN;
+        const double count_y =
+            calculate_text_y_centered(input_area_y, input_height, count_height);
         cairo_move_to(cr, count_x, count_y);
         pango_cairo_show_layout(cr, layout);
 
@@ -337,7 +346,8 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Draw cursor line
         set_color(cr, config.text_color);
-        const double cursor_x = BORDER_WIDTH + INPUT_TEXT_MARGIN + (cursor_x_offset / PANGO_SCALE);
+        const double cursor_x =
+            BORDER_WIDTH + INPUT_TEXT_MARGIN + (cursor_x_offset / PANGO_SCALE);
         cairo_move_to(cr, cursor_x, text_y);
         cairo_line_to(cr, cursor_x, text_y + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
@@ -382,9 +392,8 @@ void draw(XWindow &window, const Config &config, const State &state)
         // Draw selection highlight
         if (i == selection_index) {
             set_color(cr, config.selection_color);
-            draw_rounded_rect(cr, BORDER_WIDTH, y_pos, content_width, item_height,
-                                  CORNER_RADIUS,
-                                  Corner::All);
+            draw_rounded_rect(cr, BORDER_WIDTH, y_pos, content_width,
+                              item_height, CORNER_RADIUS, Corner::All);
             cairo_fill(cr);
         }
 
@@ -405,7 +414,8 @@ void draw(XWindow &window, const Config &config, const State &state)
         pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
         int text_width_unused, text_height;
         pango_layout_get_size(layout, &text_width_unused, &text_height);
-        const double text_y_centered = calculate_text_y_centered(y_pos, item_height, text_height);
+        const double text_y_centered =
+            calculate_text_y_centered(y_pos, item_height, text_height);
         cairo_move_to(cr, BORDER_WIDTH + TEXT_MARGIN, text_y_centered);
         pango_cairo_show_layout(cr, layout);
 
@@ -418,7 +428,8 @@ void draw(XWindow &window, const Config &config, const State &state)
 
             // Calculate available width for description
             const int available_width = content_width - 2 * TEXT_MARGIN -
-                                        (title_width / PANGO_SCALE) - DESCRIPTION_SPACING;
+                                        (title_width / PANGO_SCALE) -
+                                        DESCRIPTION_SPACING;
 
             // Set description color
             if (i == selection_index) {
@@ -440,7 +451,8 @@ void draw(XWindow &window, const Config &config, const State &state)
 
             // Draw description with some spacing after the title
             cairo_move_to(cr,
-                          BORDER_WIDTH + TEXT_MARGIN + (title_width / PANGO_SCALE) + DESCRIPTION_SPACING,
+                          BORDER_WIDTH + TEXT_MARGIN +
+                              (title_width / PANGO_SCALE) + DESCRIPTION_SPACING,
                           text_y_centered);
             pango_cairo_show_layout(cr, layout);
 
@@ -457,7 +469,9 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_surface_flush(surface);
 }
 
-std::vector<Event> handle_keyboard_input(State &state, const KeyboardEvent &kbd_event, const Config &config)
+std::vector<Event> handle_keyboard_input(State &state,
+                                         const KeyboardEvent &kbd_event,
+                                         const Config &config)
 {
     std::vector<Event> events;
 
@@ -481,9 +495,11 @@ std::vector<Event> handle_keyboard_input(State &state, const KeyboardEvent &kbd_
         break;
 
     case KeyCode::Tab:
-        if (!std::holds_alternative<ContextMenu>(state.mode) && !state.items.empty()) {
+        if (!std::holds_alternative<ContextMenu>(state.mode) &&
+            !state.items.empty()) {
             const auto &file_item = state.get_selected_item();
-            const auto selected_file = fs::path(file_item.description) / fs::path(file_item.title);
+            const auto selected_file =
+                fs::path(file_item.description) / fs::path(file_item.title);
             state.mode = ContextMenu{.selected_file = selected_file};
             state.selected_item_index = 0;
             state.items = make_file_actions(selected_file, config);
@@ -539,7 +555,8 @@ std::vector<Event> handle_keyboard_input(State &state, const KeyboardEvent &kbd_
 
     case KeyCode::Character:
         if (kbd_event.character >= 32 && kbd_event.character < 127) {
-            state.input_buffer.insert(state.cursor_position, 1, *kbd_event.character);
+            state.input_buffer.insert(state.cursor_position, 1,
+                                      *kbd_event.character);
             state.cursor_position++;
             events.push_back(InputChanged{});
         }
@@ -549,13 +566,15 @@ std::vector<Event> handle_keyboard_input(State &state, const KeyboardEvent &kbd_
     return events;
 }
 
-std::vector<Event> handle_user_input(State &state, const UserInputEvent &input, const Config &config) {
+std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
+                                     const Config &config)
+{
     std::vector<Event> events;
 
-    std::visit(
-        overloaded{[&](const KeyboardEvent &ev) {
-            events = handle_keyboard_input(state, ev, config);
-        }}, input);
+    std::visit(overloaded{[&](const KeyboardEvent &ev) {
+                   events = handle_keyboard_input(state, ev, config);
+               }},
+               input);
 
     return events;
 }

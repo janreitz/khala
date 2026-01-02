@@ -17,20 +17,19 @@ struct CustomActionDef {
     bool stdout_to_clipboard = false; // true = capture stdout to clipboard
 };
 
-
 struct Color {
     double r = 0.0;
     double g = 0.0;
     double b = 0.0;
     double a = 1.0;
-    
+
     // Convert to Pango's 16-bit format
-    uint16_t pango_red() const   ;
-    uint16_t pango_green() const ;
-    uint16_t pango_blue() const  ;
+    uint16_t pango_red() const;
+    uint16_t pango_green() const;
+    uint16_t pango_blue() const;
 };
 
-std::optional<Color> parse_color(const std::string& str);
+std::optional<Color> parse_color(const std::string &str);
 
 struct Config {
     // Appearance
@@ -65,9 +64,9 @@ struct Config {
     // Indexing
     fs::path index_root = std::getenv("HOME");
     std::set<fs::path> ignore_dirs{"/proc"};
-    std::set<std::string> ignore_dir_names = {".git", "node_modules", "env", ".svn",
-                                              ".hg",  "__pycache__",  ".vscode",
-                                              ".idea"};
+    std::set<std::string> ignore_dir_names = {
+        ".git", "node_modules", "env",     ".svn",
+        ".hg",  "__pycache__",  ".vscode", ".idea"};
 
     // Custom Actions
     std::vector<CustomActionDef> custom_actions;
@@ -80,4 +79,5 @@ struct Config {
     void save(const fs::path &path) const;
 };
 
-void load_theme(const std::string& theme_name, const std::vector<fs::path>& theme_dirs, Config& config);
+void load_theme(const std::string &theme_name,
+                const std::vector<fs::path> &theme_dirs, Config &config);
