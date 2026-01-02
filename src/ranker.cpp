@@ -85,20 +85,17 @@ void StreamingRanker::run()
             current_request_ = new_request;
         }
 
-        // Special case: count increased but no new chunks - re-sort existing
-        // scored chunks
-        if (only_count_increased &&
-            processed_chunks_ == streaming_index_.get_available_chunks()) {
+        // Special case: count increased but no new chunks - re-sort existing scored chunks
+        if (only_count_increased && processed_chunks_ == streaming_index_.get_available_chunks()) {
             handle_count_increase();
             continue;
         }
 
-        // Wait for new chunks or scan completion
+        // Sleep and loop back to check for query changes or new chunks
         const auto available = streaming_index_.get_available_chunks();
-        if (processed_chunks_ >= available &&
+        if (processed_chunks_ == available &&
             !streaming_index_.is_scan_complete()) {
-                // Why wait here? We could do another iteration and potentially capture query changes before ranking the new chunks with an outdated query?
-            streaming_index_.wait_for_chunks(processed_chunks_ + 1);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
 
