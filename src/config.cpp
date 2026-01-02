@@ -1,6 +1,8 @@
 // config.cpp
 #include "config.h"
 
+#include <cstdint>
+#include <charconv>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -166,7 +168,75 @@ get_strings_or(const std::multimap<std::string, std::string> &map,
     return result;
 }
 
+Color get_color_or(const std::multimap<std::string, std::string>& map,
+                   const std::string& key, Color default_value) {
+    auto value = get_last(map, key);
+    if (!value) {
+        return default_value;
+    }
+    auto parsed = parse_color(*value);
+    return parsed ? *parsed : default_value;
+}
+
 } // namespace
+
+
+uint16_t Color::pango_red() const   { return static_cast<uint16_t>(r * 65535); }
+uint16_t Color::pango_green() const { return static_cast<uint16_t>(g * 65535); }
+uint16_t Color::pango_blue() const  { return static_cast<uint16_t>(b * 65535); }
+
+
+// Parse hex color: "#RGB", "#RGBA", "#RRGGBB", or "#RRGGBBAA"
+std::optional<Color> parse_color(const std::string& str) {
+    if (str.empty() || str[0] != '#') {
+        return std::nullopt;
+    }
+    
+    std::string hex = str.substr(1);
+    
+    // Expand shorthand: #RGB -> #RRGGBB, #RGBA -> #RRGGBBAA
+    if (hex.length() == 3 || hex.length() == 4) {
+        std::string expanded;
+        for (char c : hex) {
+            expanded += c;
+            expanded += c;
+        }
+        hex = expanded;
+    }
+    
+    if (hex.length() != 6 && hex.length() != 8) {
+        return std::nullopt;
+    }
+    
+    auto parse_component = [](const std::string& s, size_t offset) -> std::optional<double> {
+        unsigned int val = 0;
+        auto [ptr, ec] = std::from_chars(s.data() + offset, s.data() + offset + 2, val, 16);
+        if (ec != std::errc{}) {
+            return std::nullopt;
+        }
+        return val / 255.0;
+    };
+    
+    auto r = parse_component(hex, 0);
+    auto g = parse_component(hex, 2);
+    auto b = parse_component(hex, 4);
+    
+    if (!r || !g || !b) {
+        return std::nullopt;
+    }
+    
+    Color color{*r, *g, *b, 1.0};
+    
+    if (hex.length() == 8) {
+        auto a = parse_component(hex, 6);
+        if (!a) {
+            return std::nullopt;
+        }
+        color.a = *a;
+    }
+    
+    return color;
+}
 
 fs::path Config::default_path()
 {
@@ -174,6 +244,36 @@ fs::path Config::default_path()
     if (!home)
         return {};
     return fs::path(home) / ".khala" / "config.ini";
+}
+
+void load_theme(const std::string& theme_name, const std::vector<fs::path>& theme_dirs, Config& config) {
+    for (const auto& theme_dir : theme_dirs) {
+        if (!fs::exists(theme_dir)) {
+            continue;
+        }
+
+        fs::path theme_file = theme_dir / (theme_name + ".ini");
+        if (!fs::exists(theme_file)) {
+            continue;
+        }
+
+        auto map = parse_ini(theme_file);
+
+        // Apply theme colors
+        config.input_background_color = get_color_or(map, "input_background_color", config.input_background_color);
+        config.background_color = get_color_or(map, "background_color", config.background_color);
+        config.border_color = get_color_or(map, "border_color", config.border_color);
+        config.text_color = get_color_or(map, "text_color", config.text_color);
+        config.selection_color = get_color_or(map, "selection_color", config.selection_color);
+        config.selection_text_color = get_color_or(map, "selection_text_color", config.selection_text_color);
+        config.description_color = get_color_or(map, "description_color", config.description_color);
+        config.selection_description_color = get_color_or(map, "selection_description_color", config.selection_description_color);
+
+        printf("Loaded theme '%s' from %s\n", theme_name.c_str(), theme_file.generic_string().c_str());
+        return; // Found and loaded, return immediately
+    }
+
+    printf("Warning: Theme '%s' not found, using built-in defaults\n", theme_name.c_str());
 }
 
 Config Config::load(const fs::path &path)
@@ -203,6 +303,11 @@ Config Config::load(const fs::path &path)
     // Appearance
     cfg.font_name = get_string_or(map, "font_name", cfg.font_name);
     cfg.font_size = get_int_or(map, "font_size", cfg.font_size);
+    cfg.theme = get_string_or(map, "theme", cfg.theme);
+    load_theme(cfg.theme, {
+        fs::path(KHALA_DATADIR) / "themes",
+        path.parent_path() / "themes"
+    }, cfg);
 
     // Behavior
     cfg.quit_on_action = get_bool_or(map, "quit_on_action", cfg.quit_on_action);
@@ -273,6 +378,10 @@ void Config::save(const fs::path &path) const
     file << "\n";
 
     file << "# Appearance\n";
+    file << "# Available themes: default-light, default-dark, tomorrow-night-eighties,\n";
+    file << "#                   gruvbox-dark, nord, solarized-light\n";
+    file << "# Custom themes can be placed in ~/.khala/themes/\n";
+    file << "theme=" << theme << "\n";
     file << "font_name=" << font_name << "\n";
     file << "font_size=" << font_size << "\n";
     file << "\n";

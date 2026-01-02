@@ -556,25 +556,28 @@ void draw(XWindow &window, const Config &config, const State &state)
     const double corner_radius = 8.0;
     const double border_width = 3.0;
 
-    // Fill entire window with input color (grey)
+    // Fill entire window with input background color
     draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius,
                       Corner::All);
-    cairo_set_source_rgb(cr, 0.92, 0.92, 0.92);
+    const auto input_bg = config.input_background_color;
+    cairo_set_source_rgb(cr, input_bg.r, input_bg.g, input_bg.b);
     cairo_fill(cr);
 
     // Draw white background for dropdown area if there are items
     if (window.height > input_height) {
-        cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+        const auto bg_color = config.background_color;
+        cairo_set_source_rgb(cr, bg_color.r, bg_color.g, bg_color.b);
         draw_rounded_rect(cr, 0, input_height, window.width,
                           window.height - input_height, corner_radius,
                           Corner::BottomLeft | Corner::BottomRight);
         cairo_fill(cr);
     }
 
-    // Draw white border around entire window
+    // Draw border around entire window
     draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius,
                       Corner::All);
-    cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+    const auto border = config.border_color;
+    cairo_set_source_rgb(cr, border.r, border.g, border.b);
     cairo_set_line_width(cr, border_width);
     cairo_stroke(cr);
 
@@ -612,7 +615,8 @@ void draw(XWindow &window, const Config &config, const State &state)
     pango_layout_get_size(layout, &text_width, &text_height);
     const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
 
-    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    const auto text = config.text_color;
+    cairo_set_source_rgb(cr, text.r, text.g, text.b);
     cairo_move_to(cr, 10, text_y);
     pango_cairo_show_layout(cr, layout);
 
@@ -627,7 +631,7 @@ void draw(XWindow &window, const Config &config, const State &state)
         pango_layout_get_size(layout, &cursor_x_offset, &cursor_height);
 
         // Draw cursor line
-        cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+        cairo_set_source_rgb(cr, text.r, text.g, text.b);
         const double cursor_x = 10 + (cursor_x_offset / PANGO_SCALE);
         cairo_move_to(cr, cursor_x, text_y);
         cairo_line_to(cr, cursor_x, text_y + (text_height / PANGO_SCALE));
@@ -669,7 +673,8 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Draw selection highlight
         if (i == selection_index) {
-            cairo_set_source_rgb(cr, 0.3, 0.6, 1.0); // Blue highlight
+            const auto sel = config.selection_color;
+            cairo_set_source_rgb(cr, sel.r, sel.g, sel.b);
 
             // Use rounded bottom corners if this is the last item
             const bool is_last_item = (i == dropdown_items.size() - 1);
@@ -684,11 +689,12 @@ void draw(XWindow &window, const Config &config, const State &state)
             cairo_fill(cr);
         }
 
-        // Set text color (white on selected, black on normal)
+        // Set text color (selected vs normal)
         if (i == selection_index) {
-            cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+            const auto sel_text = config.selection_text_color;
+            cairo_set_source_rgb(cr, sel_text.r, sel_text.g, sel_text.b);
         } else {
-            cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+            cairo_set_source_rgb(cr, text.r, text.g, text.b);
         }
 
         // Draw the title text
@@ -721,11 +727,13 @@ void draw(XWindow &window, const Config &config, const State &state)
                                         (title_width / PANGO_SCALE) - spacing -
                                         right_margin;
 
-            // Set subtle grey color for description
+            // Set description color
             if (i == selection_index) {
-                cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);
+                const auto sel_desc = config.selection_description_color;
+                cairo_set_source_rgb(cr, sel_desc.r, sel_desc.g, sel_desc.b);
             } else {
-                cairo_set_source_rgb(cr, 0.5, 0.5, 0.5);
+                const auto desc = config.description_color;
+                cairo_set_source_rgb(cr, desc.r, desc.g, desc.b);
             }
 
             // Set description text with highlighting and middle
