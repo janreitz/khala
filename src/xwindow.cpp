@@ -10,8 +10,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace ui
-{
+namespace {
 
 struct MonitorInfo {
     int width;
@@ -103,6 +102,8 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
     return info;
 }
 
+} // anonymous namespace
+
 XWindow::XWindow(const Config &config)
 {
     display = XOpenDisplay(nullptr);
@@ -162,11 +163,11 @@ XWindow::XWindow(const Config &config)
     // ratios
     width = static_cast<int>(primary_screen_width * config.width_ratio);
     const int input_height =
-        calculate_actual_input_height(config, primary_screen_height);
+        ui::calculate_actual_input_height(config, primary_screen_height);
     const int item_height =
-        calculate_actual_item_height(config, primary_screen_height);
+        ui::calculate_actual_item_height(config, primary_screen_height);
     // Account for: top border + input area + spacing + items + bottom border
-    height = static_cast<int>(2 * BORDER_WIDTH + input_height + ITEMS_SPACING +
+    height = static_cast<int>(2 * ui::BORDER_WIDTH + input_height + ui::ITEMS_SPACING +
                               (config.max_visible_items * item_height));
 
     // Center the window properly: position is relative to center, not top-left
@@ -229,11 +230,10 @@ XWindow::~XWindow()
     }
 }
 
-Event process_input_events(Display *display, State &state, const Config &config, bool blocking)
+std::vector<ui::UserInputEvent> get_input_events(Display *display, bool blocking)
 {
+    std::vector<ui::UserInputEvent> events;
     XEvent event;
-
-    Event out_event = Event::NoEvent;
 
     // If blocking, wait for at least one event; otherwise only process pending events
     if (blocking) {
@@ -250,6 +250,7 @@ Event process_input_events(Display *display, State &state, const Config &config,
 
         if (event.type == Expose) {
             if (event.xexpose.count == 0) {
+                // Expose events don't generate UI events
             }
         } else if (event.type == ButtonPress) {
             // Regain focus when clicked
@@ -259,73 +260,27 @@ Event process_input_events(Display *display, State &state, const Config &config,
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
             if (keysym == XK_Escape) {
-                out_event = Event::ExitRequested;
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Escape, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Up) {
-                // Move selection up
-                if (state.selected_item_index > 0) {
-                    state.selected_item_index--;
-                    out_event = Event::SelectionChanged;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Up, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Down) {
-                // Move selection down
-                if (state.selected_item_index < state.items.size() - 1) {
-                    state.selected_item_index++;
-                    out_event = Event::SelectionChanged;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Down, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Tab) {
-                // Open context menu
-                if (!std::holds_alternative<ContextMenu>(state.mode) &&
-                    !state.items.empty()) {
-                    const auto &file_item = state.get_selected_item();
-                    const auto selected_file = fs::path(file_item.description) /
-                                               fs::path(file_item.title);
-                    state.mode = ContextMenu{.selected_file = selected_file};
-                    state.selected_item_index = 0;
-                    state.items = make_file_actions(selected_file, config);
-                    out_event = Event::ContextMenuToggled;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Tab, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Left) {
-                if (std::holds_alternative<ContextMenu>(state.mode)) {
-                    // Close context menu
-                    state.mode = FileSearch{.query = state.input_buffer};
-                    out_event = Event::ContextMenuToggled;
-                } else {
-                    // Move cursor left
-                    if (state.cursor_position > 0) {
-                        state.cursor_position--;
-                        out_event = Event::CursorPositionChanged;
-                    }
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Left, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Right) {
-                // Move cursor right (only when not in context menu)
-                if (!std::holds_alternative<ContextMenu>(state.mode) &&
-                    state.cursor_position < state.input_buffer.size()) {
-                    state.cursor_position++;
-                    out_event = Event::CursorPositionChanged;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Right, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Home) {
-                // Jump to beginning
-                if (!std::holds_alternative<ContextMenu>(state.mode)) {
-                    state.cursor_position = 0;
-                    out_event = Event::CursorPositionChanged;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Home, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_End) {
-                // Jump to end
-                if (!std::holds_alternative<ContextMenu>(state.mode)) {
-                    state.cursor_position = state.input_buffer.size();
-                    out_event = Event::CursorPositionChanged;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::End, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_Return) {
-                out_event = Event::ActionRequested;
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Return, .modifier = std::nullopt, .character = std::nullopt });
             } else if (keysym == XK_BackSpace) {
-                // Handle backspace at cursor position
-                if (!state.input_buffer.empty() && state.cursor_position > 0) {
-                    state.input_buffer.erase(state.cursor_position - 1, 1);
-                    state.cursor_position--;
-                    out_event = Event::InputChanged;
-                }
+                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::BackSpace, .modifier = std::nullopt, .character = std::nullopt });
             } else {
-                // Handle regular character input at cursor position
+                // Handle regular character input
                 std::array<char, 32> char_buffer;
                 const int len =
                     XLookupString(&event.xkey, char_buffer.data(),
@@ -335,10 +290,11 @@ Event process_input_events(Display *display, State &state, const Config &config,
                     // Only add printable characters
                     for (int i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
-                            state.input_buffer.insert(state.cursor_position, 1,
-                                                      char_buffer[i]);
-                            state.cursor_position++;
-                            out_event = Event::InputChanged;
+                            events.push_back(ui::KeyboardEvent{
+                                .key = ui::KeyCode::Character,
+                                .modifier = std::nullopt,
+                                .character = char_buffer[i],
+                            });
                         }
                     }
                 }
@@ -346,7 +302,5 @@ Event process_input_events(Display *display, State &state, const Config &config,
             break;
         }
     }
-    return out_event;
+    return events;
 }
-
-} // namespace ui
