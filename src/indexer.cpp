@@ -182,7 +182,7 @@ void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
         std::min(work_units.size(),
                  static_cast<size_t>(std::thread::hardware_concurrency()));
 
-    printf("Number of work units %ld, hardware_concurrency: %d, number of threads: %ld", work_units.size(), std::thread::hardware_concurrency(), num_threads);
+    printf("Number of work units %ld, hardware_concurrency: %d, number of threads: %ld\n", work_units.size(), std::thread::hardware_concurrency(), num_threads);
     workers.reserve(num_threads);
 
     for (size_t i = 0; i < num_threads; i++) {

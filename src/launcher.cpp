@@ -35,6 +35,23 @@ int main()
                    config.config_path.c_str(), e.what());
         }
     });
+    const auto global_actions = get_global_actions(config);
+
+    XWindow window(
+        ui::RelScreenCoord{
+            .x = config.x_position,
+            .y = config.y_position,
+        },
+        ui::RelScreenCoord{
+            .x = config.width_ratio,
+            .y = config.height_ratio,
+        });
+
+    const int max_window_height =
+        static_cast<int>(window.screen_height * config.height_ratio);
+    const size_t max_visible_items =
+        ui::calculate_max_visible_items(max_window_height, config.font_size);
+
     // Shared state
     StreamingIndex streaming_index;
     std::vector<indexer::DesktopApp> desktop_apps =
@@ -116,9 +133,7 @@ int main()
                     *chunk,
                     [&current_query](std::string_view path) {
                         return fuzzy::fuzzy_score(path, current_query);
-                    },
-                    50 // Get more results per chunk than final display
-                );
+                    }, max_visible_items);
 
                 // Convert RankResult to FileResult with actual paths
                 std::vector<FileResult> file_results;
@@ -131,7 +146,7 @@ int main()
 
                 // Merge with accumulated results
                 accumulated_results =
-                    merge_top_results(accumulated_results, file_results, 20);
+                    merge_top_results(accumulated_results, file_results, max_visible_items);
 
                 ++processed_chunks;
 
@@ -168,13 +183,9 @@ int main()
         }
     });
 
-    XWindow window(config);
-    ui::State state;
-    const auto global_actions = get_global_actions(config);
-
     // Current file search state
     std::vector<FileResult> current_file_results;
-
+    ui::State state;
     while (true) {
         // Use non-blocking mode when actively scanning to allow UI updates
         const bool should_block =
@@ -247,7 +258,7 @@ int main()
                         [&query](const ui::Item &item) {
                             return fuzzy::fuzzy_score(item.title, query);
                         },
-                        config.max_visible_items);
+                        max_visible_items);
 
                     state.items.clear();
                     for (const auto &r : ranked) {
@@ -267,7 +278,7 @@ int main()
                         [&query](const indexer::DesktopApp &app) {
                             return fuzzy::fuzzy_score(app.name, query);
                         },
-                        config.max_visible_items);
+                        max_visible_items);
 
                     state.items.clear();
                     for (const auto &r : ranked) {
@@ -314,19 +325,15 @@ int main()
                 state.processed_chunks = update.processed_chunks;
 
                 // Convert results to UI items
+                const auto item_count =
+                    std::min(current_file_results.size(), max_visible_items);
                 state.items.clear();
-                state.items.reserve(
-                    std::min(current_file_results.size(),
-                             static_cast<size_t>(config.max_visible_items)));
+                state.items.reserve(item_count);
 
-                // Display actual file paths from results
-                for (size_t i = 0;
-                     i <
-                     std::min(current_file_results.size(),
-                              static_cast<size_t>(config.max_visible_items));
-                     ++i) {
+                for (size_t i = 0; i < item_count; ++i) {
                     const auto &result = current_file_results[i];
                     state.items.push_back(ui::Item{
+                        // Display actual file paths from results
                         .title = fs::canonical(result.path).generic_string(),
                         .description = "",
                         .command = CustomCommand{.path = fs::path(result.path),

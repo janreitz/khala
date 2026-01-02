@@ -113,28 +113,40 @@ create_highlighted_markup(const std::string &text,
     return result;
 }
 
-int calculate_actual_input_height(const Config &config, int screen_height)
+int calculate_abs_input_height(int font_size)
 {
-    return static_cast<int>(screen_height * config.input_height_ratio);
+    return static_cast<int>(font_size + 2 * INPUT_VERTICAL_PADDING);
 }
 
-int calculate_actual_item_height(const Config &config, int screen_height)
+int calculate_abs_item_height(int font_size)
 {
-    return static_cast<int>(screen_height * config.item_height_ratio);
+    return static_cast<int>(font_size + 2 * ITEM_VERTICAL_PADDING);
 }
 
-int calculate_window_height(const Config &config, const State &state,
-                            int screen_height)
+size_t calculate_max_visible_items(int window_height, int font_size)
 {
-    const size_t item_count = state.items.size();
-    const size_t visible_items = std::min(item_count, config.max_visible_items);
-    const int input_height =
-        calculate_actual_input_height(config, screen_height);
-    const int item_height = calculate_actual_item_height(config, screen_height);
+    const int input_height = calculate_abs_input_height(font_size);
+    const int item_height = calculate_abs_item_height(font_size);
+
+    // Calculate available space for items
+    const int available_for_items = window_height -
+                                    static_cast<int>(2 * BORDER_WIDTH) -
+                                    input_height -
+                                    static_cast<int>(ITEMS_SPACING);
+
+    // Calculate max visible items that can fit in available space
+    return std::max(1, available_for_items / item_height);
+}
+
+int calculate_window_height(int font_size, size_t item_count,
+                            int max_height)
+{
+    const size_t max_visible_items = calculate_max_visible_items(max_height, font_size);
+    const size_t visible_items = std::min(item_count, max_visible_items);
 
     // Account for: top border + input area + spacing + items + bottom border
-    return static_cast<int>(2 * BORDER_WIDTH + input_height + ITEMS_SPACING +
-                            (visible_items * item_height));
+    return static_cast<int>(2 * BORDER_WIDTH + calculate_abs_input_height(font_size) + ITEMS_SPACING +
+                            (visible_items * calculate_abs_item_height(font_size)));
 }
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
@@ -210,14 +222,9 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
 void draw(XWindow &window, const Config &config, const State &state)
 {
     const double content_width = window.width - 2.0 * BORDER_WIDTH;
-    // Calculate actual heights based on screen size
-    const int input_height =
-        calculate_actual_input_height(config, window.screen_height);
-    const int item_height =
-        calculate_actual_item_height(config, window.screen_height);
-    // Calculate window height based on item count
-    const int new_height =
-        calculate_window_height(config, state, window.screen_height);
+    // Calculate window height based on item count and max window height
+    const int max_height = static_cast<int>(window.screen_height * config.height_ratio);
+    const int new_height = calculate_window_height(config.font_size, state.items.size(), max_height);
 
     if (new_height != window.height) {
         XResizeWindow(window.display, window.window, window.width, new_height);
@@ -256,6 +263,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_fill(cr);
 
     // Draw Input Area
+    const int input_height = calculate_abs_input_height(config.font_size);
     draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width,
                       input_height, CORNER_RADIUS, Corner::All);
     set_color(cr, config.input_background_color);
@@ -386,6 +394,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     const double dropdown_start_y = BORDER_WIDTH + input_height + ITEMS_SPACING;
 
     // Draw dropdown items
+    const int item_height = calculate_abs_item_height(config.font_size);
     for (size_t i = 0; i < dropdown_items.size(); ++i) {
         const double y_pos = dropdown_start_y + (i * item_height);
 

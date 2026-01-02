@@ -19,7 +19,7 @@ struct XWindow {
     int height = 0;
     int screen_height = 0;
 
-    XWindow(const Config &config);
+    XWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension);
     ~XWindow();
 
     // Non-copyable

@@ -34,16 +34,14 @@ std::optional<Color> parse_color(const std::string &str);
 struct Config {
     // Appearance
     // Window positioning and sizing (as percentages of screen size, 0.0-1.0)
-    double width_ratio = 0.4; // 40% of screen width
-    double x_position = 0.5;  // center horizontally (0.5 = 50% from left)
-    double y_position = 0.25; // 25% from top
-    double input_height_ratio = 0.025; // 2.5% of screen height
-    double item_height_ratio = 0.018;  // 1.8% of screen height
-    size_t max_visible_items = 10;
+    double width_ratio = 0.5; // 50% of screen width
+    double height_ratio = 0.6; // 60% of screen height
+    double x_position = 0.25;  // center horizontally (0.5 = 50% from left)
+    double y_position = 0.20; // 25% from top
 
     // Styling
     std::string font_name = "monospace";
-    int font_size = 14;
+    int font_size = 10;
     std::string theme = "default-light";
 
     // Colors (loaded from theme)
