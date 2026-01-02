@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -23,6 +24,7 @@ struct defer {
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
 
+std::string serialize_file_info(const std::filesystem::path& path);
 
 struct PackedStrings {
 

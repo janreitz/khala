@@ -335,7 +335,7 @@ int main()
                     state.items.push_back(ui::Item{
                         // Display actual file paths from results
                         .title = fs::canonical(result.path).generic_string(),
-                        .description = "",
+                        .description = serialize_file_info(result.path),
                         .command = CustomCommand{.path = fs::path(result.path),
                                                  .shell_cmd = ""},
                     });
