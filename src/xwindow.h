@@ -30,6 +30,6 @@ struct XWindow {
 };
 
 Event process_input_events(Display *display, State &state,
-                           const Config &config);
+                           const Config &config, bool blocking = true);
 
 } // namespace ui
