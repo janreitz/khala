@@ -483,8 +483,10 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.items.empty()) {
             if (state.selected_item_index > 0) {
                 state.selected_item_index--;
-                events.push_back(SelectionChanged{});
+            } else {
+                state.selected_item_index = state.items.size() - 1;
             }
+            events.push_back(SelectionChanged{});
         }
         break;
 
@@ -492,8 +494,10 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.items.empty()) {
             if (state.selected_item_index < state.items.size() - 1) {
                 state.selected_item_index++;
-                events.push_back(SelectionChanged{});
+            } else {
+                state.selected_item_index = 0;
             }
+            events.push_back(SelectionChanged{});
         }
         break;
 
@@ -582,16 +586,11 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
     return events;
 }
 
-void adjust_visible_range(State &state, size_t max_visible_items)
+bool adjust_visible_range(State &state, size_t max_visible_items)
 {
+    const auto old_visible_range_offset = state.visible_range_offset;
     if (state.items.empty()) {
         state.visible_range_offset = 0;
-        return;
-    }
-
-    // Ensure selected item is within bounds
-    if (state.selected_item_index >= state.items.size()) {
-        state.selected_item_index = state.items.size() - 1;
     }
 
     // Adjust visible range to keep selected item visible
@@ -602,6 +601,12 @@ void adjust_visible_range(State &state, size_t max_visible_items)
         // Selected item is below visible range, scroll down
         state.visible_range_offset = state.selected_item_index - max_visible_items + 1;
     }
+
+    return state.visible_range_offset != old_visible_range_offset;
+}
+
+size_t required_item_count(const State &state, size_t max_visible_items) {
+    return state.visible_range_offset + (max_visible_items * 2);
 }
 
 } // namespace ui
