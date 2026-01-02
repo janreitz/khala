@@ -62,7 +62,8 @@ struct State {
 
     // Results
     std::vector<Item> items;
-    size_t selected_item_index = 0;
+    size_t visible_range_offset = 0;
+    size_t selected_item_index = 0; // Absolute index in items
 
     // Error display
     std::optional<std::string> error_message;
@@ -127,6 +128,9 @@ using Event =
 // Process keyboard events and update state, returning high-level events
 std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                                      const Config &config);
+
+// Adjust visible_range_offset to keep selected_item_index visible
+void adjust_visible_range(State &state, size_t max_visible_items);
 
 void draw(XWindow &window, const Config &config, const State &state);
 
