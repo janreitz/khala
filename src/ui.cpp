@@ -30,6 +30,10 @@ std::optional<std::string> get_query(const AppMode &mode)
         mode);
 };
 
+void set_color(cairo_t *cr, const Color &color) {
+    cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
+}
+
 std::string
 create_highlighted_markup(const std::string &text,
                           const std::vector<size_t> &match_positions)
@@ -215,33 +219,23 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
-    // Draw entire window background with rounded corners
     const double corner_radius = 8.0;
-    const double border_width = 3.0;
-
-    // Fill entire window with input background color
-    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius,
-                      Corner::All);
-    const auto input_bg = config.input_background_color;
-    cairo_set_source_rgb(cr, input_bg.r, input_bg.g, input_bg.b);
+    const double border_width = 4.0;
+    
+    // Draw background
+    set_color(cr, config.background_color);
+    draw_rounded_rect(cr, 0, 0, window.width,
+                        window.height, corner_radius,
+                        Corner::All);
     cairo_fill(cr);
 
-    // Draw white background for dropdown area if there are items
-    if (window.height > input_height) {
-        const auto bg_color = config.background_color;
-        cairo_set_source_rgb(cr, bg_color.r, bg_color.g, bg_color.b);
-        draw_rounded_rect(cr, 0, input_height, window.width,
-                          window.height - input_height, corner_radius,
-                          Corner::BottomLeft | Corner::BottomRight);
-        cairo_fill(cr);
-    }
-
-    // Draw border around entire window
-    draw_rounded_rect(cr, 0, 0, window.width, window.height, corner_radius,
+    // Draw Input Area
+    draw_rounded_rect(cr, border_width, border_width, window.width - 2*border_width, input_height, corner_radius/2.0,
                       Corner::All);
-    const auto border = config.border_color;
-    cairo_set_source_rgb(cr, border.r, border.g, border.b);
-    cairo_set_line_width(cr, border_width);
+    set_color(cr, config.input_background_color);
+    cairo_fill_preserve(cr);
+    
+    set_color(cr, config.selection_color);
     cairo_stroke(cr);
 
     // Set font for launcher
@@ -278,8 +272,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     pango_layout_get_size(layout, &text_width, &text_height);
     const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
 
-    const auto text = config.text_color;
-    cairo_set_source_rgb(cr, text.r, text.g, text.b);
+    set_color(cr, config.text_color);
     cairo_move_to(cr, 10, text_y);
     pango_cairo_show_layout(cr, layout);
 
@@ -294,7 +287,7 @@ void draw(XWindow &window, const Config &config, const State &state)
         pango_layout_get_size(layout, &cursor_x_offset, &cursor_height);
 
         // Draw cursor line
-        cairo_set_source_rgb(cr, text.r, text.g, text.b);
+        set_color(cr, config.text_color);
         const double cursor_x = 10 + (cursor_x_offset / PANGO_SCALE);
         cairo_move_to(cr, cursor_x, text_y);
         cairo_line_to(cr, cursor_x, text_y + (text_height / PANGO_SCALE));
@@ -336,8 +329,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Draw selection highlight
         if (i == selection_index) {
-            const auto sel = config.selection_color;
-            cairo_set_source_rgb(cr, sel.r, sel.g, sel.b);
+            set_color(cr, config.selection_color);
 
             // Use rounded bottom corners if this is the last item
             const bool is_last_item = (i == dropdown_items.size() - 1);
@@ -354,10 +346,9 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Set text color (selected vs normal)
         if (i == selection_index) {
-            const auto sel_text = config.selection_text_color;
-            cairo_set_source_rgb(cr, sel_text.r, sel_text.g, sel_text.b);
+            set_color(cr, config.selection_text_color);
         } else {
-            cairo_set_source_rgb(cr, text.r, text.g, text.b);
+            set_color(cr, config.text_color);
         }
 
         // Draw the title text
@@ -392,11 +383,9 @@ void draw(XWindow &window, const Config &config, const State &state)
 
             // Set description color
             if (i == selection_index) {
-                const auto sel_desc = config.selection_description_color;
-                cairo_set_source_rgb(cr, sel_desc.r, sel_desc.g, sel_desc.b);
+                set_color(cr, config.selection_description_color);
             } else {
-                const auto desc = config.description_color;
-                cairo_set_source_rgb(cr, desc.r, desc.g, desc.b);
+                set_color(cr, config.description_color);
             }
 
             // Set description text with highlighting and middle
