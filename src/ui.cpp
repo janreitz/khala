@@ -180,15 +180,23 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
 
 void draw(XWindow &window, const Config &config, const State &state)
 {
+
+    const double corner_radius = 4.0;
+    const double border_width = 4.0;
+    const double text_margin = 15.0;
+    const double input_text_margin = 10.0;
+    const double description_spacing = 10.0;
+    const double content_width = window.width - 2.0 * border_width;
     // Calculate actual heights based on screen size
     const int input_height =
         calculate_actual_input_height(config, window.screen_height);
     const int item_height =
         calculate_actual_item_height(config, window.screen_height);
-
     // Calculate window height based on item count
     const int new_height =
         calculate_window_height(config, state, window.screen_height);
+
+
     if (new_height != window.height) {
         XResizeWindow(window.display, window.window, window.width, new_height);
         window.height = new_height;
@@ -218,9 +226,6 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
     cairo_paint(cr);
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
-
-    const double corner_radius = 8.0;
-    const double border_width = 4.0;
     
     // Draw background
     set_color(cr, config.background_color);
@@ -230,7 +235,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_fill(cr);
 
     // Draw Input Area
-    draw_rounded_rect(cr, border_width, border_width, window.width - 2*border_width, input_height, corner_radius/2.0,
+    draw_rounded_rect(cr, border_width, border_width, content_width, input_height, corner_radius,
                       Corner::All);
     set_color(cr, config.input_background_color);
     cairo_fill_preserve(cr);
@@ -273,7 +278,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
 
     set_color(cr, config.text_color);
-    cairo_move_to(cr, 10, text_y);
+    cairo_move_to(cr, input_text_margin, text_y);
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor at cursor position when not in context menu
@@ -330,17 +335,9 @@ void draw(XWindow &window, const Config &config, const State &state)
         // Draw selection highlight
         if (i == selection_index) {
             set_color(cr, config.selection_color);
-
-            // Use rounded bottom corners if this is the last item
-            const bool is_last_item = (i == dropdown_items.size() - 1);
-            if (is_last_item) {
-                draw_rounded_rect(cr, 0, y_pos, window.width, item_height,
+            draw_rounded_rect(cr, border_width, y_pos, content_width, item_height,
                                   corner_radius,
-                                  Corner::BottomLeft | Corner::BottomRight);
-            } else {
-                draw_rounded_rect(cr, 0, y_pos, window.width, item_height, 0,
-                                  Corner::NoCorners);
-            }
+                                  Corner::All);
             cairo_fill(cr);
         }
 
@@ -363,7 +360,7 @@ void draw(XWindow &window, const Config &config, const State &state)
         pango_layout_get_size(layout, &text_width_unused, &text_height);
         const double text_y_centered =
             y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;
-        cairo_move_to(cr, 15, text_y_centered);
+        cairo_move_to(cr, text_margin, text_y_centered);
         pango_cairo_show_layout(cr, layout);
 
         // Draw description to the right of the title in subtle grey
@@ -374,12 +371,9 @@ void draw(XWindow &window, const Config &config, const State &state)
             pango_layout_get_size(layout, &title_width, &title_height);
 
             // Calculate available width for description
-            const int spacing = 10;
-            const int left_margin = 15;
-            const int right_margin = 15;
-            const int available_width = window.width - left_margin -
-                                        (title_width / PANGO_SCALE) - spacing -
-                                        right_margin;
+            const int available_width = window.width - text_margin -
+                                        (title_width / PANGO_SCALE) - description_spacing -
+                                        text_margin;
 
             // Set description color
             if (i == selection_index) {
@@ -401,7 +395,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
             // Draw description with some spacing after the title
             cairo_move_to(cr,
-                          left_margin + (title_width / PANGO_SCALE) + spacing,
+                          text_margin + (title_width / PANGO_SCALE) + description_spacing,
                           text_y_centered);
             pango_cairo_show_layout(cr, layout);
 
