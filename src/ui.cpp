@@ -426,7 +426,11 @@ void draw(XWindow &window, const Config &config, const State &state)
         const double text_y_centered =
             calculate_text_y_centered(y_pos, item_height, text_height);
         cairo_move_to(cr, BORDER_WIDTH + TEXT_MARGIN, text_y_centered);
+        pango_layout_set_width(layout, (content_width - 2 * TEXT_MARGIN) * PANGO_SCALE);
+        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
         pango_cairo_show_layout(cr, layout);
+        pango_layout_set_width(layout, -1);
+        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
 
         // Draw description to the right of the title in subtle grey
         if (!dropdown_items.at(i).description.empty()) {
