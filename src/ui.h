@@ -1,34 +1,14 @@
 #include "actions.h"
 #include "config.h"
 #include "utility.h"
+#include "xwindow.h"
 
 #include <optional>
 #include <string>
 #include <variant>
 
-#include <X11/X.h>
-#include <X11/Xatom.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-
 namespace ui
 {
-
-struct XWindow {
-    Display *display = nullptr;
-    ::Window window = 0;
-    Colormap colormap = 0;
-    int width = 0;
-    int height = 0;
-    int screen_height = 0;
-
-    XWindow(const Config &config);
-    ~XWindow();
-
-    // Non-copyable
-    XWindow(const XWindow &) = delete;
-    XWindow &operator=(const XWindow &) = delete;
-};
 
 struct Item {
     std::string title;
@@ -81,8 +61,8 @@ enum class Event {
     ExitRequested,
 };
 
-Event process_input_events(Display *display, State &state,
-                           const Config &config);
+int calculate_actual_input_height(const Config &config, int screen_height);
+int calculate_actual_item_height(const Config &config, int screen_height);
 
 void draw(XWindow &window, const Config &config, const State &state);
 

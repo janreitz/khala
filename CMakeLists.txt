@@ -40,6 +40,7 @@ add_executable(khala
     src/ranker.cpp
     src/streamingindex.cpp
     src/ui.cpp
+    src/xwindow.cpp
     src/utility.cpp
 )
 
