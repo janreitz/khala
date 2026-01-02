@@ -64,22 +64,6 @@ std::string
 create_highlighted_markup(const std::string &text,
                           const std::vector<size_t> &match_positions)
 {
-    if (match_positions.empty()) {
-        // No highlighting needed, escape the text for markup
-        std::string escaped;
-        for (char c : text) {
-            if (c == '&')
-                escaped += "&amp;";
-            else if (c == '<')
-                escaped += "&lt;";
-            else if (c == '>')
-                escaped += "&gt;";
-            else
-                escaped += c;
-        }
-        return escaped;
-    }
-
     std::string result;
     size_t match_idx = 0;
 
