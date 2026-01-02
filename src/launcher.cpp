@@ -65,10 +65,6 @@ int main()
     std::atomic<RankerMode> ranker_mode{RankerMode::FileSearch};
 
     // Ranker request state - GUI writes, ranker reads
-    struct RankerRequest {
-        std::string query;
-        size_t requested_count;
-    };
     RankerRequest ranker_request = {"", ui::required_item_count(state, max_visible_items)};
     std::mutex query_mutex;
     std::atomic_bool query_changed{true}; // Signal initial processing
@@ -87,187 +83,18 @@ int main()
     });
 
     // Launch progressive ranking worker
-    auto rank_future = std::async(std::launch::async, [&]() {
-        size_t processed_chunks = 0;
-        std::vector<FileResult> accumulated_results;
-        RankerRequest current_request;
+    StreamingRanker ranker(
+        streaming_index,
+        result_updates,
+        ranker_mode,
+        ranker_request,
+        query_mutex,
+        query_changed,
+        should_exit
+    );
 
-        // Persistent scored state per chunk - avoids re-scoring on scroll
-        std::vector<std::vector<RankResult>> scored_chunks;
-
-        while (!should_exit.load(std::memory_order_relaxed)) {
-            auto mode = ranker_mode.load(std::memory_order_acquire);
-
-            if (mode == RankerMode::Inactive) {
-                // Sleep when not in file search mode
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                continue;
-            }
-
-            if (mode == RankerMode::Paused) {
-                // Reset state when query is changing
-                processed_chunks = 0;
-                accumulated_results.clear();
-                scored_chunks.clear();
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                continue;
-            }
-
-            // Check for query or request changes
-            bool count_only_increased = false;
-            if (query_changed.exchange(false, std::memory_order_acq_rel)) {
-                RankerRequest new_request;
-                {
-                    std::lock_guard lock(query_mutex);
-                    new_request = ranker_request;
-                }
-
-                // Reset if query changed, otherwise just update count
-                if (current_request.query != new_request.query) {
-                    processed_chunks = 0;
-                    accumulated_results.clear();
-                    scored_chunks.clear();
-                } else if (new_request.requested_count > current_request.requested_count) {
-                    // Only count increased - can reuse scored chunks
-                    count_only_increased = true;
-                }
-                current_request = new_request;
-            }
-
-            // Special case: count increased but no new chunks - re-sort existing scored chunks
-            if (count_only_increased && processed_chunks == streaming_index.get_available_chunks()) {
-                accumulated_results.clear();
-
-                for (size_t chunk_idx = 0; chunk_idx < scored_chunks.size(); ++chunk_idx) {
-                    auto chunk = streaming_index.get_chunk(chunk_idx);
-                    if (!chunk) break;
-
-                    auto& chunk_scored = scored_chunks[chunk_idx];
-                    size_t n = std::min(current_request.requested_count, chunk_scored.size());
-
-                    // Re-sort with larger n (scores unchanged)
-                    std::partial_sort(
-                        chunk_scored.begin(),
-                        chunk_scored.begin() + n,
-                        chunk_scored.end(),
-                        [](const auto &a, const auto &b) { return a.score > b.score; });
-
-                    // Convert top n to FileResult
-                    std::vector<FileResult> file_results;
-                    file_results.reserve(n);
-                    for (size_t j = 0; j < n; ++j) {
-                        file_results.push_back(
-                            FileResult{.path = std::string(chunk->at(chunk_scored[j].index)),
-                                       .score = chunk_scored[j].score});
-                    }
-
-                    // Merge with accumulated results
-                    accumulated_results = merge_top_results(
-                        accumulated_results, file_results, current_request.requested_count);
-                }
-
-                // Send update with extended results
-                ResultUpdate update;
-                update.results = accumulated_results;
-                update.scan_complete = streaming_index.is_scan_complete();
-                update.total_files = streaming_index.get_total_files();
-                update.processed_chunks = processed_chunks;
-                result_updates.write(std::move(update));
-
-                continue; // Skip to next iteration
-            }
-
-            // Wait for new chunks or scan completion
-            const auto available = streaming_index.get_available_chunks();
-            if (processed_chunks >= available &&
-                !streaming_index.is_scan_complete()) {
-                streaming_index.wait_for_chunks(processed_chunks + 1);
-                continue;
-            }
-
-            // Process available chunks
-            while (processed_chunks < streaming_index.get_available_chunks()) {
-                const auto chunk = streaming_index.get_chunk(processed_chunks);
-                if (!chunk) {
-                    break;
-                }
-
-                // Get or create scored results for this chunk
-                std::vector<RankResult> chunk_scored;
-
-                if (processed_chunks < scored_chunks.size()) {
-                    // Already scored - reuse existing scores
-                    chunk_scored = scored_chunks[processed_chunks];
-                } else {
-                    // New chunk - score it
-                    std::vector<size_t> indices(chunk->size());
-                    std::iota(indices.begin(), indices.end(), 0);
-
-                    chunk_scored.resize(chunk->size());
-                    std::transform(std::execution::par_unseq,
-                                  indices.begin(), indices.end(),
-                                  chunk_scored.begin(),
-                                  [&](size_t i) {
-                        return RankResult{i, fuzzy::fuzzy_score(chunk->at(i), current_request.query)};
-                    });
-
-                    scored_chunks.push_back(chunk_scored);
-                }
-
-                // Partial sort to get top n from this chunk
-                size_t n = std::min(current_request.requested_count, chunk_scored.size());
-                std::partial_sort(
-                    chunk_scored.begin(),
-                    chunk_scored.begin() + n,
-                    chunk_scored.end(),
-                    [](const auto &a, const auto &b) { return a.score > b.score; });
-
-                // Convert RankResult to FileResult with actual paths
-                std::vector<FileResult> file_results;
-                file_results.reserve(n);
-                for (size_t j = 0; j < n; ++j) {
-                    file_results.push_back(
-                        FileResult{.path = std::string(chunk->at(chunk_scored[j].index)),
-                                   .score = chunk_scored[j].score});
-                }
-
-                // Merge with accumulated results
-                accumulated_results =
-                    merge_top_results(accumulated_results, file_results, current_request.requested_count);
-
-                ++processed_chunks;
-
-                // Send progressive update to UI
-                ResultUpdate update;
-                update.results = accumulated_results;
-                update.scan_complete = streaming_index.is_scan_complete();
-                update.total_files = streaming_index.get_total_files();
-                update.processed_chunks = processed_chunks;
-
-                result_updates.write(std::move(update));
-            }
-
-            // Final update when scan completes
-            if (streaming_index.is_scan_complete() &&
-                processed_chunks == streaming_index.get_available_chunks()) {
-
-                ResultUpdate final_update;
-                final_update.results = accumulated_results;
-                final_update.scan_complete = true;
-                final_update.total_files = streaming_index.get_total_files();
-                final_update.processed_chunks = processed_chunks;
-
-                result_updates.write(std::move(final_update));
-
-                // Wait for next query or mode change
-                while (ranker_mode.load(std::memory_order_acquire) ==
-                           RankerMode::FileSearch &&
-                       !query_changed.load(std::memory_order_acquire) &&
-                       !should_exit.load(std::memory_order_acquire)) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
-            }
-        }
+    auto rank_future = std::async(std::launch::async, [&ranker]() {
+        ranker.run();
     });
 
     // Current file search state
