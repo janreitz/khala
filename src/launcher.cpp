@@ -175,8 +175,16 @@ int main()
     std::vector<FileResult> current_file_results;
 
     while (true) {
+        // Use non-blocking mode when actively scanning to allow UI updates
+        const bool should_block = !(std::holds_alternative<ui::FileSearch>(state.mode) &&
+                                     !state.scan_complete);
         const auto event =
-            ui::process_input_events(window.display, state, config);
+            ui::process_input_events(window.display, state, config, should_block);
+
+        // Small sleep during non-blocking mode to avoid busy looping
+        if (!should_block && event == ui::Event::NoEvent) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(16)); // ~60 FPS
+        }
 
         if (event == ui::Event::NoEvent) {
         } else if (event == ui::Event::ExitRequested) {
@@ -274,6 +282,11 @@ int main()
         if (result_updates.try_read(update)) {
             if (std::holds_alternative<ui::FileSearch>(state.mode)) {
                 current_file_results = std::move(update.results);
+
+                // Update progress tracking
+                state.scan_complete = update.scan_complete;
+                state.total_files = update.total_files;
+                state.processed_chunks = update.processed_chunks;
 
                 // Convert results to UI items
                 state.items.clear();

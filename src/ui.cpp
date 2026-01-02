@@ -38,6 +38,22 @@ double calculate_text_y_centered(double container_y, double container_height, in
     return container_y + (container_height - (text_height_pango / PANGO_SCALE)) / 2.0;
 }
 
+std::string format_file_count(size_t count) {
+    if (count >= 1'000'000) {
+        double millions = count / 1'000'000.0;
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%.1fM", millions);
+        return buffer;
+    } else if (count >= 1'000) {
+        double thousands = count / 1'000.0;
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%.1fK", thousands);
+        return buffer;
+    } else {
+        return std::to_string(count);
+    }
+}
+
 std::string
 create_highlighted_markup(const std::string &text,
                           const std::vector<size_t> &match_positions)
@@ -267,8 +283,6 @@ void draw(XWindow &window, const Config &config, const State &state)
         }
     }
 
-    // TODO add right aligned indicator of indexed file count
-
     pango_layout_set_text(layout, display_text.c_str(), -1);
     pango_layout_set_attributes(layout, nullptr);
 
@@ -282,6 +296,33 @@ void draw(XWindow &window, const Config &config, const State &state)
     set_color(cr, config.text_color);
     cairo_move_to(cr, BORDER_WIDTH + INPUT_TEXT_MARGIN, text_y);
     pango_cairo_show_layout(cr, layout);
+
+    // Draw progress indicator (file count) in file search mode, right-aligned
+    if (std::holds_alternative<ui::FileSearch>(state.mode) && state.total_files > 0) {
+        const std::string file_count_text = format_file_count(state.total_files);
+        pango_layout_set_text(layout, file_count_text.c_str(), -1);
+
+        // Get text dimensions for right alignment
+        int count_width, count_height;
+        pango_layout_get_size(layout, &count_width, &count_height);
+
+        // Choose color based on scan status: yellow if scanning, green if complete
+        if (state.scan_complete) {
+            cairo_set_source_rgb(cr, 0.0, 0.8, 0.0); // Green
+        } else {
+            cairo_set_source_rgb(cr, 0.9, 0.9, 0.0); // Yellow
+        }
+
+        // Position at right edge of input area, with margin
+        const double count_x = BORDER_WIDTH + content_width - (count_width / PANGO_SCALE) - INPUT_TEXT_MARGIN;
+        const double count_y = calculate_text_y_centered(input_area_y, input_height, count_height);
+        cairo_move_to(cr, count_x, count_y);
+        pango_cairo_show_layout(cr, layout);
+
+        // Restore layout for cursor drawing below
+        pango_layout_set_text(layout, display_text.c_str(), -1);
+        set_color(cr, config.text_color);
+    }
 
     // Draw cursor at cursor position when not in context menu
     if (!std::holds_alternative<ContextMenu>(state.mode)) {

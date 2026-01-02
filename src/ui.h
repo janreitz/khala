@@ -53,6 +53,11 @@ struct State {
     // Error display
     std::optional<std::string> error_message;
 
+    // Progress tracking
+    bool scan_complete = false;
+    size_t total_files = 0;
+    size_t processed_chunks = 0;
+
     Item get_selected_item() const;
     void set_error(const std::string &message);
     void clear_error();
