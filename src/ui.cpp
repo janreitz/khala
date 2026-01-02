@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "fuzzy.h"
 #include "utility.h"
+#include "xwindow.h"
 
 #include <cairo-xlib.h>
 #include <cairo.h>
@@ -454,6 +455,109 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Flush to display
     cairo_surface_flush(surface);
+}
+
+std::vector<Event> handle_keyboard_input(State &state, const KeyboardEvent &kbd_event, const Config &config)
+{
+    std::vector<Event> events;
+
+    switch (kbd_event.key) {
+    case KeyCode::Escape:
+        events.push_back(ExitRequested{});
+        break;
+
+    case KeyCode::Up:
+        if (state.selected_item_index > 0) {
+            state.selected_item_index--;
+            events.push_back(SelectionChanged{});
+        }
+        break;
+
+    case KeyCode::Down:
+        if (state.selected_item_index < state.items.size() - 1) {
+            state.selected_item_index++;
+            events.push_back(SelectionChanged{});
+        }
+        break;
+
+    case KeyCode::Tab:
+        if (!std::holds_alternative<ContextMenu>(state.mode) && !state.items.empty()) {
+            const auto &file_item = state.get_selected_item();
+            const auto selected_file = fs::path(file_item.description) / fs::path(file_item.title);
+            state.mode = ContextMenu{.selected_file = selected_file};
+            state.selected_item_index = 0;
+            state.items = make_file_actions(selected_file, config);
+            events.push_back(ContextMenuToggled{});
+        }
+        break;
+
+    case KeyCode::Left:
+        if (std::holds_alternative<ContextMenu>(state.mode)) {
+            state.mode = FileSearch{.query = state.input_buffer};
+            events.push_back(ContextMenuToggled{});
+        } else {
+            if (state.cursor_position > 0) {
+                state.cursor_position--;
+                events.push_back(CursorPositionChanged{});
+            }
+        }
+        break;
+
+    case KeyCode::Right:
+        if (!std::holds_alternative<ContextMenu>(state.mode) &&
+            state.cursor_position < state.input_buffer.size()) {
+            state.cursor_position++;
+            events.push_back(CursorPositionChanged{});
+        }
+        break;
+
+    case KeyCode::Home:
+        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+            state.cursor_position = 0;
+            events.push_back(CursorPositionChanged{});
+        }
+        break;
+
+    case KeyCode::End:
+        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+            state.cursor_position = state.input_buffer.size();
+            events.push_back(CursorPositionChanged{});
+        }
+        break;
+
+    case KeyCode::Return:
+        events.push_back(ActionRequested{});
+        break;
+
+    case KeyCode::BackSpace:
+        if (!state.input_buffer.empty() && state.cursor_position > 0) {
+            state.input_buffer.erase(state.cursor_position - 1, 1);
+            state.cursor_position--;
+            events.push_back(InputChanged{});
+        }
+        break;
+
+    case KeyCode::Character:
+        if (kbd_event.character >= 32 && kbd_event.character < 127) {
+            state.input_buffer.insert(state.cursor_position, 1, *kbd_event.character);
+            state.cursor_position++;
+            events.push_back(InputChanged{});
+        }
+        break;
+    }
+
+    return events;
+}
+
+std::vector<Event> handle_user_input(State &state, const UserInputEvent &input, const Config &config) {
+    std::vector<Event> events;
+
+    std::visit(
+        overloaded{[&](const KeyboardEvent &ev) {
+            events = handle_keyboard_input(state, ev, config);
+        }}, input);
+
+    return events;
 }
 
 } // namespace ui

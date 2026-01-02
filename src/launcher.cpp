@@ -7,6 +7,7 @@
 #include "streamingindex.h"
 #include "ui.h"
 #include "utility.h"
+#include "xwindow.h"
 
 #include <algorithm>
 #include <atomic>
@@ -167,7 +168,7 @@ int main()
         }
     });
 
-    ui::XWindow window(config);
+    XWindow window(config);
     ui::State state;
     const auto global_actions = get_global_actions(config);
 
@@ -178,18 +179,27 @@ int main()
         // Use non-blocking mode when actively scanning to allow UI updates
         const bool should_block = !(std::holds_alternative<ui::FileSearch>(state.mode) &&
                                      !state.scan_complete);
-        const auto event =
-            ui::process_input_events(window.display, state, config, should_block);
+        const std::vector<ui::UserInputEvent> input_events = get_input_events(window.display, should_block);
+
+        // Process input events and generate high-level events
+        std::vector<ui::Event> events;
+        for (const auto &input_event : input_events) {
+            auto handled_events = ui::handle_user_input(state, input_event, config);
+            events.insert(events.end(), handled_events.begin(), handled_events.end());
+        }
 
         // Small sleep during non-blocking mode to avoid busy looping
-        if (!should_block && event == ui::Event::NoEvent) {
+        if (!should_block && events.empty()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(16)); // ~60 FPS
         }
 
-        if (event == ui::Event::NoEvent) {
-        } else if (event == ui::Event::ExitRequested) {
-            break;
-        } else if (event == ui::Event::ActionRequested) {
+        // Process high-level events
+        bool should_exit = false;
+        for (const auto &event : events) {
+            if (std::holds_alternative<ui::ExitRequested>(event)) {
+                should_exit = true;
+                break;
+            } else if (std::holds_alternative<ui::ActionRequested>(event)) {
             if (std::holds_alternative<ui::FileSearch>(state.mode) &&
                 !current_file_results.empty() &&
                 state.selected_item_index < current_file_results.size()) {
@@ -210,9 +220,10 @@ int main()
             }
 
             if (config.quit_on_action) {
+                should_exit = true;
                 break;
             }
-        } else if (event == ui::Event::InputChanged) {
+            } else if (std::holds_alternative<ui::InputChanged>(event)) {
             state.selected_item_index =
                 0; // Reset selection when search changes
 
@@ -275,6 +286,12 @@ int main()
                 ranker_mode.store(RankerMode::FileSearch,
                                   std::memory_order_release);
             }
+            }
+        }
+
+        // Exit if requested
+        if (should_exit) {
+            break;
         }
 
         // Process streaming result updates

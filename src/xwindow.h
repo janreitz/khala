@@ -1,17 +1,16 @@
 #pragma once
 
 #include "config.h"
+#include "ui.h"
 
 #include <X11/X.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-namespace ui
-{
+#include <variant>
+#include <vector>
 
-struct State;
-enum class Event;
 
 struct XWindow {
     Display *display = nullptr;
@@ -29,7 +28,4 @@ struct XWindow {
     XWindow &operator=(const XWindow &) = delete;
 };
 
-Event process_input_events(Display *display, State &state,
-                           const Config &config, bool blocking = true);
-
-} // namespace ui
+std::vector<ui::UserInputEvent> get_input_events(Display *display, bool blocking = true);
