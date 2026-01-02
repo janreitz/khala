@@ -88,10 +88,6 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
                 info.x = crtc_info->x;
                 info.y = crtc_info->y;
                 info.found = true;
-
-                printf("Primary monitor found: %dx%d at (%d,%d)\n", info.width,
-                       info.height, info.x, info.y);
-
                 XRRFreeCrtcInfo(crtc_info);
             }
         }
@@ -105,7 +101,7 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
 
 } // anonymous namespace
 
-XWindow::XWindow(const Config &config)
+XWindow::XWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension)
 {
     display = XOpenDisplay(nullptr);
     if (!display) {
@@ -162,24 +158,13 @@ XWindow::XWindow(const Config &config)
 
     // Calculate window dimensions based on primary screen size and config
     // ratios
-    width = static_cast<int>(primary_screen_width * config.width_ratio);
-    const int input_height =
-        ui::calculate_actual_input_height(config, primary_screen_height);
-    const int item_height =
-        ui::calculate_actual_item_height(config, primary_screen_height);
-    // Account for: top border + input area + spacing + items + bottom border
-    height = static_cast<int>(2 * ui::BORDER_WIDTH + input_height +
-                              ui::ITEMS_SPACING +
-                              (config.max_visible_items * item_height));
+    width = static_cast<int>(primary_screen_width * dimension.x);
+    height = static_cast<int>(primary_screen_height * dimension.y);
 
-    // Center the window properly: position is relative to center, not top-left
-    // corner Also account for monitor offset in multi-monitor setups
     const int x =
-        primary_screen_x +
-        static_cast<int>(primary_screen_width * config.x_position - width / 2);
-    const int y = primary_screen_y +
-                  static_cast<int>(primary_screen_height * config.y_position -
-                                   height / 2);
+        primary_screen_x + static_cast<int>(primary_screen_width * top_left.x);
+    const int y =
+        primary_screen_y + static_cast<int>(primary_screen_height * top_left.y);
 
     // Debug output
     printf("Primary monitor: %dx%d at (%d,%d)\n", primary_screen_width,

@@ -20,6 +20,17 @@ constexpr double CORNER_RADIUS = 4.0;
 constexpr double TEXT_MARGIN = 15.0;
 constexpr double INPUT_TEXT_MARGIN = 10.0;
 constexpr double DESCRIPTION_SPACING = 10.0;
+constexpr double INPUT_VERTICAL_PADDING = 12.0;  // Vertical padding for input area
+constexpr double ITEM_VERTICAL_PADDING = 8.0;    // Vertical padding for each item
+
+int calculate_abs_input_height(int font_size);
+int calculate_abs_item_height(int font_size);
+size_t calculate_max_visible_items(int window_height, int font_size);
+
+struct RelScreenCoord {
+    double x;
+    double y;
+};
 
 struct Item {
     std::string title;
@@ -112,9 +123,6 @@ struct ExitRequested {
 using Event =
     std::variant<InputChanged, SelectionChanged, CursorPositionChanged,
                  ActionRequested, ContextMenuToggled, ExitRequested>;
-
-int calculate_actual_input_height(const Config &config, int screen_height);
-int calculate_actual_item_height(const Config &config, int screen_height);
 
 // Process keyboard events and update state, returning high-level events
 std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
