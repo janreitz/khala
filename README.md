@@ -51,6 +51,8 @@ Set a global hotkey to the `./launcher` binary.
 
 Khala creates a configuration file at `~/.khala/config.ini` and populates it with the default values for all available settings. Feel free to modify.
 
+### Custom Commands
+
 You can define custom commands by creating `.ini` files in `~/.khala/commands/`. Each command file should follow this format:
 
 ```ini
@@ -70,7 +72,7 @@ is_file_action=false
 stdout_to_clipboard=false
 ```
 
-### Examples
+#### Examples
 
 ```ini
 # ~/.khala/commands/rm.ini
@@ -90,3 +92,29 @@ stdout_to_clipboard=true
 ```
 
 There are more examples in `commands` that will be installed to the default data dir (`/usr/local/share/khala`). You can change the install location via cmake, for example `-DCMAKE_INSTALL_PREFIX=$HOME/.local`.
+
+### Themes
+
+You can customize the appearance by selecting one of the default themes (`default-light`, `default-dark`, `tomorrow-night-eighties`, `gruvbox-dark`, `nord`, `solarized-light`).
+
+You can create your own themes by placing `.ini` files in:
+- System-wide: `${PREFIX}/share/khala/themes/`
+- User-specific: `~/.khala/themes/` (User themes override system themes with the same name.)
+
+```ini
+# My Custom Theme
+input_background_color=#RRGGBB
+background_color=#RRGGBB
+border_color=#RRGGBB
+text_color=#RRGGBB
+selection_color=#RRGGBB
+selection_text_color=#RRGGBB
+description_color=#RRGGBB
+selection_description_color=#RRGGBB
+```
+
+Colors can be specified in hex format:
+- `#RGB` - Short form (e.g., `#F00` for red)
+- `#RGBA` - Short form with alpha
+- `#RRGGBB` - Standard form (e.g., `#FF0000` for red)
+- `#RRGGBBAA` - Standard form with alpha

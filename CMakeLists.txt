@@ -81,3 +81,5 @@ target_link_libraries(indexer_benchmark PRIVATE TBB::tbb)
 install(TARGETS khala DESTINATION bin)
 install(DIRECTORY commands/
         DESTINATION ${CMAKE_INSTALL_DATADIR}/khala/commands)
+install(DIRECTORY themes/
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/khala/themes)
