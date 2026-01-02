@@ -130,7 +130,8 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                                      const Config &config);
 
 // Adjust visible_range_offset to keep selected_item_index visible
-void adjust_visible_range(State &state, size_t max_visible_items);
+bool adjust_visible_range(State &state, size_t max_visible_items);
+size_t required_item_count(const State &state, size_t max_visible_items);
 
 void draw(XWindow &window, const Config &config, const State &state);
 
