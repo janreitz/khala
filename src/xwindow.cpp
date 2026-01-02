@@ -165,7 +165,9 @@ XWindow::XWindow(const Config &config)
         calculate_actual_input_height(config, primary_screen_height);
     const int item_height =
         calculate_actual_item_height(config, primary_screen_height);
-    height = input_height + (config.max_visible_items * item_height);
+    // Account for: top border + input area + spacing + items + bottom border
+    height = static_cast<int>(2 * BORDER_WIDTH + input_height + ITEMS_SPACING +
+                              (config.max_visible_items * item_height));
 
     // Center the window properly: position is relative to center, not top-left
     // corner Also account for monitor offset in multi-monitor setups
