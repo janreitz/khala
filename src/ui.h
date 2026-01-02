@@ -109,13 +109,16 @@ struct ContextMenuToggled {
 struct ExitRequested {
 };
 
-using Event = std::variant<InputChanged, SelectionChanged, CursorPositionChanged, ActionRequested, ContextMenuToggled, ExitRequested>;
+using Event =
+    std::variant<InputChanged, SelectionChanged, CursorPositionChanged,
+                 ActionRequested, ContextMenuToggled, ExitRequested>;
 
 int calculate_actual_input_height(const Config &config, int screen_height);
 int calculate_actual_item_height(const Config &config, int screen_height);
 
 // Process keyboard events and update state, returning high-level events
-std::vector<Event> handle_user_input(State &state, const UserInputEvent &input, const Config &config);
+std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
+                                     const Config &config);
 
 void draw(XWindow &window, const Config &config, const State &state);
 

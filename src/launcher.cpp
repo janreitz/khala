@@ -177,20 +177,25 @@ int main()
 
     while (true) {
         // Use non-blocking mode when actively scanning to allow UI updates
-        const bool should_block = !(std::holds_alternative<ui::FileSearch>(state.mode) &&
-                                     !state.scan_complete);
-        const std::vector<ui::UserInputEvent> input_events = get_input_events(window.display, should_block);
+        const bool should_block =
+            !(std::holds_alternative<ui::FileSearch>(state.mode) &&
+              !state.scan_complete);
+        const std::vector<ui::UserInputEvent> input_events =
+            get_input_events(window.display, should_block);
 
         // Process input events and generate high-level events
         std::vector<ui::Event> events;
         for (const auto &input_event : input_events) {
-            auto handled_events = ui::handle_user_input(state, input_event, config);
-            events.insert(events.end(), handled_events.begin(), handled_events.end());
+            auto handled_events =
+                ui::handle_user_input(state, input_event, config);
+            events.insert(events.end(), handled_events.begin(),
+                          handled_events.end());
         }
 
         // Small sleep during non-blocking mode to avoid busy looping
         if (!should_block && events.empty()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(16)); // ~60 FPS
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(16)); // ~60 FPS
         }
 
         // Process high-level events
@@ -200,92 +205,95 @@ int main()
                 should_exit = true;
                 break;
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
-            if (std::holds_alternative<ui::FileSearch>(state.mode) &&
-                !current_file_results.empty() &&
-                state.selected_item_index < current_file_results.size()) {
-                // For file search, we have the actual path stored in the result
-                const auto &result =
-                    current_file_results[state.selected_item_index];
-                printf("Selected: %s\n", result.path.c_str());
+                if (std::holds_alternative<ui::FileSearch>(state.mode) &&
+                    !current_file_results.empty() &&
+                    state.selected_item_index < current_file_results.size()) {
+                    // For file search, we have the actual path stored in the
+                    // result
+                    const auto &result =
+                        current_file_results[state.selected_item_index];
+                    printf("Selected: %s\n", result.path.c_str());
 
-                ui::Item item;
-                item.title = result.path;
-                item.command = CustomCommand{.path = fs::path(result.path),
-                                             .shell_cmd = ""};
-                process_command(item.command, config);
-            } else {
-                printf("Selected: %s\n",
-                       state.get_selected_item().title.c_str());
-                process_command(state.get_selected_item().command, config);
-            }
+                    ui::Item item;
+                    item.title = result.path;
+                    item.command = CustomCommand{.path = fs::path(result.path),
+                                                 .shell_cmd = ""};
+                    process_command(item.command, config);
+                } else {
+                    printf("Selected: %s\n",
+                           state.get_selected_item().title.c_str());
+                    process_command(state.get_selected_item().command, config);
+                }
 
-            if (config.quit_on_action) {
-                should_exit = true;
-                break;
-            }
+                if (config.quit_on_action) {
+                    should_exit = true;
+                    break;
+                }
             } else if (std::holds_alternative<ui::InputChanged>(event)) {
-            state.selected_item_index =
-                0; // Reset selection when search changes
+                state.selected_item_index =
+                    0; // Reset selection when search changes
 
-            // Command palette mode - search utility commands
-            if (!state.input_buffer.empty() && state.input_buffer[0] == '>') {
-                ranker_mode.store(RankerMode::Inactive,
-                                  std::memory_order_release);
+                // Command palette mode - search utility commands
+                if (!state.input_buffer.empty() &&
+                    state.input_buffer[0] == '>') {
+                    ranker_mode.store(RankerMode::Inactive,
+                                      std::memory_order_release);
 
-                const auto query = state.input_buffer.substr(1);
-                state.mode = ui::CommandSearch{.query = query};
+                    const auto query = state.input_buffer.substr(1);
+                    state.mode = ui::CommandSearch{.query = query};
 
-                auto ranked = rank(
-                    global_actions,
-                    [&query](const ui::Item &item) {
-                        return fuzzy::fuzzy_score(item.title, query);
-                    },
-                    config.max_visible_items);
+                    auto ranked = rank(
+                        global_actions,
+                        [&query](const ui::Item &item) {
+                            return fuzzy::fuzzy_score(item.title, query);
+                        },
+                        config.max_visible_items);
 
-                state.items.clear();
-                for (const auto &r : ranked) {
-                    state.items.push_back(global_actions[r.index]);
+                    state.items.clear();
+                    for (const auto &r : ranked) {
+                        state.items.push_back(global_actions[r.index]);
+                    }
+                    // App search mode - search desktop applications only
+                } else if (!state.input_buffer.empty() &&
+                           state.input_buffer[0] == '!') {
+                    ranker_mode.store(RankerMode::Inactive,
+                                      std::memory_order_release);
+
+                    const auto query = state.input_buffer.substr(1);
+                    state.mode = ui::AppSearch{.query = query};
+
+                    auto ranked = rank(
+                        desktop_apps,
+                        [&query](const indexer::DesktopApp &app) {
+                            return fuzzy::fuzzy_score(app.name, query);
+                        },
+                        config.max_visible_items);
+
+                    state.items.clear();
+                    for (const auto &r : ranked) {
+                        const auto &app = desktop_apps[r.index];
+                        state.items.push_back(ui::Item{
+                            .title = app.name,
+                            .description = app.description,
+                            .command =
+                                CustomCommand{.path = std::nullopt,
+                                              .shell_cmd = app.exec_command},
+                        });
+                    }
+                } else {
+                    // File search mode - activate streaming ranker
+                    state.mode = ui::FileSearch{.query = state.input_buffer};
+
+                    {
+                        std::lock_guard lock(query_mutex);
+                        query_buffer = state.input_buffer;
+                    }
+
+                    query_changed.store(true, std::memory_order_release);
+                    query_changed.notify_one();
+                    ranker_mode.store(RankerMode::FileSearch,
+                                      std::memory_order_release);
                 }
-                // App search mode - search desktop applications only
-            } else if (!state.input_buffer.empty() &&
-                       state.input_buffer[0] == '!') {
-                ranker_mode.store(RankerMode::Inactive,
-                                  std::memory_order_release);
-
-                const auto query = state.input_buffer.substr(1);
-                state.mode = ui::AppSearch{.query = query};
-
-                auto ranked = rank(
-                    desktop_apps,
-                    [&query](const indexer::DesktopApp &app) {
-                        return fuzzy::fuzzy_score(app.name, query);
-                    },
-                    config.max_visible_items);
-
-                state.items.clear();
-                for (const auto &r : ranked) {
-                    const auto &app = desktop_apps[r.index];
-                    state.items.push_back(ui::Item{
-                        .title = app.name,
-                        .description = app.description,
-                        .command = CustomCommand{.path = std::nullopt,
-                                                 .shell_cmd = app.exec_command},
-                    });
-                }
-            } else {
-                // File search mode - activate streaming ranker
-                state.mode = ui::FileSearch{.query = state.input_buffer};
-
-                {
-                    std::lock_guard lock(query_mutex);
-                    query_buffer = state.input_buffer;
-                }
-
-                query_changed.store(true, std::memory_order_release);
-                query_changed.notify_one();
-                ranker_mode.store(RankerMode::FileSearch,
-                                  std::memory_order_release);
-            }
             }
         }
 

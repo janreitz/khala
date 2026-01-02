@@ -11,7 +11,6 @@
 #include <variant>
 #include <vector>
 
-
 struct XWindow {
     Display *display = nullptr;
     ::Window window = 0;
@@ -28,4 +27,5 @@ struct XWindow {
     XWindow &operator=(const XWindow &) = delete;
 };
 
-std::vector<ui::UserInputEvent> get_input_events(Display *display, bool blocking = true);
+std::vector<ui::UserInputEvent> get_input_events(Display *display,
+                                                 bool blocking = true);
