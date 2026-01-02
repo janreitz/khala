@@ -2,8 +2,8 @@
 #include "config.h"
 #include "fuzzy.h"
 #include "indexer.h"
+#include "lastwriterwinsslot.h"
 #include "ranker.h"
-#include "ringbuffer.h"
 #include "streamingindex.h"
 #include "ui.h"
 #include "utility.h"
@@ -41,7 +41,7 @@ int main()
     printf("Loaded %zu desktop apps\n", desktop_apps.size());
 
     // Communication channels
-    RingBuffer<ResultUpdate, 1024> result_updates;
+    LastWriterWinsSlot<ResultUpdate> result_updates;
     std::atomic<RankerMode> ranker_mode{RankerMode::FileSearch};
 
     // Query state - GUI writes, ranker reads
@@ -140,9 +140,7 @@ int main()
                 update.total_files = streaming_index.get_total_files();
                 update.processed_chunks = processed_chunks;
 
-                if (!result_updates.try_push(std::move(update))) {
-                    printf("Warning: result buffer full, dropping update\n");
-                }
+                result_updates.write(std::move(update));
             }
 
             // Final update when scan completes
@@ -155,7 +153,7 @@ int main()
                 final_update.total_files = streaming_index.get_total_files();
                 final_update.processed_chunks = processed_chunks;
 
-                result_updates.try_push(std::move(final_update));
+                result_updates.write(std::move(final_update));
 
                 // Wait for next query or mode change
                 while (ranker_mode.load(std::memory_order_acquire) ==
@@ -272,7 +270,7 @@ int main()
 
         // Process streaming result updates
         ResultUpdate update;
-        while (result_updates.try_pop(update)) {
+        if (result_updates.try_read(update)) {
             if (std::holds_alternative<ui::FileSearch>(state.mode)) {
                 current_file_results = std::move(update.results);
 

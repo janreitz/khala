@@ -601,6 +601,8 @@ void draw(XWindow &window, const Config &config, const State &state)
         }
     }
 
+    // TODO add right aligned indicator of indexed file count
+
     pango_layout_set_text(layout, display_text.c_str(), -1);
     pango_layout_set_attributes(layout, nullptr);
 
