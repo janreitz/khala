@@ -13,6 +13,10 @@ namespace ui
 // UI layout constants
 constexpr double BORDER_WIDTH = 4.0;
 constexpr double ITEMS_SPACING = 8.0;
+constexpr double CORNER_RADIUS = 4.0;
+constexpr double TEXT_MARGIN = 15.0;
+constexpr double INPUT_TEXT_MARGIN = 10.0;
+constexpr double DESCRIPTION_SPACING = 10.0;
 
 struct Item {
     std::string title;
