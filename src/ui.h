@@ -10,6 +10,10 @@
 namespace ui
 {
 
+// UI layout constants
+constexpr double BORDER_WIDTH = 4.0;
+constexpr double ITEMS_SPACING = 8.0;
+
 struct Item {
     std::string title;
     std::string description;

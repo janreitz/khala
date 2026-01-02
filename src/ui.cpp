@@ -34,6 +34,10 @@ void set_color(cairo_t *cr, const Color &color) {
     cairo_set_source_rgba(cr, color.r, color.g, color.b, color.a);
 }
 
+double calculate_text_y_centered(double container_y, double container_height, int text_height_pango) {
+    return container_y + (container_height - (text_height_pango / PANGO_SCALE)) / 2.0;
+}
+
 std::string
 create_highlighted_markup(const std::string &text,
                           const std::vector<size_t> &match_positions)
@@ -105,7 +109,10 @@ int calculate_window_height(const Config &config, const State &state,
     const int input_height =
         calculate_actual_input_height(config, screen_height);
     const int item_height = calculate_actual_item_height(config, screen_height);
-    return input_height + (visible_items * item_height);
+
+    // Account for: top border + input area + spacing + items + bottom border
+    return static_cast<int>(2 * BORDER_WIDTH + input_height + ITEMS_SPACING +
+                            (visible_items * item_height));
 }
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
@@ -182,11 +189,10 @@ void draw(XWindow &window, const Config &config, const State &state)
 {
 
     const double corner_radius = 4.0;
-    const double border_width = 4.0;
     const double text_margin = 15.0;
     const double input_text_margin = 10.0;
     const double description_spacing = 10.0;
-    const double content_width = window.width - 2.0 * border_width;
+    const double content_width = window.width - 2.0 * BORDER_WIDTH;
     // Calculate actual heights based on screen size
     const int input_height =
         calculate_actual_input_height(config, window.screen_height);
@@ -235,11 +241,11 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_fill(cr);
 
     // Draw Input Area
-    draw_rounded_rect(cr, border_width, border_width, content_width, input_height, corner_radius,
+    draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width, input_height, corner_radius,
                       Corner::All);
     set_color(cr, config.input_background_color);
     cairo_fill_preserve(cr);
-    
+
     set_color(cr, config.selection_color);
     cairo_stroke(cr);
 
@@ -275,10 +281,11 @@ void draw(XWindow &window, const Config &config, const State &state)
     int text_width;
     int text_height;
     pango_layout_get_size(layout, &text_width, &text_height);
-    const double text_y = (input_height - (text_height / PANGO_SCALE)) / 2.0;
+    const double input_area_y = BORDER_WIDTH;
+    const double text_y = calculate_text_y_centered(input_area_y, input_height, text_height);
 
     set_color(cr, config.text_color);
-    cairo_move_to(cr, input_text_margin, text_y);
+    cairo_move_to(cr, BORDER_WIDTH + input_text_margin, text_y);
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor at cursor position when not in context menu
@@ -293,7 +300,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Draw cursor line
         set_color(cr, config.text_color);
-        const double cursor_x = 10 + (cursor_x_offset / PANGO_SCALE);
+        const double cursor_x = BORDER_WIDTH + input_text_margin + (cursor_x_offset / PANGO_SCALE);
         cairo_move_to(cr, cursor_x, text_y);
         cairo_line_to(cr, cursor_x, text_y + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
@@ -328,14 +335,17 @@ void draw(XWindow &window, const Config &config, const State &state)
     }
     const auto selection_index = state.selected_item_index;
 
+    // Calculate where dropdown items start (after input area + spacing)
+    const double dropdown_start_y = BORDER_WIDTH + input_height + ITEMS_SPACING;
+
     // Draw dropdown items
     for (size_t i = 0; i < dropdown_items.size(); ++i) {
-        const int y_pos = input_height + (i * item_height);
+        const double y_pos = dropdown_start_y + (i * item_height);
 
         // Draw selection highlight
         if (i == selection_index) {
             set_color(cr, config.selection_color);
-            draw_rounded_rect(cr, border_width, y_pos, content_width, item_height,
+            draw_rounded_rect(cr, BORDER_WIDTH, y_pos, content_width, item_height,
                                   corner_radius,
                                   Corner::All);
             cairo_fill(cr);
@@ -358,9 +368,8 @@ void draw(XWindow &window, const Config &config, const State &state)
         pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
         int text_width_unused, text_height;
         pango_layout_get_size(layout, &text_width_unused, &text_height);
-        const double text_y_centered =
-            y_pos + (item_height - (text_height / PANGO_SCALE)) / 2.0;
-        cairo_move_to(cr, text_margin, text_y_centered);
+        const double text_y_centered = calculate_text_y_centered(y_pos, item_height, text_height);
+        cairo_move_to(cr, BORDER_WIDTH + text_margin, text_y_centered);
         pango_cairo_show_layout(cr, layout);
 
         // Draw description to the right of the title in subtle grey
@@ -371,9 +380,8 @@ void draw(XWindow &window, const Config &config, const State &state)
             pango_layout_get_size(layout, &title_width, &title_height);
 
             // Calculate available width for description
-            const int available_width = window.width - text_margin -
-                                        (title_width / PANGO_SCALE) - description_spacing -
-                                        text_margin;
+            const int available_width = content_width - 2 * text_margin -
+                                        (title_width / PANGO_SCALE) - description_spacing;
 
             // Set description color
             if (i == selection_index) {
@@ -395,7 +403,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
             // Draw description with some spacing after the title
             cairo_move_to(cr,
-                          text_margin + (title_width / PANGO_SCALE) + description_spacing,
+                          BORDER_WIDTH + text_margin + (title_width / PANGO_SCALE) + description_spacing,
                           text_y_centered);
             pango_cairo_show_layout(cr, layout);
 
