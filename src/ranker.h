@@ -1,7 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <execution>
+#include <mutex>
 #include <numeric>
 #include <queue>
 #include <string>
@@ -9,6 +11,10 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+// Forward declarations
+class StreamingIndex;
+template <typename T> class LastWriterWinsSlot;
 
 // Ranker operation modes
 enum class RankerMode {
@@ -111,5 +117,50 @@ std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
 
 // Merge two sorted FileResult vectors, keeping top max_results
 std::vector<FileResult> merge_top_results(const std::vector<FileResult> &existing,
-                                         const std::vector<FileResult> &new_results, 
+                                         const std::vector<FileResult> &new_results,
                                          size_t max_results);
+
+// Ranker request state
+struct RankerRequest {
+    std::string query;
+    size_t requested_count;
+};
+
+// Streaming ranker with persistent state for optimized scrolling
+class StreamingRanker {
+public:
+    StreamingRanker(
+        StreamingIndex& index,
+        LastWriterWinsSlot<ResultUpdate>& results,
+        std::atomic<RankerMode>& mode,
+        RankerRequest& request,
+        std::mutex& request_mutex,
+        std::atomic_bool& request_changed,
+        std::atomic_bool& exit_flag
+    );
+
+    // Main worker loop - run in separate thread
+    void run();
+
+private:
+    // References to shared state
+    StreamingIndex& streaming_index_;
+    LastWriterWinsSlot<ResultUpdate>& result_updates_;
+    std::atomic<RankerMode>& ranker_mode_;
+    RankerRequest& ranker_request_;
+    std::mutex& query_mutex_;
+    std::atomic_bool& query_changed_;
+    std::atomic_bool& should_exit_;
+
+    // Internal state
+    size_t processed_chunks_ = 0;
+    std::vector<FileResult> accumulated_results_;
+    RankerRequest current_request_;
+    std::vector<std::vector<RankResult>> scored_chunks_;
+
+    // Helper methods
+    void reset_state();
+    void handle_count_increase();
+    void process_chunks();
+    void send_update(bool is_final = false);
+};
