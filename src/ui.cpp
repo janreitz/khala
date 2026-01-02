@@ -187,11 +187,6 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
 
 void draw(XWindow &window, const Config &config, const State &state)
 {
-
-    const double corner_radius = 4.0;
-    const double text_margin = 15.0;
-    const double input_text_margin = 10.0;
-    const double description_spacing = 10.0;
     const double content_width = window.width - 2.0 * BORDER_WIDTH;
     // Calculate actual heights based on screen size
     const int input_height =
@@ -236,12 +231,12 @@ void draw(XWindow &window, const Config &config, const State &state)
     // Draw background
     set_color(cr, config.background_color);
     draw_rounded_rect(cr, 0, 0, window.width,
-                        window.height, corner_radius,
+                        window.height, CORNER_RADIUS,
                         Corner::All);
     cairo_fill(cr);
 
     // Draw Input Area
-    draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width, input_height, corner_radius,
+    draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width, input_height, CORNER_RADIUS,
                       Corner::All);
     set_color(cr, config.input_background_color);
     cairo_fill_preserve(cr);
@@ -285,7 +280,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     const double text_y = calculate_text_y_centered(input_area_y, input_height, text_height);
 
     set_color(cr, config.text_color);
-    cairo_move_to(cr, BORDER_WIDTH + input_text_margin, text_y);
+    cairo_move_to(cr, BORDER_WIDTH + INPUT_TEXT_MARGIN, text_y);
     pango_cairo_show_layout(cr, layout);
 
     // Draw cursor at cursor position when not in context menu
@@ -300,7 +295,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Draw cursor line
         set_color(cr, config.text_color);
-        const double cursor_x = BORDER_WIDTH + input_text_margin + (cursor_x_offset / PANGO_SCALE);
+        const double cursor_x = BORDER_WIDTH + INPUT_TEXT_MARGIN + (cursor_x_offset / PANGO_SCALE);
         cairo_move_to(cr, cursor_x, text_y);
         cairo_line_to(cr, cursor_x, text_y + (text_height / PANGO_SCALE));
         cairo_stroke(cr);
@@ -346,7 +341,7 @@ void draw(XWindow &window, const Config &config, const State &state)
         if (i == selection_index) {
             set_color(cr, config.selection_color);
             draw_rounded_rect(cr, BORDER_WIDTH, y_pos, content_width, item_height,
-                                  corner_radius,
+                                  CORNER_RADIUS,
                                   Corner::All);
             cairo_fill(cr);
         }
@@ -369,7 +364,7 @@ void draw(XWindow &window, const Config &config, const State &state)
         int text_width_unused, text_height;
         pango_layout_get_size(layout, &text_width_unused, &text_height);
         const double text_y_centered = calculate_text_y_centered(y_pos, item_height, text_height);
-        cairo_move_to(cr, BORDER_WIDTH + text_margin, text_y_centered);
+        cairo_move_to(cr, BORDER_WIDTH + TEXT_MARGIN, text_y_centered);
         pango_cairo_show_layout(cr, layout);
 
         // Draw description to the right of the title in subtle grey
@@ -380,8 +375,8 @@ void draw(XWindow &window, const Config &config, const State &state)
             pango_layout_get_size(layout, &title_width, &title_height);
 
             // Calculate available width for description
-            const int available_width = content_width - 2 * text_margin -
-                                        (title_width / PANGO_SCALE) - description_spacing;
+            const int available_width = content_width - 2 * TEXT_MARGIN -
+                                        (title_width / PANGO_SCALE) - DESCRIPTION_SPACING;
 
             // Set description color
             if (i == selection_index) {
@@ -403,7 +398,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
             // Draw description with some spacing after the title
             cairo_move_to(cr,
-                          BORDER_WIDTH + text_margin + (title_width / PANGO_SCALE) + description_spacing,
+                          BORDER_WIDTH + TEXT_MARGIN + (title_width / PANGO_SCALE) + DESCRIPTION_SPACING,
                           text_y_centered);
             pango_cairo_show_layout(cr, layout);
 
