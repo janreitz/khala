@@ -173,9 +173,6 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
         ui::Item{.title = "Open File",
                  .description = config.editor,
                  .command = OpenFile{path}},
-        ui::Item{.title = "Open Containing Folder",
-                 .description = config.file_manager,
-                 .command = OpenContainingFolder{path}},
         ui::Item{.title = "Copy Path to Clipboard",
                  .description = "",
                  .command = CopyPathToClipboard{path}},
@@ -183,6 +180,14 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                  .description = "",
                  .command = CopyContentToClipboard{path}},
     };
+
+    if (path.has_parent_path()) {
+        items.push_back(ui::Item{
+            .title = "Open Containing Folder",
+            .description = config.file_manager,
+            .command = OpenDirectory{path.parent_path()},
+        });
+    }
 
     // Append custom file actions, filling in the path
     for (const auto &action_def : config.custom_actions) {
@@ -243,7 +248,7 @@ void process_command(const Command &cmd, const Config &config)
         overloaded{[&](const OpenFile &cmd) {
                        run_command({config.editor, cmd.path.string()});
                    },
-                   [&](const OpenContainingFolder &cmd) {
+                   [&](const OpenDirectory &cmd) {
                        run_command({config.file_manager,
                                     cmd.path.parent_path().string()});
                    },

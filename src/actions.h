@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 struct OpenFile {
     fs::path path;
 };
-struct OpenContainingFolder {
+struct OpenDirectory {
     fs::path path;
 };
 struct CopyPathToClipboard {
@@ -40,7 +40,7 @@ struct CustomCommand {
     bool stdout_to_clipboard = false;
 };
 
-using Command = std::variant<OpenFile, OpenContainingFolder,
+using Command = std::variant<OpenFile, OpenDirectory,
                              CopyPathToClipboard, CopyContentToClipboard,
                              CopyISOTimestamp, CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
