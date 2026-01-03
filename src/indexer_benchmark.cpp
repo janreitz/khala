@@ -21,6 +21,7 @@ const std::map<std::string, std::function<float(std::string_view, std::string_vi
     {"fuzzy_score_2", fuzzy::fuzzy_score_2},
     {"fuzzy_score_3", fuzzy::fuzzy_score_3},
     {"fuzzy_score_4", fuzzy::fuzzy_score_4},
+    {"fuzzy_score_5", fuzzy::fuzzy_score_5},
 };
 
 int main()

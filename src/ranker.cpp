@@ -158,7 +158,7 @@ void StreamingRanker::process_chunks()
                        indices.end(), chunk_scored.begin(), [&](size_t i) {
                            return RankResult{
                                global_offset + i, // Use global index
-                               fuzzy::fuzzy_score_4(chunk->at(i),
+                               fuzzy::fuzzy_score_5(chunk->at(i),
                                                   current_request_.query)};
                        });
 

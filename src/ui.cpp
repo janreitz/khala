@@ -394,10 +394,10 @@ void draw(XWindow &window, const Config &config, const State &state)
             .title = item.title,
             .description = item.description,
             .title_match_positions = query_opt
-                                         ? fuzzy::fuzzy_match(item.title, query)
+                                         ? fuzzy::fuzzy_match_optimal(item.title, query)
                                          : std::vector<size_t>{},
             .description_match_positions =
-                query_opt ? fuzzy::fuzzy_match(item.description, query)
+                query_opt ? fuzzy::fuzzy_match_optimal(item.description, query)
                           : std::vector<size_t>{}});
     }
     const auto selection_index = state.selected_item_index;

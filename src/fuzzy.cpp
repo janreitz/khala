@@ -409,6 +409,128 @@ float fuzzy_score_4(std::string_view path, std::string_view query_lower)
     return score;
 }
 
+float fuzzy_score_5(std::string_view path, std::string_view query_lower)
+{
+    const char* query_data = query_lower.data();
+    const size_t query_len = query_lower.size();
+    
+    if (query_len == 0) return 1.0f;
+    
+    const char* path_data = path.data();
+    const size_t path_len = path.size();
+    
+    if (path_len < query_len) return 0.0f;
+    
+    // Find filename start
+    size_t filename_start = 0;
+    {
+        const char* p = path_data + path_len;
+        while (p > path_data && *--p != '/') {}
+        if (*p == '/') filename_start = p - path_data + 1;
+    }
+    
+    // Lambda to score a match starting from a given position
+    auto score_from = [&](size_t start) -> float {
+        size_t qi = 0;
+        size_t last_match = SIZE_MAX;
+        float score = 0.0f;
+        int consecutive = 0;
+        bool is_filename_prefix = true;
+        bool all_in_filename = true;
+        
+        for (size_t i = start; i < path_len; ++i) {
+            if (path_len - i < query_len - qi) return -1000.0f;  // impossible
+            
+            unsigned char c = path_data[i];
+            c += ((unsigned)(c - 'A') < 26) << 5;
+            
+            if (c == (unsigned char)query_data[qi]) {
+                if (last_match + 1 == i) {
+                    score += 1.0f + static_cast<float>(++consecutive + 1);
+                } else {
+                    if (last_match != SIZE_MAX) {
+                        score += 1.0f - (i - last_match - 1) * 0.5f;
+                    } else {
+                        score += 1.0f;
+                    }
+                    consecutive = 0;
+                }
+                
+                if (i == 0 || i == filename_start) {
+                    score += 5.0f;
+                } else {
+                    unsigned char prev = path_data[i - 1];
+                    if (prev == '/' || prev == '_' || prev == '-' || 
+                        prev == '.' || prev == ' ' ||
+                        (prev >= 'a' && prev <= 'z' && 
+                         path_data[i] >= 'A' && path_data[i] <= 'Z')) {
+                        score += 3.0f;
+                    }
+                }
+                
+                if (i < filename_start) {
+                    all_in_filename = false;
+                    is_filename_prefix = false;
+                } else if (i != filename_start + qi) {
+                    is_filename_prefix = false;
+                }
+                
+                last_match = i;
+                if (++qi == query_len) break;
+            }
+        }
+        
+        if (qi < query_len) return -1000.0f;
+        
+        if (all_in_filename) {
+            score += 10.0f;
+            if (is_filename_prefix) {
+                score += 15.0f;
+                size_t filename_len = path_len - filename_start;
+                if (query_len == filename_len || 
+                    (query_len < filename_len && path_data[filename_start + query_len] == '.')) {
+                    score += 20.0f;
+                }
+            }
+        }
+        
+        score -= path_len * 0.02f;
+        return score;
+    };
+    
+    // Find all potential starting positions (where first query char matches)
+    // But limit to reasonable candidates to avoid O(n*m) blowup
+    unsigned char first_char = (unsigned char)query_data[0];
+    
+    float best_score = -1000.0f;
+    int candidates_tried = 0;
+    constexpr int MAX_CANDIDATES = 8;  // Limit search breadth
+    
+    for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
+        unsigned char c = path_data[i];
+        c += ((unsigned)(c - 'A') < 26) << 5;
+        
+        if (c == first_char) {
+            // Prioritize good starting positions
+            bool is_boundary = (i == 0 || i == filename_start ||
+                               path_data[i-1] == '/' || path_data[i-1] == '_' ||
+                               path_data[i-1] == '-' || path_data[i-1] == '.' ||
+                               path_data[i-1] == ' ' ||
+                               (path_data[i-1] >= 'a' && path_data[i-1] <= 'z' &&
+                                path_data[i] >= 'A' && path_data[i] <= 'Z'));
+            
+            // Always try boundary matches; limit non-boundary matches
+            if (is_boundary || candidates_tried < 3) {
+                float s = score_from(i);
+                if (s > best_score) best_score = s;
+                candidates_tried++;
+            }
+        }
+    }
+    
+    return best_score > -999.0f ? best_score : 0.0f;
+}
+
 std::vector<size_t> fuzzy_match(std::string_view path, std::string_view query)
 {
     std::vector<size_t> match_positions;
@@ -435,6 +557,128 @@ std::vector<size_t> fuzzy_match(std::string_view path, std::string_view query)
     }
 
     return match_positions;
+}
+
+std::vector<size_t> fuzzy_match_optimal(std::string_view path, std::string_view query_lower)
+{
+    const char* query_data = query_lower.data();
+    const size_t query_len = query_lower.size();
+    
+    if (query_len == 0 || path.empty()) return {};
+    
+    const char* path_data = path.data();
+    const size_t path_len = path.size();
+    
+    if (path_len < query_len) return {};
+    
+    size_t filename_start = 0;
+    {
+        const char* p = path_data + path_len;
+        while (p > path_data && *--p != '/') {}
+        if (*p == '/') filename_start = p - path_data + 1;
+    }
+    
+    auto try_match_from = [&](size_t start) -> std::pair<float, std::vector<size_t>> {
+        std::vector<size_t> positions;
+        positions.reserve(query_len);
+        size_t qi = 0;
+        size_t last_match = SIZE_MAX;
+        float score = 0.0f;
+        int consecutive = 0;
+        bool is_filename_prefix = true;
+        bool all_in_filename = true;
+        
+        for (size_t i = start; i < path_len; ++i) {
+            if (path_len - i < query_len - qi) return {-1000.0f, {}};
+            
+            unsigned char c = path_data[i];
+            c += ((unsigned)(c - 'A') < 26) << 5;
+            
+            if (c == (unsigned char)query_data[qi]) {
+                positions.push_back(i);
+                
+                if (last_match + 1 == i) {
+                    score += 1.0f + static_cast<float>(++consecutive + 1);
+                } else {
+                    if (last_match != SIZE_MAX) {
+                        score += 1.0f - (i - last_match - 1) * 0.5f;
+                    } else {
+                        score += 1.0f;
+                    }
+                    consecutive = 0;
+                }
+                
+                if (i == 0 || i == filename_start) {
+                    score += 5.0f;
+                } else {
+                    unsigned char prev = path_data[i - 1];
+                    if (prev == '/' || prev == '_' || prev == '-' || 
+                        prev == '.' || prev == ' ' ||
+                        (prev >= 'a' && prev <= 'z' && 
+                         path_data[i] >= 'A' && path_data[i] <= 'Z')) {
+                        score += 3.0f;
+                    }
+                }
+                
+                if (i < filename_start) {
+                    all_in_filename = false;
+                    is_filename_prefix = false;
+                } else if (i != filename_start + qi) {
+                    is_filename_prefix = false;
+                }
+                
+                last_match = i;
+                if (++qi == query_len) break;
+            }
+        }
+        
+        if (qi < query_len) return {-1000.0f, {}};
+        
+        if (all_in_filename) {
+            score += 10.0f;
+            if (is_filename_prefix) {
+                score += 15.0f;
+                size_t filename_len = path_len - filename_start;
+                if (query_len == filename_len || 
+                    (query_len < filename_len && path_data[filename_start + query_len] == '.')) {
+                    score += 20.0f;
+                }
+            }
+        }
+        
+        return {score, std::move(positions)};
+    };
+    
+    unsigned char first_char = (unsigned char)query_data[0];
+    float best_score = -1000.0f;
+    std::vector<size_t> best_positions;
+    int candidates_tried = 0;
+    constexpr int MAX_CANDIDATES = 8;
+    
+    for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
+        unsigned char c = path_data[i];
+        c += ((unsigned)(c - 'A') < 26) << 5;
+        
+        if (c == first_char) {
+            bool is_boundary = (i == 0 || i == filename_start ||
+                               path_data[i-1] == '/' || path_data[i-1] == '_' ||
+                               path_data[i-1] == '-' || path_data[i-1] == '.' ||
+                               path_data[i-1] == ' ' ||
+                               (path_data[i-1] >= 'a' && path_data[i-1] <= 'z' &&
+                                path_data[i] >= 'A' && path_data[i] <= 'Z'));
+            
+            if (is_boundary || candidates_tried < 3) {
+                auto [s, positions] = try_match_from(i);
+                if (s > best_score) {
+                    best_score = s;
+                    best_positions = std::move(positions);
+                }
+                candidates_tried++;
+            }
+        }
+    }
+    
+    return best_positions;
 }
 
 } // namespace fuzzy
