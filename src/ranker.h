@@ -52,6 +52,7 @@ struct ResultUpdate {
     bool scan_complete = false;
     size_t total_files = 0;
     size_t processed_chunks = 0;
+    size_t total_available_results = 0; // Total number of results with score > 0
 
     ResultUpdate() = default;
     ResultUpdate(std::vector<FileResult> &&results_)
@@ -156,11 +157,12 @@ private:
     size_t processed_chunks_ = 0;
     std::vector<FileResult> accumulated_results_;
     RankerRequest current_request_;
-    std::vector<std::vector<RankResult>> scored_chunks_;
+    std::vector<RankResult> scored_results_; // Flattened, only score > 0
 
     // Helper methods
     void reset_state();
     void handle_count_increase();
     void process_chunks();
+    void resort_results();
     void send_update(bool is_final = false);
 };

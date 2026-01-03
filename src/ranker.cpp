@@ -123,103 +123,95 @@ void StreamingRanker::reset_state()
 {
     processed_chunks_ = 0;
     accumulated_results_.clear();
-    scored_chunks_.clear();
+    scored_results_.clear();
 }
 
 void StreamingRanker::handle_count_increase()
 {
-    // TODO why do we need to clear here?
-    accumulated_results_.clear();
-
-    for (size_t chunk_idx = 0; chunk_idx < scored_chunks_.size(); ++chunk_idx) {
-        auto chunk = streaming_index_.get_chunk(chunk_idx);
-        if (!chunk)
-            break;
-
-        auto &chunk_scored = scored_chunks_[chunk_idx];
-        size_t n =
-            std::min(current_request_.requested_count, chunk_scored.size());
-
-        // Re-sort with larger n (scores unchanged)
-        std::partial_sort(
-            chunk_scored.begin(), chunk_scored.begin() + n, chunk_scored.end(),
-            [](const auto &a, const auto &b) { return a.score > b.score; });
-
-        // Convert top n to FileResult
-        std::vector<FileResult> file_results;
-        file_results.reserve(n);
-        for (size_t j = 0; j < n; ++j) {
-            file_results.push_back(FileResult{
-                .path = std::string(chunk->at(chunk_scored[j].index)),
-                .score = chunk_scored[j].score});
-        }
-
-        // Merge with accumulated results
-        accumulated_results_ =
-            merge_top_results(accumulated_results_, file_results,
-                              current_request_.requested_count);
-    }
-
-    send_update();
+    // Just rebuild accumulated results with new count
+    resort_results();
 }
 
 void StreamingRanker::process_chunks()
 {
+    // Calculate global offset for new chunks
+    size_t global_offset = 0;
+    for (size_t i = 0; i < processed_chunks_; ++i) {
+        auto chunk = streaming_index_.get_chunk(i);
+        if (chunk) {
+            global_offset += chunk->size();
+        }
+    }
+
     while (processed_chunks_ < streaming_index_.get_available_chunks()) {
         const auto chunk = streaming_index_.get_chunk(processed_chunks_);
         if (!chunk) {
             break;
         }
 
-        // Get or create scored results for this chunk
-        std::vector<RankResult> chunk_scored;
+        // Score new chunk and add results with score > 0 to flattened results
+        std::vector<size_t> indices(chunk->size());
+        std::iota(indices.begin(), indices.end(), 0);
 
-        if (processed_chunks_ < scored_chunks_.size()) {
-            // TODO can this ever happen? available_chunks is monotonically increasing
-            // Already scored - reuse existing scores
-            chunk_scored = scored_chunks_[processed_chunks_];
-        } else {
-            // New chunk - score it
-            std::vector<size_t> indices(chunk->size());
-            std::iota(indices.begin(), indices.end(), 0);
+        std::vector<RankResult> chunk_scored(chunk->size());
+        std::transform(std::execution::par_unseq, indices.begin(),
+                       indices.end(), chunk_scored.begin(), [&](size_t i) {
+                           return RankResult{
+                               global_offset + i, // Use global index
+                               fuzzy::fuzzy_score(chunk->at(i),
+                                                  current_request_.query)};
+                       });
 
-            chunk_scored.resize(chunk->size());
-            std::transform(std::execution::par_unseq, indices.begin(),
-                           indices.end(), chunk_scored.begin(), [&](size_t i) {
-                               return RankResult{
-                                   i,
-                                   fuzzy::fuzzy_score(chunk->at(i),
-                                                      current_request_.query)};
-                           });
-
-            scored_chunks_.push_back(chunk_scored);
+        // Add only results with score > 0 to flattened results
+        for (const auto& result : chunk_scored) {
+            if (result.score > 0.0f) {
+                scored_results_.push_back(result);
+            }
         }
 
-        // Partial sort to get top n from this chunk
-        size_t n =
-            std::min(current_request_.requested_count, chunk_scored.size());
-        std::partial_sort(
-            chunk_scored.begin(), chunk_scored.begin() + n, chunk_scored.end(),
-            [](const auto &a, const auto &b) { return a.score > b.score; });
-
-        // Convert RankResult to FileResult with actual paths
-        std::vector<FileResult> file_results;
-        file_results.reserve(n);
-        for (size_t j = 0; j < n; ++j) {
-            file_results.push_back(FileResult{
-                .path = std::string(chunk->at(chunk_scored[j].index)),
-                .score = chunk_scored[j].score});
-        }
-
-        // Merge with accumulated results
-        accumulated_results_ =
-            merge_top_results(accumulated_results_, file_results,
-                              current_request_.requested_count);
-
+        // Update global offset for next chunk
+        global_offset += chunk->size();
         ++processed_chunks_;
 
-        send_update();
+        // Incrementally rebuild accumulated results
+        resort_results();
     }
+}
+
+void StreamingRanker::resort_results()
+{
+    const size_t n = std::min(current_request_.requested_count, scored_results_.size());
+    // Sort all scored results to get top requested_count
+    std::partial_sort(scored_results_.begin(), 
+                      scored_results_.begin() + n,
+                      scored_results_.end(),
+                      [](const auto &a, const auto &b) { return a.score > b.score; });
+
+    // Convert top n to FileResult  
+    accumulated_results_.clear();
+    accumulated_results_.reserve(n);
+    
+    for (size_t i = 0; i < n; ++i) {
+        const auto& result = scored_results_[i];
+        
+        // Find the file path from chunk and global index
+        size_t global_index = result.index;
+        for (size_t chunk_idx = 0; chunk_idx < streaming_index_.get_available_chunks(); ++chunk_idx) {
+            auto chunk = streaming_index_.get_chunk(chunk_idx);
+            if (!chunk) break;
+            
+            if (global_index < chunk->size()) {
+                accumulated_results_.push_back(FileResult{
+                    .path = std::string(chunk->at(global_index)),
+                    .score = result.score
+                });
+                break;
+            }
+            global_index -= chunk->size();
+        }
+    }
+
+    send_update();
 }
 
 void StreamingRanker::send_update(bool is_final)
@@ -230,6 +222,7 @@ void StreamingRanker::send_update(bool is_final)
         is_final ? true : streaming_index_.is_scan_complete();
     update.total_files = streaming_index_.get_total_files();
     update.processed_chunks = processed_chunks_;
+    update.total_available_results = scored_results_.size(); // Use flattened results size
 
     result_updates_.write(std::move(update));
 }
