@@ -65,7 +65,8 @@ int main()
     std::atomic<RankerMode> ranker_mode{RankerMode::FileSearch};
 
     // Ranker request state - GUI writes, ranker reads
-    RankerRequest ranker_request = {"", ui::required_item_count(state, max_visible_items)};
+    RankerRequest ranker_request = {
+        "", ui::required_item_count(state, max_visible_items)};
     std::mutex query_mutex;
     std::atomic_bool query_changed{true}; // Signal initial processing
     std::atomic_bool should_exit{false};
@@ -83,19 +84,12 @@ int main()
     });
 
     // Launch progressive ranking worker
-    StreamingRanker ranker(
-        streaming_index,
-        result_updates,
-        ranker_mode,
-        ranker_request,
-        query_mutex,
-        query_changed,
-        should_exit
-    );
+    StreamingRanker ranker(streaming_index, result_updates, ranker_mode,
+                           ranker_request, query_mutex, query_changed,
+                           should_exit);
 
-    auto rank_future = std::async(std::launch::async, [&ranker]() {
-        ranker.run();
-    });
+    auto rank_future =
+        std::async(std::launch::async, [&ranker]() { ranker.run(); });
 
     // Current file search state
     std::vector<FileResult> current_file_results;
@@ -130,10 +124,11 @@ int main()
                 break;
             } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
                 // Adjust visible range to keep selected item visible
-                const bool adjusted = ui::adjust_visible_range(state, max_visible_items);
-                if (adjusted)
-                {
-                    const auto required_item_count = ui::required_item_count(state, max_visible_items);
+                const bool adjusted =
+                    ui::adjust_visible_range(state, max_visible_items);
+                if (adjusted) {
+                    const auto required_item_count =
+                        ui::required_item_count(state, max_visible_items);
                     std::lock_guard lock(query_mutex);
                     if (required_item_count > ranker_request.requested_count) {
                         ranker_request.requested_count = required_item_count;
@@ -142,32 +137,17 @@ int main()
                     }
                 }
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
-                if (std::holds_alternative<ui::FileSearch>(state.mode) &&
-                    !current_file_results.empty() &&
-                    state.selected_item_index < current_file_results.size()) {
-                    // For file search, we have the actual path stored in the
-                    // result
-                    const auto &result =
-                        current_file_results[state.selected_item_index];
-                    printf("Selected: %s\n", result.path.c_str());
-
-                    ui::Item item;
-                    item.title = result.path;
-                    item.command = CustomCommand{.path = fs::path(result.path),
-                                                 .shell_cmd = ""};
-                    process_command(item.command, config);
-                } else {
-                    printf("Selected: %s\n",
-                           state.get_selected_item().title.c_str());
-                    process_command(state.get_selected_item().command, config);
-                }
+                printf("Selected: %s\n",
+                       state.get_selected_item().title.c_str());
+                process_command(state.get_selected_item().command, config);
 
                 if (config.quit_on_action) {
                     should_exit = true;
                     break;
                 }
             } else if (std::holds_alternative<ui::InputChanged>(event)) {
-                state.selected_item_index = 0; // Reset selection when search changes
+                state.selected_item_index =
+                    0; // Reset selection when search changes
                 state.visible_range_offset = 0; // Reset scroll position
 
                 // Command palette mode - search utility commands
@@ -226,7 +206,8 @@ int main()
                     {
                         std::lock_guard lock(query_mutex);
                         ranker_request.query = state.input_buffer;
-                        ranker_request.requested_count = ui::required_item_count(state, max_visible_items);
+                        ranker_request.requested_count =
+                            ui::required_item_count(state, max_visible_items);
                     }
 
                     query_changed.store(true, std::memory_order_release);
@@ -253,19 +234,34 @@ int main()
                 state.total_files = update.total_files;
                 state.processed_chunks = update.processed_chunks;
 
-                // Convert results to UI items (keep all ranked results for scrolling)
+                // Convert results to UI items (keep all ranked results for
+                // scrolling)
                 state.items.clear();
                 state.items.reserve(current_file_results.size());
 
                 for (size_t i = 0; i < current_file_results.size(); ++i) {
                     const auto &result = current_file_results[i];
-                    state.items.push_back(ui::Item{
-                        // Display actual file paths from results
-                        .title = fs::canonical(result.path).generic_string(),
-                        .description = serialize_file_info(result.path),
-                        .command = CustomCommand{.path = fs::path(result.path),
-                                                 .shell_cmd = ""},
-                    });
+
+                    try {
+                        const auto file_path = fs::canonical(result.path);
+
+                        if (fs::is_directory(file_path)) {
+                            state.items.push_back(ui::Item{
+                                .title = "📁 " + file_path.generic_string(),
+                                .description = serialize_file_info(file_path),
+                                .command = OpenDirectory{.path = file_path},
+                            });
+                        } else {
+                            state.items.push_back(ui::Item{
+                                .title = "🖹 " + file_path.generic_string(),
+                                .description = serialize_file_info(file_path),
+                                .command = OpenFile{.path = file_path},
+                            });
+                        }
+                    } catch (const std::exception& e) {
+                        printf("Could not make canonical path for %s: %s",
+                               result.path.c_str(), e.what());
+                    }
                 }
             }
         }
