@@ -8,19 +8,24 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <string>
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 
+// Map of scoring algorithm names to function pointers
+const std::map<std::string, std::function<float(std::string_view, std::string_view)>> scoring_algorithms = {
+    {"fuzzy_score", fuzzy::fuzzy_score},
+    {"fuzzy_score_2", fuzzy::fuzzy_score_2}
+};
+
 int main()
 {
     // Get root path from args or use home directory
     const Config config = Config::load(Config::default_path());
-
-    printf("=======================\n\n");
-    printf("Khala Indexer Benchmark\n");
-
+    printf("================ Indexing Benchmarks =================\n");
     try {
         printf("  Root: %s\n", config.index_root.string().c_str());
         printf("================ Batch Approach =================\n");
@@ -28,36 +33,24 @@ int main()
         auto paths = indexer::scan_filesystem_parallel(config.index_root, config.ignore_dirs, config.ignore_dir_names);
         auto scan_end = std::chrono::steady_clock::now();
         auto scan_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(scan_end -
-                                                                  batch_start);
-        auto ranked = rank_parallel(
-            paths,
-            [](std::string_view path) {
-                return fuzzy::fuzzy_score(path, "query");
-            },
-            20);
+            std::chrono::duration_cast<std::chrono::milliseconds>(scan_end - batch_start);
 
-        auto rank_end = std::chrono::steady_clock::now();
-        auto rank_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(rank_end -
-                                                                  scan_end);
-
+        auto desktop_start = std::chrono::steady_clock::now();
         const auto desktop_apps = indexer::scan_desktop_files();
         auto scan_desktop_end = std::chrono::steady_clock::now();
         auto scan_desktop_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
-                scan_desktop_end - rank_end);
+                scan_desktop_end - desktop_start);
 
-        auto total_duration =
+        auto batch_total_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 scan_desktop_end - batch_start);
 
         printf("=================================\n");
-        printf("Indexing complete! Scan filesystem time (%ld entries): %ldms "
-               "Rank time %ldms Scan Desktop files time: %ldms  Total "
-               "time: %ldms\n",
-               paths.size(), scan_duration.count(), rank_duration.count(),
-               scan_desktop_duration.count(), total_duration.count());
+        printf("Batch indexing complete!\n");
+        printf("  Filesystem scan (%zu entries): %ldms\n", paths.size(), scan_duration.count());
+        printf("  Desktop files scan: %ldms\n", scan_desktop_duration.count());
+        printf("  Total batch time: %ldms\n", batch_total_duration.count());
 
         printf("\n================ Streaming Approach =================\n");
         const auto streaming_start = std::chrono::steady_clock::now();
@@ -74,9 +67,39 @@ int main()
                 streaming_scan_complete - streaming_start);
 
         printf("=================================\n");
-        printf("Indexing complete! Streaming scan filesystem time (%ld entries): %ldms Total "
-               "time: %ldms\n",
-               stream_index.get_total_files(), streaming_scan_duration.count(), streaming_scan_duration.count());
+        printf("Streaming indexing complete!\n");
+        printf("  Filesystem scan (%ld entries): %ldms\n", stream_index.get_total_files(), streaming_scan_duration.count());
+        printf("  Total streaming time: %ldms\n", streaming_scan_duration.count());
+        
+        // ================ FUZZY SCORING BENCHMARKS =================
+        printf("\n================ Fuzzy Scoring Benchmark =================\n");
+        printf("Using batch-scanned filesystem data (%zu entries) for scoring tests\n", paths.size());
+        
+        const std::vector<std::string> test_queries = {"main", "src", "config", "test", "index"};
+        
+        for (const auto& test_query : test_queries) {
+            printf("\n--- Testing with query: '%s' ---\n", test_query.c_str());
+            
+            for (const auto& [algo_name, scoring_func] : scoring_algorithms) {
+                auto score_start = std::chrono::steady_clock::now();
+                
+                // Just score all paths without ranking
+                size_t scored_paths = 0;
+                for (const auto& path : paths) {
+                    float score = scoring_func(path, test_query);
+                    if (score > 0.0f) {
+                        scored_paths++;
+                    }
+                }
+                
+                auto score_end = std::chrono::steady_clock::now();
+                auto score_duration =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(score_end - score_start);
+                
+                printf("  %s: %ldms (%zu paths scored, %zu matches)\n", 
+                       algo_name.c_str(), score_duration.count(), paths.size(), scored_paths);
+            }
+        }
 
 
     } catch (const std::exception &e) {
