@@ -60,6 +60,22 @@ std::string format_file_count(size_t count)
     }
 }
 
+std::string create_pagination_text(size_t visible_offset, size_t max_visible_items, 
+                                   size_t total_results, size_t total_available_results)
+{
+    if (total_available_results == 0 || total_results <= max_visible_items) {
+        return ""; // No pagination needed
+    }
+    
+    const size_t visible_start = visible_offset + 1; // 1-indexed for display
+    const size_t visible_end = std::min(visible_offset + max_visible_items, total_results);
+    
+    char buffer[128];
+    snprintf(buffer, sizeof(buffer), "%zu-%zu/%s", 
+             visible_start, visible_end, format_file_count(total_available_results).c_str());
+    return buffer;
+}
+
 std::string
 create_highlighted_markup(const std::string &text,
                           const std::vector<size_t> &match_positions)
@@ -274,7 +290,8 @@ void draw(XWindow &window, const Config &config, const State &state)
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
-            display_text = "Search files... (prefix > for utility actions, ! "
+            const std::string file_count_str = format_file_count(state.total_files);
+            display_text = "Search " + file_count_str + " files... (prefix > for utility actions, ! "
                            "for applications)";
         }
     }
@@ -294,12 +311,23 @@ void draw(XWindow &window, const Config &config, const State &state)
     cairo_move_to(cr, BORDER_WIDTH + INPUT_TEXT_MARGIN, text_y);
     pango_cairo_show_layout(cr, layout);
 
-    // Draw progress indicator (file count) in file search mode, right-aligned
+    // Draw progress indicator in file search mode, right-aligned
     if (std::holds_alternative<ui::FileSearch>(state.mode) &&
         state.total_files > 0) {
-        const std::string file_count_text =
-            format_file_count(state.total_files);
-        pango_layout_set_text(layout, file_count_text.c_str(), -1);
+        
+        std::string indicator_text;
+        // Show scan status indicator when no query or no matches
+        if (state.input_buffer.empty()) {
+            indicator_text = state.scan_complete ? "✓" : "⟳";
+        } else if (state.total_available_results == 0) {
+            indicator_text = "0";
+        } else {
+            indicator_text = 
+                create_pagination_text(state.visible_range_offset, max_visible_items, 
+                                       state.items.size(), state.total_available_results);
+        }
+        
+        pango_layout_set_text(layout, indicator_text.c_str(), -1);
 
         // Get text dimensions for right alignment
         int count_width, count_height;

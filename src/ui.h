@@ -72,6 +72,7 @@ struct State {
     bool scan_complete = false;
     size_t total_files = 0;
     size_t processed_chunks = 0;
+    size_t total_available_results = 0; // Total results with score > 0
 
     Item get_selected_item() const;
     void set_error(const std::string &message);

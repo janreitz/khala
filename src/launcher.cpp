@@ -233,6 +233,7 @@ int main()
                 state.scan_complete = update.scan_complete;
                 state.total_files = update.total_files;
                 state.processed_chunks = update.processed_chunks;
+                state.total_available_results = update.total_available_results;
 
                 // Convert results to UI items (keep all ranked results for
                 // scrolling)
@@ -253,7 +254,7 @@ int main()
                             });
                         } else {
                             state.items.push_back(ui::Item{
-                                .title = "🖹 " + file_path.generic_string(),
+                                .title = "📄 " + file_path.generic_string(),
                                 .description = serialize_file_info(file_path),
                                 .command = OpenFile{.path = file_path},
                             });
