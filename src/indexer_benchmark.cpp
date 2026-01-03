@@ -16,11 +16,11 @@ namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 
 // Map of scoring algorithm names to function pointers (using PreparedQuery)
-const std::map<std::string, std::function<float(std::string_view, const fuzzy::PreparedQuery&)>> scoring_algorithms = {
-    {"fuzzy_score", static_cast<float(*)(std::string_view, const fuzzy::PreparedQuery&)>(fuzzy::fuzzy_score)},
-    {"fuzzy_score_2", static_cast<float(*)(std::string_view, const fuzzy::PreparedQuery&)>(fuzzy::fuzzy_score_2)},
-    {"fuzzy_score_3", static_cast<float(*)(std::string_view, const fuzzy::PreparedQuery&)>(fuzzy::fuzzy_score_3)},
-    {"fuzzy_score_4", static_cast<float(*)(std::string_view, const fuzzy::PreparedQuery&)>(fuzzy::fuzzy_score_4)},
+const std::map<std::string, std::function<float(std::string_view, std::string_view)>> scoring_algorithms = {
+    {"fuzzy_score", fuzzy::fuzzy_score},
+    {"fuzzy_score_2", fuzzy::fuzzy_score_2},
+    {"fuzzy_score_3", fuzzy::fuzzy_score_3},
+    {"fuzzy_score_4", fuzzy::fuzzy_score_4},
 };
 
 int main()
@@ -82,22 +82,13 @@ int main()
         for (const auto& test_query : test_queries) {
             printf("\n--- Testing with query: '%s' ---\n", test_query.c_str());
             
-            // Prepare query once for all algorithms
-            auto prep_start = std::chrono::steady_clock::now();
-            auto prepared_query = fuzzy::prepare_query(test_query);
-            auto prep_end = std::chrono::steady_clock::now();
-            auto prep_duration = 
-                std::chrono::duration_cast<std::chrono::microseconds>(prep_end - prep_start);
-            
-            printf("  Query preparation: %ldμs\n", prep_duration.count());
-            
             // Test all scoring functions with prepared query
             for (const auto& [algo_name, scoring_func] : scoring_algorithms) {
                 auto score_start = std::chrono::steady_clock::now();
                 
                 size_t scored_paths = 0;
                 for (const auto& path : paths) {
-                    float score = scoring_func(path, prepared_query);
+                    float score = scoring_func(path, test_query);
                     if (score > 0.0f) {
                         scored_paths++;
                     }

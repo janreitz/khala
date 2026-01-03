@@ -205,7 +205,7 @@ int main()
 
                     {
                         std::lock_guard lock(query_mutex);
-                        ranker_request.query = state.input_buffer;
+                        ranker_request.query = to_lower(state.input_buffer);
                         ranker_request.requested_count =
                             ui::required_item_count(state, max_visible_items);
                     }

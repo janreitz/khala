@@ -88,6 +88,20 @@ std::string serialize_file_info(const fs::path& path) {
     return oss.str();
 };
 
+std::string to_lower(std::string_view str)
+{
+    std::string lower_case_string;
+    lower_case_string.reserve(str.size());
+    
+    for (char c : str) {
+        unsigned char lc = static_cast<unsigned char>(
+            std::tolower(static_cast<unsigned char>(c)));
+        lower_case_string.push_back(static_cast<char>(lc));
+    }
+    
+    return lower_case_string;
+}
+
 PackedStrings::PackedStrings()
 {
     data_.reserve(1024 * 1024);

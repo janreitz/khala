@@ -23,7 +23,7 @@ float fuzzy_score(std::string_view path, std::string_view query)
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
         char pc = std::tolower(static_cast<unsigned char>(path[i]));
-        char qc = std::tolower(static_cast<unsigned char>(query[query_idx]));
+        char qc = query[query_idx];
 
         if (pc == qc) {
             // Base score for match
@@ -66,7 +66,7 @@ float fuzzy_score(std::string_view path, std::string_view query)
     score -= path.size() * 0.01f;
 
     // Bonus: prefer matches in filename
-    size_t last_slash = path.rfind('/');
+    const size_t last_slash = path.rfind('/');
     if (last_slash != std::string_view::npos && last_match > last_slash) {
         score += 3.0f;
     }
@@ -96,8 +96,8 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
     bool is_prefix_of_filename = true;
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
-        char pc = std::tolower(static_cast<unsigned char>(path[i]));
-        char qc = std::tolower(static_cast<unsigned char>(query[query_idx]));
+        const char pc = std::tolower(static_cast<unsigned char>(path[i]));
+        const char qc = query[query_idx];
 
         if (pc == qc) {
             // Base score for match
@@ -182,207 +182,6 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
     return score;
 }
 
-// PreparedQuery-based versions (optimized)
-float fuzzy_score(std::string_view path, const PreparedQuery &prepared_query)
-{
-    const auto &query_lower = prepared_query.query_lower;
-    if (query_lower.empty()) return 1.0f;
-    if (path.empty()) return 0.0f;
-    
-    size_t query_idx = 0;
-    size_t last_match = 0;
-    float score = 0.0f;
-    bool prev_matched = false;
-    
-    for (size_t i = 0; i < path.size() && query_idx < query_lower.size(); ++i) {
-        char pc = std::tolower(static_cast<unsigned char>(path[i]));
-        char qc = query_lower[query_idx];
-        
-        if (pc == qc) {
-            // Base score for match
-            score += 1.0f;
-            
-            // Bonus: consecutive matches
-            if (prev_matched) {
-                score += 1.5f;
-            }
-            
-            // Bonus: match at word boundary
-            if (i == 0 || path[i-1] == '/' || path[i-1] == '_' || path[i-1] == '-' || path[i-1] == '.') {
-                score += 2.0f;
-            }
-            
-            // Penalty: gap between matches
-            if (query_idx > 0) {
-                size_t gap = i - last_match - 1;
-                score -= gap * 0.1f;
-            }
-            
-            last_match = i;
-            query_idx++;
-            prev_matched = true;
-        } else {
-            prev_matched = false;
-        }
-    }
-    
-    // Did we match the entire query?
-    if (query_idx < query_lower.size()) {
-        return 0.0f;  // Incomplete match
-    }
-    
-    // Bonus: prefer shorter paths (less noise)
-    score -= path.size() * 0.01f;
-    
-    // Bonus: prefer matches in filename
-    size_t last_slash = path.rfind('/');
-    if (last_slash != std::string_view::npos && last_match > last_slash) {
-        score += 3.0f;
-    }
-    
-    return score;
-}
-
-float fuzzy_score_2(std::string_view path, const PreparedQuery &prepared_query)
-{
-    const auto &query_lower = prepared_query.query_lower;
-    if (query_lower.empty()) return 1.0f;
-    if (path.empty()) return 0.0f;
-    
-    // Find filename start once
-    size_t filename_start = 0;
-    if (size_t last_slash = path.rfind('/'); last_slash != std::string_view::npos) {
-        filename_start = last_slash + 1;
-    }
-    
-    size_t query_idx = 0;
-    size_t last_match = std::string_view::npos;
-    float score = 0.0f;
-    int consecutive_count = 0;
-    bool all_matches_in_filename = true;
-    bool is_prefix_of_filename = true;
-    
-    for (size_t i = 0; i < path.size() && query_idx < query_lower.size(); ++i) {
-        char pc = std::tolower(static_cast<unsigned char>(path[i]));
-        char qc = query_lower[query_idx];
-        
-        if (pc == qc) {
-            // Base score for match
-            score += 1.0f;
-            
-            // Track if this is a consecutive match
-            bool is_consecutive = (last_match != std::string_view::npos && i == last_match + 1);
-            
-            if (is_consecutive) {
-                consecutive_count++;
-                // Quadratic bonus for consecutive runs: 2 + 3 + 4 + ... 
-                score += static_cast<float>(consecutive_count + 1);
-            } else {
-                consecutive_count = 0;
-                
-                // Penalty for gaps (only between non-consecutive matches)
-                if (last_match != std::string_view::npos) {
-                    size_t gap = i - last_match - 1;
-                    score -= gap * 0.5f;
-                }
-            }
-            
-            // Bonus: match at word boundary (camelCase, snake_case, etc.)
-            if (i == 0 || i == filename_start) {
-                score += 5.0f;  // Strong bonus for path/filename start
-            } else {
-                char prev = path[i - 1];
-                if (prev == '/' || prev == '_' || prev == '-' || prev == '.' || prev == ' ') {
-                    score += 3.0f;
-                }
-                // CamelCase boundary: lowercase followed by uppercase
-                else if (std::islower(static_cast<unsigned char>(prev)) && 
-                         std::isupper(static_cast<unsigned char>(path[i]))) {
-                    score += 3.0f;
-                }
-            }
-            
-            // Track filename matching
-            if (i < filename_start) {
-                all_matches_in_filename = false;
-            }
-            if (is_prefix_of_filename && i != filename_start + query_idx) {
-                is_prefix_of_filename = false;
-            }
-            
-            last_match = i;
-            query_idx++;
-        }
-    }
-    
-    // Did we match the entire query?
-    if (query_idx < query_lower.size()) {
-        return 0.0f;
-    }
-    
-    // Big bonus: all matches are in the filename
-    if (all_matches_in_filename) {
-        score += 10.0f;
-    }
-    
-    // Huge bonus: query is a prefix of filename (common case: typing filename)
-    if (is_prefix_of_filename) {
-        score += 15.0f;
-    }
-    
-    // Bonus: exact filename match
-    std::string_view filename = path.substr(filename_start);
-    if (query_lower.size() == filename.size() && is_prefix_of_filename) {
-        score += 20.0f;  // Exact match bonus
-    }
-    
-    // Prefer shorter paths (normalize to avoid huge penalties for deep paths)
-    score -= std::min(path.size(), size_t(100)) * 0.02f;
-    
-    // Prefer shorter filenames when query matches
-    score -= std::min(filename.size(), size_t(50)) * 0.05f;
-    
-    return score;
-}
-
-PreparedQuery prepare_query(std::string_view query)
-{
-    uint32_t char_mask = 0;
-    std::string query_lower;
-    query_lower.reserve(query.size());
-    
-    for (char c : query) {
-        unsigned char lc = static_cast<unsigned char>(
-            std::tolower(static_cast<unsigned char>(c)));
-        query_lower.push_back(static_cast<char>(lc));
-        if (lc >= 'a' && lc <= 'z') {
-            char_mask |= (1u << (lc - 'a'));
-        }
-    }
-    
-    return {.query_lower = std::move(query_lower), .char_mask = char_mask};
-}
-
-// Phase 1: Bitmask check - extremely fast rejection
-// Returns true if path MIGHT match (has all required letters)
-bool quick_reject(std::string_view path, uint32_t char_mask_)
-{
-    if (char_mask_ == 0)
-        return false; // no alpha chars in query
-
-    uint32_t path_mask = 0;
-    for (char c : path) {
-        unsigned char lc = static_cast<unsigned char>(
-            std::tolower(static_cast<unsigned char>(c)));
-        if (lc >= 'a' && lc <= 'z') {
-            path_mask |= (1u << (lc - 'a'));
-        }
-    }
-
-    // Reject if path doesn't have all chars that query has
-    return (char_mask_ & ~path_mask) != 0;
-}
-
 // Phase 2: Verify subsequence exists (still fast, but checks order)
 bool has_subsequence(std::string_view path, std::string query_lower)
 {
@@ -400,16 +199,10 @@ bool has_subsequence(std::string_view path, std::string query_lower)
 }
 
 // Phase 3: Full scoring (only called on candidates that pass phases 1-2)
-float fuzzy_score_3(std::string_view path, const PreparedQuery &prepared_query)
+float fuzzy_score_3(std::string_view path, std::string_view query_lower)
 {
 
     if (path.empty())
-        return 0.0f;
-
-    const auto &query_lower = prepared_query.query_lower;
-    const uint32_t char_mask = prepared_query.char_mask;
-
-    if (quick_reject(path, char_mask))
         return 0.0f;
 
     // Find filename start once
@@ -430,13 +223,13 @@ float fuzzy_score_3(std::string_view path, const PreparedQuery &prepared_query)
     size_t matches_in_filename = 0;
 
     for (size_t i = 0; i < path.size() && query_idx < query_len; ++i) {
-        char pc = static_cast<char>(
+        const char pc = static_cast<char>(
             std::tolower(static_cast<unsigned char>(path[i])));
 
         if (pc == query_lower[query_idx]) {
             score += 1.0f;
 
-            bool is_consecutive =
+            const bool is_consecutive =
                 (last_match != SIZE_MAX && i == last_match + 1);
 
             if (is_consecutive) {
@@ -445,7 +238,7 @@ float fuzzy_score_3(std::string_view path, const PreparedQuery &prepared_query)
             } else {
                 consecutive_count = 0;
                 if (last_match != SIZE_MAX) {
-                    size_t gap = i - last_match - 1;
+                    const size_t gap = i - last_match - 1;
                     score -= gap * 0.5f;
                 }
             }
@@ -454,7 +247,7 @@ float fuzzy_score_3(std::string_view path, const PreparedQuery &prepared_query)
             if (i == 0 || i == filename_start) {
                 score += 5.0f;
             } else {
-                char prev = path[i - 1];
+                const char prev = path[i - 1];
                 if (prev == '/' || prev == '_' || prev == '-' || prev == '.' ||
                     prev == ' ') {
                     score += 3.0f;
@@ -488,7 +281,7 @@ float fuzzy_score_3(std::string_view path, const PreparedQuery &prepared_query)
         if (first_match_in_filename == filename_start) {
             score += 15.0f; // Prefix of filename
 
-            size_t filename_len = path.size() - filename_start;
+            const size_t filename_len = path.size() - filename_start;
             if (query_len == filename_len ||
                 (query_len < filename_len &&
                  path[filename_start + query_len] == '.')) {
@@ -503,9 +296,8 @@ float fuzzy_score_3(std::string_view path, const PreparedQuery &prepared_query)
     return score;
 }
 
-float fuzzy_score_4(std::string_view path, const PreparedQuery& prepared_query)
+float fuzzy_score_4(std::string_view path, std::string_view query_lower)
 {
-    const auto& query_lower = prepared_query.query_lower;
     const size_t query_len = query_lower.size();
     
     if (query_len == 0)
@@ -551,7 +343,7 @@ float fuzzy_score_4(std::string_view path, const PreparedQuery& prepared_query)
         if (pc == query_data[query_idx]) {
             score += 1.0f;
             
-            bool is_consecutive = (last_match != SIZE_MAX && i == last_match + 1);
+            const bool is_consecutive = (last_match != SIZE_MAX && i == last_match + 1);
             
             if (is_consecutive) {
                 consecutive_count++;
@@ -567,7 +359,7 @@ float fuzzy_score_4(std::string_view path, const PreparedQuery& prepared_query)
             if (i == 0 || i == filename_start) {
                 score += 5.0f;
             } else {
-                char prev = path_data[i - 1];
+                const char prev = path_data[i - 1];
                 if (prev == '/' || prev == '_' || prev == '-' || prev == '.' || prev == ' ') {
                     score += 3.0f;
                 } else if (std::islower(static_cast<unsigned char>(prev)) &&
@@ -603,7 +395,7 @@ float fuzzy_score_4(std::string_view path, const PreparedQuery& prepared_query)
         if (first_match_in_filename == filename_start) {
             score += 15.0f;
             
-            size_t filename_len = path_len - filename_start;
+            const size_t filename_len = path_len - filename_start;
             if (query_len == filename_len ||
                 (query_len < filename_len &&
                  path_data[filename_start + query_len] == '.')) {
@@ -629,7 +421,7 @@ std::vector<size_t> fuzzy_match(std::string_view path, std::string_view query)
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
         char pc = std::tolower(static_cast<unsigned char>(path[i]));
-        char qc = std::tolower(static_cast<unsigned char>(query[query_idx]));
+        char qc = query[query_idx];
 
         if (pc == qc) {
             match_positions.push_back(i);

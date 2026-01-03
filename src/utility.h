@@ -26,6 +26,8 @@ struct overloaded : Ts... { using Ts::operator()...; };
 
 std::string serialize_file_info(const std::filesystem::path& path);
 
+std::string to_lower(std::string_view str);
+
 struct PackedStrings {
 
   private:
