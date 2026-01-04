@@ -48,4 +48,4 @@ std::vector<ui::Item> make_file_actions(const fs::path &path, const Config& conf
 
 std::vector<ui::Item> get_global_actions(const Config& config);
 
-void process_command(const Command &command, const Config& config);
+std::optional<std::string> process_command(const Command &command, const Config& config);
