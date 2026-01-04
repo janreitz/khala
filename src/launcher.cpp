@@ -139,11 +139,7 @@ int main()
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
                 printf("Selected: %s\n",
                        state.get_selected_item().title.c_str());
-                process_command(state.get_selected_item().command, config);
-
-                if (config.quit_on_action) {
-                    should_exit = true;
-                    break;
+                auto error = process_command(state.get_selected_item().command, config);
                 }
             } else if (std::holds_alternative<ui::InputChanged>(event)) {
                 state.selected_item_index =
