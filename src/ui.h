@@ -75,7 +75,7 @@ struct State {
     size_t total_available_results = 0; // Total results with score > 0
 
     Item get_selected_item() const;
-    void set_error(const std::string &message);
+    void set_error(const std::optional<std::string> &message);
     void clear_error();
     bool has_error() const;
 };

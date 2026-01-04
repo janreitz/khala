@@ -150,9 +150,13 @@ int calculate_window_height(int font_size, size_t item_count,
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
 
-void State::set_error(const std::string &message)
+void State::set_error(const std::optional<std::string> &message)
 {
-    error_message = message + " (Esc to clear)";
+    if (message) {
+        error_message = *message + " (Esc to clear)";
+    } else {
+        error_message = std::nullopt;
+    }
 }
 
 void State::clear_error() { error_message = std::nullopt; }
@@ -266,10 +270,20 @@ void draw(XWindow &window, const Config &config, const State &state)
     const int input_height = calculate_abs_input_height(config.font_size);
     draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width,
                       input_height, CORNER_RADIUS, Corner::All);
-    set_color(cr, config.input_background_color);
+    
+    // Use error styling if there's an error, otherwise normal styling
+    if (state.has_error()) {
+        cairo_set_source_rgba(cr, 1.0, 0.8, 0.8, 1.0); // Light red background
+    } else {
+        set_color(cr, config.input_background_color);
+    }
     cairo_fill_preserve(cr);
 
-    set_color(cr, config.selection_color);
+    if (state.has_error()) {
+        cairo_set_source_rgba(cr, 0.8, 0.0, 0.0, 1.0); // Dark red border
+    } else {
+        set_color(cr, config.selection_color);
+    }
     cairo_stroke(cr);
 
     // Set font for launcher
@@ -281,7 +295,10 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Draw search prompt and buffer
     std::string display_text;
-    if (std::holds_alternative<ContextMenu>(state.mode)) {
+    if (state.has_error()) {
+        // Show error message when there's an error
+        display_text = *state.error_message;
+    } else if (std::holds_alternative<ContextMenu>(state.mode)) {
         // Show selected item title when in context menu
         display_text =
             fs::canonical(std::get<ContextMenu>(state.mode).selected_file)
@@ -307,7 +324,12 @@ void draw(XWindow &window, const Config &config, const State &state)
     const double text_y =
         calculate_text_y_centered(input_area_y, input_height, text_height);
 
-    set_color(cr, config.text_color);
+    // Use dark red text for errors, normal text color otherwise
+    if (state.has_error()) {
+        cairo_set_source_rgba(cr, 0.7, 0.0, 0.0, 1.0); // Dark red text
+    } else {
+        set_color(cr, config.text_color);
+    }
     cairo_move_to(cr, BORDER_WIDTH + INPUT_TEXT_MARGIN, text_y);
     pango_cairo_show_layout(cr, layout);
 
@@ -354,8 +376,8 @@ void draw(XWindow &window, const Config &config, const State &state)
         set_color(cr, config.text_color);
     }
 
-    // Draw cursor at cursor position when not in context menu
-    if (!std::holds_alternative<ContextMenu>(state.mode)) {
+    // Draw cursor at cursor position when not in context menu and no error
+    if (!std::holds_alternative<ContextMenu>(state.mode) && !state.has_error()) {
         // Get width of text up to cursor position
         const std::string text_before_cursor =
             state.input_buffer.substr(0, state.cursor_position);
@@ -581,6 +603,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::BackSpace:
+        state.clear_error(); // Clear error when user starts typing
         if (!state.input_buffer.empty() && state.cursor_position > 0) {
             state.input_buffer.erase(state.cursor_position - 1, 1);
             state.cursor_position--;
@@ -589,6 +612,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Character:
+        state.clear_error(); // Clear error when user starts typing
         if (kbd_event.character >= 32 && kbd_event.character < 127) {
             state.input_buffer.insert(state.cursor_position, 1,
                                       *kbd_event.character);
@@ -605,7 +629,8 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                                      const Config &config)
 {
     std::vector<Event> events;
-
+    state.clear_error();
+    
     std::visit(overloaded{[&](const KeyboardEvent &ev) {
                    events = handle_keyboard_input(state, ev, config);
                }},
