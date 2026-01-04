@@ -14,6 +14,8 @@
 #include <iomanip>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <cerrno>
+#include <cstring>
 
 namespace
 {
@@ -22,7 +24,7 @@ void copy_to_clipboard(const std::string &content)
 {
     int pipefd[2];
     if (pipe(pipefd) == -1)
-        throw std::runtime_error("Failed to create pipe for clipboard");
+        throw std::runtime_error("Failed to create pipe for clipboard: " + std::string(strerror(errno)));
 
     pid_t pid = fork();
     if (pid == 0) {
@@ -36,8 +38,16 @@ void copy_to_clipboard(const std::string &content)
     } else if (pid > 0) {
         // Parent: write to pipe
         close(pipefd[0]);
-        write(pipefd[1], content.data(), content.size());
+        ssize_t bytes_written = write(pipefd[1], content.data(), content.size());
+        int write_errno = errno;  // Save errno before close() might change it
         close(pipefd[1]);
+        
+        if (bytes_written == -1) {
+            throw std::runtime_error("Failed to write to clipboard pipe: " + std::string(strerror(write_errno)));
+        }
+        if (static_cast<size_t>(bytes_written) != content.size()) {
+            throw std::runtime_error("Incomplete write to clipboard pipe");
+        }
         int status;
         waitpid(pid, &status, 0);
         
@@ -45,7 +55,7 @@ void copy_to_clipboard(const std::string &content)
             throw std::runtime_error("xclip command failed - clipboard may not be available");
         }
     } else {
-        throw std::runtime_error("Failed to fork process for clipboard");
+        throw std::runtime_error("Failed to fork process for clipboard: " + std::string(strerror(errno)));
     }
 }
 
@@ -75,7 +85,7 @@ void run_command(const std::vector<std::string> &args)
             execvp(argv[0], argv.data());
             _exit(1);
         } else {
-            throw std::runtime_error("Failed to fork grandchild process");
+            throw std::runtime_error("Failed to fork grandchild process: " + std::string(strerror(errno)));
         }
         _exit(1);
     } else if (pid > 0) {
@@ -87,7 +97,7 @@ void run_command(const std::vector<std::string> &args)
             throw std::runtime_error("Failed to launch command: " + args[0]);
         }
     } else {
-        throw std::runtime_error("Failed to fork process");
+        throw std::runtime_error("Failed to fork process: " + std::string(strerror(errno)));
     }
 }
 
@@ -99,7 +109,7 @@ void run_custom_command_with_capture(const CustomCommand &cmd)
 
     int pipefd[2];
     if (pipe(pipefd) == -1) {
-        throw std::runtime_error("Failed to create pipe for custom command output");
+        throw std::runtime_error("Failed to create pipe for custom command output: " + std::string(strerror(errno)));
     }
 
     const pid_t pid = fork();
@@ -150,7 +160,7 @@ void run_custom_command_with_capture(const CustomCommand &cmd)
             copy_to_clipboard(output);
         }
     } else {
-        throw std::runtime_error("Failed to fork process for custom command");
+        throw std::runtime_error("Failed to fork process for custom command: " + std::string(strerror(errno)));
     }
 }
 
@@ -184,7 +194,7 @@ void run_custom_command(const CustomCommand &cmd)
             execlp("sh", "sh", "-c", cmd.shell_cmd.c_str(), nullptr);
             _exit(1);
         } else {
-            throw std::runtime_error("Failed to fork grandchild process for custom command");
+            throw std::runtime_error("Failed to fork grandchild process for custom command: " + std::string(strerror(errno)));
         }
         _exit(1);
     } else if (pid > 0) {
@@ -195,7 +205,7 @@ void run_custom_command(const CustomCommand &cmd)
             throw std::runtime_error("Custom command failed: " + cmd.shell_cmd);
         }
     } else {
-        throw std::runtime_error("Failed to fork process for custom command");
+        throw std::runtime_error("Failed to fork process for custom command: " + std::string(strerror(errno)));
     }
 }
 
