@@ -3,13 +3,13 @@
 #include "actions.h"
 #include "config.h"
 #include "ranker.h"
+#include "types.h"
 #include "utility.h"
+#include "window.h"
 
 #include <optional>
 #include <string>
 #include <variant>
-
-class XWindow;
 
 namespace ui
 {
@@ -27,11 +27,6 @@ constexpr double ITEM_VERTICAL_PADDING = 8.0;    // Vertical padding for each it
 int calculate_abs_input_height(int font_size);
 int calculate_abs_item_height(int font_size);
 size_t calculate_max_visible_items(int window_height, int font_size);
-
-struct RelScreenCoord {
-    double x;
-    double y;
-};
 
 struct Item {
     std::string title;
@@ -81,35 +76,6 @@ struct State {
     bool has_error() const;
 };
 
-enum class KeyCode {
-    Escape,
-    Return,
-    BackSpace,
-    Tab,
-    Up,
-    Down,
-    Left,
-    Right,
-    Home,
-    End,
-    Character, // For printable characters
-};
-
-// TODO bitmask to test against multiple
-enum class KeyModifier {
-    Ctrl,
-    Alt,
-    Shift,
-};
-
-struct KeyboardEvent {
-    KeyCode key;
-    std::optional<KeyModifier> modifier;
-    std::optional<char> character; // For KeyCode::Character events
-};
-
-using UserInputEvent = std::variant<KeyboardEvent>;
-
 struct InputChanged {
 };
 struct SelectionChanged {
@@ -139,6 +105,6 @@ size_t required_item_count(const State &state, size_t max_visible_items);
 std::vector<Item> convert_file_results_to_items(
     const std::vector<FileResult> &file_results);
 
-void draw(XWindow &window, const Config &config, const State &state);
+void draw(PlatformWindow &window, const Config &config, const State &state);
 
 } // namespace ui

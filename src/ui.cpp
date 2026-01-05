@@ -1,7 +1,7 @@
 #include "actions.h"
 #include "ui.h"
 #include "fuzzy.h"
-#include "xwindow.h"
+#include "window.h"
 
 #include <cairo-xlib.h>
 #include <cairo.h>
@@ -226,22 +226,22 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
     cairo_close_path(cr);
 }
 
-void draw(XWindow &window, const Config &config, const State &state)
+void draw(PlatformWindow &window, const Config &config, const State &state)
 {
-    const double content_width = window.width - 2.0 * BORDER_WIDTH;
+    const double content_width = window.get_width() - 2.0 * BORDER_WIDTH;
     // Calculate window height based on item count and max window height
     const int max_height =
-        static_cast<int>(window.screen_height * config.height_ratio);
+        static_cast<int>(window.get_screen_height() * config.height_ratio);
     const size_t max_visible_items =
         calculate_max_visible_items(max_height, config.font_size);
     const unsigned int new_height = calculate_window_height(
         config.font_size, state.items.size(), max_visible_items);
 
-    if (new_height != window.height) {
-        window.resize(new_height, window.width);
+    if (new_height != window.get_height()) {
+        window.resize(new_height, window.get_width());
     }
 
-    cairo_surface_t *surface = window.create_cairo_surface(window.height, window.width);
+    cairo_surface_t *surface = window.create_cairo_surface(window.get_height(), window.get_width());
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
@@ -261,7 +261,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Draw background
     set_color(cr, config.background_color);
-    draw_rounded_rect(cr, 0, 0, window.width, window.height, CORNER_RADIUS,
+    draw_rounded_rect(cr, 0, 0, window.get_width(), window.get_height(), CORNER_RADIUS,
                       Corner::All);
     cairo_fill(cr);
 

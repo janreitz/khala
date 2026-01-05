@@ -9,11 +9,48 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(TBB REQUIRED)
 
-# Find X11
-find_package(X11 REQUIRED)
+# Platform selection (default to x11)
+set(PLATFORM "x11" CACHE STRING "Target platform: x11, wayland, win32")
+set_property(CACHE PLATFORM PROPERTY STRINGS x11 wayland win32)
 
-if(NOT X11_FOUND)
-    message(FATAL_ERROR "X11 not found!")
+# Platform-specific source and libraries
+if(PLATFORM STREQUAL "x11")
+    set(WINDOW_SOURCE src/window_x11.cpp)
+
+    find_package(X11 REQUIRED)
+    if(NOT X11_FOUND)
+        message(FATAL_ERROR "X11 not found")
+    endif()
+
+    find_package(X11 COMPONENTS Xrandr)
+    if(NOT X11_Xrandr_FOUND)
+        message(FATAL_ERROR "XRandR extension not found")
+    endif()
+
+    set(PLATFORM_LIBS ${X11_LIBRARIES} ${X11_Xrandr_LIB})
+    set(PLATFORM_INCLUDE_DIRS ${X11_INCLUDE_DIR})
+    add_compile_definitions(PLATFORM_X11)
+
+elseif(PLATFORM STREQUAL "wayland")
+    set(WINDOW_SOURCE src/window_wayland.cpp)
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WAYLAND REQUIRED
+        wayland-client
+        wayland-cursor
+        xkbcommon)
+
+    set(PLATFORM_LIBS ${WAYLAND_LIBRARIES})
+    set(PLATFORM_INCLUDE_DIRS ${WAYLAND_INCLUDE_DIRS})
+    add_compile_definitions(PLATFORM_WAYLAND)
+
+elseif(PLATFORM STREQUAL "win32")
+    set(WINDOW_SOURCE src/window_win32.cpp)
+    set(PLATFORM_LIBS gdi32)
+    set(PLATFORM_INCLUDE_DIRS)
+    add_compile_definitions(PLATFORM_WIN32)
+else()
+    message(FATAL_ERROR "Unknown platform: ${PLATFORM}")
 endif()
 
 # Find PkgConfig for Cairo and Pango
@@ -40,7 +77,7 @@ add_executable(khala
     src/ranker.cpp
     src/streamingindex.cpp
     src/ui.cpp
-    src/xwindow.cpp
+    ${WINDOW_SOURCE}
     src/utility.cpp
 )
 
@@ -48,7 +85,7 @@ target_compile_definitions(khala PRIVATE
     KHALA_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
 
 target_include_directories(khala PRIVATE
-    ${X11_INCLUDE_DIR}
+    ${PLATFORM_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/include
     ${CAIRO_INCLUDE_DIRS}
     ${PANGO_INCLUDE_DIRS}
@@ -56,8 +93,7 @@ target_include_directories(khala PRIVATE
 )
 
 target_link_libraries(khala PRIVATE
-    ${X11_LIBRARIES}
-    ${X11_Xrandr_LIB}
+    ${PLATFORM_LIBS}
     ${CAIRO_LIBRARIES}
     ${PANGO_LIBRARIES}
     ${PANGOCAIRO_LIBRARIES}
