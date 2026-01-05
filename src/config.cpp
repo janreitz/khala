@@ -356,8 +356,6 @@ Config Config::load(const fs::path &path)
 
 void Config::save(const fs::path &path) const
 {
-    printf("Writing config to %s",
-           fs::canonical(path).generic_string().c_str());
     std::ofstream file(path);
 
     file << "# Khala Launcher Configuration\n";
@@ -396,4 +394,9 @@ void Config::save(const fs::path &path) const
         file << "ignore_dir_name=" << dir_name << "\n";
     }
     file << "\n";
+
+    file.flush();
+
+    printf("Written config to %s",
+           fs::canonical(path).generic_string().c_str());
 }
