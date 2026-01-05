@@ -313,8 +313,10 @@ void draw(XWindow &window, const Config &config, const State &state)
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
-            const std::string file_count_str =
-                format_file_count(state.total_files);
+            const size_t total_files = state.cached_file_search_update.has_value()
+                ? state.cached_file_search_update->total_files
+                : 0;
+            const std::string file_count_str = format_file_count(total_files);
             display_text = "Search " + file_count_str +
                            " files... (prefix > for utility actions, ! "
                            "for applications)";
@@ -343,18 +345,20 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Draw progress indicator in file search mode, right-aligned
     if (std::holds_alternative<ui::FileSearch>(state.mode) &&
-        state.total_files > 0) {
+        state.cached_file_search_update.has_value() &&
+        state.cached_file_search_update->total_files > 0) {
 
+        const auto& update = *state.cached_file_search_update;
         std::string indicator_text;
         // Show scan status indicator when no query or no matches
         if (state.input_buffer.empty()) {
-            indicator_text = state.scan_complete ? "✓" : "⟳";
-        } else if (state.total_available_results == 0) {
+            indicator_text = update.scan_complete ? "✓" : "⟳";
+        } else if (update.total_available_results == 0) {
             indicator_text = "0";
         } else {
             indicator_text = create_pagination_text(
                 state.visible_range_offset, max_visible_items,
-                state.items.size(), state.total_available_results);
+                state.items.size(), update.total_available_results);
         }
 
         pango_layout_set_text(layout, indicator_text.c_str(), -1);
@@ -365,7 +369,7 @@ void draw(XWindow &window, const Config &config, const State &state)
 
         // Choose color based on scan status: yellow if scanning, green if
         // complete
-        if (state.scan_complete) {
+        if (update.scan_complete) {
             cairo_set_source_rgb(cr, 0.0, 0.8, 0.0); // Green
         } else {
             cairo_set_source_rgb(cr, 0.9, 0.9, 0.0); // Yellow
@@ -676,6 +680,40 @@ bool adjust_visible_range(State &state, size_t max_visible_items)
 size_t required_item_count(const State &state, size_t max_visible_items)
 {
     return state.visible_range_offset + (max_visible_items * 2);
+}
+
+std::vector<Item> convert_file_results_to_items(
+    const std::vector<FileResult> &file_results)
+{
+    std::vector<Item> items;
+    items.reserve(file_results.size());
+
+    for (const auto &result : file_results) {
+        try {
+            const auto file_path = fs::canonical(result.path);
+
+            if (fs::is_directory(file_path)) {
+                items.push_back(Item{
+                    .title = "📁 " + file_path.generic_string(),
+                    .description = serialize_file_info(file_path),
+                    .path = file_path,
+                    .command = OpenDirectory{.path = file_path},
+                });
+            } else {
+                items.push_back(Item{
+                    .title = "📄 " + file_path.generic_string(),
+                    .description = serialize_file_info(file_path),
+                    .path = file_path,
+                    .command = OpenFile{.path = file_path},
+                });
+            }
+        } catch (const std::exception &e) {
+            printf("Could not make canonical path for %s: %s\n",
+                   result.path.c_str(), e.what());
+        }
+    }
+
+    return items;
 }
 
 } // namespace ui

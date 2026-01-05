@@ -95,9 +95,9 @@ int main()
     std::vector<FileResult> current_file_results;
     while (true) {
         // Use non-blocking mode when actively scanning to allow UI updates
-        const bool should_block =
-            !(std::holds_alternative<ui::FileSearch>(state.mode) &&
-              !state.scan_complete);
+        const bool should_block = false;
+            // !(std::holds_alternative<ui::FileSearch>(state.mode) &&
+            //   !state.scan_complete);
         const std::vector<ui::UserInputEvent> input_events =
             get_input_events(window.display, should_block);
 
@@ -143,6 +143,18 @@ int main()
                 if (!state.has_error() && config.quit_on_action) {
                     should_exit = true;
                     break;
+                }
+            } else if (std::holds_alternative<ui::ContextMenuToggled>(event)) {
+                // Restore file search results when toggling back from context menu
+                if (std::holds_alternative<ui::FileSearch>(state.mode) &&
+                    state.cached_file_search_update.has_value()) {
+
+                    const auto& cached = *state.cached_file_search_update;
+
+                    // Restore items (re-process from cached FileResults)
+                    state.items = ui::convert_file_results_to_items(cached.results);
+                    state.selected_item_index = 0;
+                    state.visible_range_offset = 0;
                 }
             } else if (std::holds_alternative<ui::InputChanged>(event)) {
                 state.selected_item_index =
@@ -227,45 +239,13 @@ int main()
         ResultUpdate update;
         if (result_updates.try_read(update)) {
             if (std::holds_alternative<ui::FileSearch>(state.mode)) {
+                // Cache the update for quick restoration from ContextMenu
+                state.cached_file_search_update = update;
+
                 current_file_results = std::move(update.results);
 
-                // Update progress tracking
-                state.scan_complete = update.scan_complete;
-                state.total_files = update.total_files;
-                state.processed_chunks = update.processed_chunks;
-                state.total_available_results = update.total_available_results;
-
-                // Convert results to UI items (keep all ranked results for
-                // scrolling)
-                state.items.clear();
-                state.items.reserve(current_file_results.size());
-
-                for (size_t i = 0; i < current_file_results.size(); ++i) {
-                    const auto &result = current_file_results[i];
-
-                    try {
-                        const auto file_path = fs::canonical(result.path);
-
-                        if (fs::is_directory(file_path)) {
-                            state.items.push_back(ui::Item{
-                                .title = "📁 " + file_path.generic_string(),
-                                .description = serialize_file_info(file_path),
-                                .path = file_path,
-                                .command = OpenDirectory{.path = file_path},
-                            });
-                        } else {
-                            state.items.push_back(ui::Item{
-                                .title = "📄 " + file_path.generic_string(),
-                                .description = serialize_file_info(file_path),
-                                .path = file_path,
-                                .command = OpenFile{.path = file_path},
-                            });
-                        }
-                    } catch (const std::exception& e) {
-                        printf("Could not make canonical path for %s: %s",
-                               result.path.c_str(), e.what());
-                    }
-                }
+                // Convert results to UI items (keep all ranked results for scrolling)
+                state.items = ui::convert_file_results_to_items(current_file_results);
             }
         }
 
