@@ -46,6 +46,17 @@ public:
     PlatformWindow(const PlatformWindow&) = delete;
     PlatformWindow& operator=(const PlatformWindow&) = delete;
 
+#ifdef PLATFORM_WAYLAND
+    // Friend declarations for Wayland listener callbacks
+    friend void registry_global_handler(void*, struct wl_registry*, uint32_t, const char*, uint32_t);
+    friend void toplevel_configure_handler(void*, struct xdg_toplevel*, int32_t, int32_t, struct wl_array*);
+    friend void activation_token_done_handler(void*, struct xdg_activation_token_v1*, const char*);
+    friend void keyboard_keymap_handler(void*, struct wl_keyboard*, uint32_t, int, uint32_t);
+    friend void keyboard_key_handler(void*, struct wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t);
+    friend void keyboard_modifiers_handler(void*, struct wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    friend void seat_capabilities_handler(void*, struct wl_seat*, uint32_t);
+#endif
+
 private:
 #ifdef PLATFORM_X11
     Display* display;
@@ -60,14 +71,14 @@ private:
     wl_pointer* pointer;
     xdg_wm_base* xdg_shell;
     xdg_surface* xdg_surface_obj;
-    xdg_toplevel* xdg_toplevel;
+    xdg_toplevel* toplevel;
     xdg_activation_v1* activation_protocol;
     xdg_activation_token_v1* activation_token;
 
     // XKB for keyboard handling
     xkb_context* xkb_ctx;
-    xkb_keymap* xkb_keymap;
-    xkb_state* xkb_state;
+    xkb_keymap* keymap;
+    xkb_state* kb_state;
 
     // Shared memory buffer for rendering
     wl_shm* shm;

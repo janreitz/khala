@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(launcher VERSION 0.1.0 LANGUAGES CXX)
+project(launcher VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -32,16 +32,82 @@ if(PLATFORM STREQUAL "x11")
     add_compile_definitions(PLATFORM_X11)
 
 elseif(PLATFORM STREQUAL "wayland")
-    set(WINDOW_SOURCE src/window_wayland.cpp)
-
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(WAYLAND REQUIRED
         wayland-client
         wayland-cursor
         xkbcommon)
 
-    set(PLATFORM_LIBS ${WAYLAND_LIBRARIES})
-    set(PLATFORM_INCLUDE_DIRS ${WAYLAND_INCLUDE_DIRS})
+    # Find wayland-scanner
+    find_program(WAYLAND_SCANNER wayland-scanner REQUIRED)
+
+    # Protocol XML locations
+    pkg_get_variable(WAYLAND_PROTOCOLS_DIR wayland-protocols pkgdatadir)
+    if(NOT WAYLAND_PROTOCOLS_DIR)
+        set(WAYLAND_PROTOCOLS_DIR /usr/share/wayland-protocols)
+    endif()
+
+    # Generate xdg-shell protocol
+    set(XDG_SHELL_XML ${WAYLAND_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml)
+    set(XDG_SHELL_CLIENT_H ${CMAKE_BINARY_DIR}/xdg-shell-client-protocol.h)
+    set(XDG_SHELL_CLIENT_C ${CMAKE_BINARY_DIR}/xdg-shell-protocol.c)
+
+    add_custom_command(
+        OUTPUT ${XDG_SHELL_CLIENT_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${XDG_SHELL_XML} ${XDG_SHELL_CLIENT_H}
+        DEPENDS ${XDG_SHELL_XML}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${XDG_SHELL_CLIENT_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${XDG_SHELL_XML} ${XDG_SHELL_CLIENT_C}
+        DEPENDS ${XDG_SHELL_XML}
+        VERBATIM
+    )
+
+    # Generate xdg-activation protocol
+    set(XDG_ACTIVATION_XML ${WAYLAND_PROTOCOLS_DIR}/staging/xdg-activation/xdg-activation-v1.xml)
+    set(XDG_ACTIVATION_CLIENT_H ${CMAKE_BINARY_DIR}/xdg-activation-v1-client-protocol.h)
+    set(XDG_ACTIVATION_CLIENT_C ${CMAKE_BINARY_DIR}/xdg-activation-v1-protocol.c)
+
+    add_custom_command(
+        OUTPUT ${XDG_ACTIVATION_CLIENT_H}
+        COMMAND ${WAYLAND_SCANNER} client-header ${XDG_ACTIVATION_XML} ${XDG_ACTIVATION_CLIENT_H}
+        DEPENDS ${XDG_ACTIVATION_XML}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${XDG_ACTIVATION_CLIENT_C}
+        COMMAND ${WAYLAND_SCANNER} private-code ${XDG_ACTIVATION_XML} ${XDG_ACTIVATION_CLIENT_C}
+        DEPENDS ${XDG_ACTIVATION_XML}
+        VERBATIM
+    )
+
+    # Create a static library for protocol implementations
+    add_library(wayland-protocols STATIC
+        ${XDG_SHELL_CLIENT_H}
+        ${XDG_SHELL_CLIENT_C}
+        ${XDG_ACTIVATION_CLIENT_H}
+        ${XDG_ACTIVATION_CLIENT_C}
+    )
+
+    # Set source file properties to treat .h files as C headers (don't compile them)
+    set_source_files_properties(
+        ${XDG_SHELL_CLIENT_H}
+        ${XDG_ACTIVATION_CLIENT_H}
+        PROPERTIES HEADER_FILE_ONLY TRUE
+    )
+
+    target_include_directories(wayland-protocols PUBLIC
+        ${WAYLAND_INCLUDE_DIRS}
+        ${CMAKE_BINARY_DIR}
+    )
+
+    set(WINDOW_SOURCE src/window_wayland.cpp)
+    set(PLATFORM_LIBS ${WAYLAND_LIBRARIES} wayland-protocols)
+    set(PLATFORM_INCLUDE_DIRS ${WAYLAND_INCLUDE_DIRS} ${CMAKE_BINARY_DIR})
     add_compile_definitions(PLATFORM_WAYLAND)
 
 elseif(PLATFORM STREQUAL "win32")
