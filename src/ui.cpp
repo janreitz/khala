@@ -1,3 +1,4 @@
+#include "actions.h"
 #include "ui.h"
 #include "fuzzy.h"
 #include "utility.h"
@@ -307,7 +308,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     } else if (std::holds_alternative<ContextMenu>(state.mode)) {
         // Show selected item title when in context menu
         display_text =
-            std::get<ContextMenu>(state.mode).selected_file.generic_string() +
+            std::get<ContextMenu>(state.mode).title +
             " › Actions";
     } else {
         display_text = state.input_buffer;
@@ -566,10 +567,12 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!std::holds_alternative<ContextMenu>(state.mode) &&
             !state.items.empty()) {
             const auto &file_item = state.get_selected_item();
-            const auto selected_file = fs::path(file_item.title);
-            state.mode = ContextMenu{.selected_file = selected_file};
+            if (!file_item.path.has_value()) {
+                break;
+            }
+            state.mode = ContextMenu{.title = file_item.title, .selected_file = file_item.path.value()};
             state.selected_item_index = 0;
-            state.items = make_file_actions(selected_file, config);
+            state.items = make_file_actions(file_item.path.value(), config);
             events.push_back(ContextMenuToggled{});
         }
         break;

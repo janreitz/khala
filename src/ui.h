@@ -35,6 +35,7 @@ struct RelScreenCoord {
 struct Item {
     std::string title;
     std::string description;
+    std::optional<fs::path> path;
     Command command;
 };
 
@@ -42,6 +43,7 @@ struct FileSearch {
     std::string query;
 };
 struct ContextMenu {
+    std::string title;
     fs::path selected_file;
 };
 struct AppSearch {
