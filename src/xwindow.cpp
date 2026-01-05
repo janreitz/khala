@@ -6,6 +6,9 @@
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
 
+#include <cairo-xlib.h>
+#include <cairo.h>
+
 #include <array>
 #include <stdexcept>
 #include <string>
@@ -114,7 +117,7 @@ XWindow::XWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension)
     int primary_screen_width, primary_screen_height;
     int primary_screen_x = 0, primary_screen_y = 0;
 
-    MonitorInfo primary_monitor = get_primary_monitor_xrandr(display, screen);
+    const MonitorInfo primary_monitor = get_primary_monitor_xrandr(display, screen);
 
     if (primary_monitor.found) {
         // Use XRandR info
@@ -215,6 +218,22 @@ XWindow::~XWindow()
             XFreeColormap(display, colormap);
         XCloseDisplay(display);
     }
+}
+
+void XWindow::resize(unsigned int new_height, unsigned int new_width) {
+    XResizeWindow(display, window, new_width, new_height);
+    height = new_height;
+    width = new_width;
+}
+
+cairo_surface_t* XWindow::create_cairo_surface(unsigned int height, unsigned int width) {
+    XWindowAttributes window_attrs;
+    XGetWindowAttributes(display, window, &window_attrs);
+    Visual *visual = window_attrs.visual;
+    
+    // Create Cairo surface for X11 window
+    return cairo_xlib_surface_create(
+        display, window, visual, width, height);
 }
 
 std::vector<ui::UserInputEvent> get_input_events(Display *display,

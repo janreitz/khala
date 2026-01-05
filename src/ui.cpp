@@ -12,6 +12,8 @@
 #include <pango/pangocairo.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <optional>
 #include <string>
 
 namespace ui
@@ -139,13 +141,13 @@ size_t calculate_max_visible_items(int window_height, int font_size)
     return std::max(1, available_for_items / item_height);
 }
 
-int calculate_window_height(int font_size, size_t item_count,
+unsigned int calculate_window_height(int font_size, size_t item_count,
                             size_t max_visible_items)
 {
     const size_t visible_items = std::min(item_count, max_visible_items);
 
     // Account for: top border + input area + spacing + items + bottom border
-    return static_cast<int>(
+    return static_cast<unsigned int>(
         2 * BORDER_WIDTH + calculate_abs_input_height(font_size) +
         ITEMS_SPACING + (visible_items * calculate_abs_item_height(font_size)));
 }
@@ -232,22 +234,14 @@ void draw(XWindow &window, const Config &config, const State &state)
         static_cast<int>(window.screen_height * config.height_ratio);
     const size_t max_visible_items =
         calculate_max_visible_items(max_height, config.font_size);
-    const int new_height = calculate_window_height(
+    const unsigned int new_height = calculate_window_height(
         config.font_size, state.items.size(), max_visible_items);
 
     if (new_height != window.height) {
-        XResizeWindow(window.display, window.window, window.width, new_height);
-        window.height = new_height;
+        window.resize(new_height, window.width);
     }
 
-    // Get the window's visual (which should be ARGB for transparency)
-    XWindowAttributes window_attrs;
-    XGetWindowAttributes(window.display, window.window, &window_attrs);
-    Visual *visual = window_attrs.visual;
-
-    // Create Cairo surface for X11 window
-    cairo_surface_t *surface = cairo_xlib_surface_create(
-        window.display, window.window, visual, window.width, window.height);
+    cairo_surface_t *surface = window.create_cairo_surface(window.height, window.width);
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
