@@ -2,6 +2,7 @@
 #include "ui.h"
 #include "fuzzy.h"
 #include "window.h"
+#include "logger.h"
 
 #include <cairo-xlib.h>
 #include <cairo.h>
@@ -241,12 +242,22 @@ void draw(PlatformWindow &window, const Config &config, const State &state)
         window.resize(new_height, window.get_width());
     }
 
+    LOG_DEBUG("UI: Creating Cairo surface for window %ux%u", window.get_width(), window.get_height());
     cairo_surface_t *surface = window.create_cairo_surface(window.get_height(), window.get_width());
+    if (!surface) {
+        LOG_ERROR("UI: Failed to create Cairo surface");
+        return; // Failed to create surface
+    }
     const defer cleanup_surface(
         [surface]() noexcept { cairo_surface_destroy(surface); });
 
     // Create Cairo context
+    LOG_DEBUG("UI: Creating Cairo context");
     cairo_t *cr = cairo_create(surface);
+    if (!cr || cairo_status(cr) != CAIRO_STATUS_SUCCESS) {
+        LOG_ERROR("UI: Failed to create Cairo context, status: %d", cr ? cairo_status(cr) : -1);
+        return; // Failed to create context
+    }
     const defer cleanup_cr([cr]() noexcept { cairo_destroy(cr); });
 
     // Create Pango layout for text rendering
@@ -254,9 +265,12 @@ void draw(PlatformWindow &window, const Config &config, const State &state)
     const defer cleanup_layout([layout]() noexcept { g_object_unref(layout); });
 
     // Clear everything with transparent background
+    LOG_DEBUG("UI: Setting up Cairo for painting");
     cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+    LOG_DEBUG("UI: About to call cairo_paint");
     cairo_paint(cr);
+    LOG_DEBUG("UI: cairo_paint completed successfully");
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
     // Draw background

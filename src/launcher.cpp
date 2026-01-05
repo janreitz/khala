@@ -3,6 +3,7 @@
 #include "fuzzy.h"
 #include "indexer.h"
 #include "lastwriterwinsslot.h"
+#include "logger.h"
 #include "ranker.h"
 #include "streamingindex.h"
 #include "ui.h"
@@ -26,6 +27,10 @@ namespace fs = std::filesystem;
 
 int main()
 {
+    // Initialize logger first
+    Logger::getInstance().init();
+    LOG_INFO("Khala launcher starting up");
+    
     const Config config = Config::load(Config::default_path());
     const defer save_config([config]() noexcept {
         try {
