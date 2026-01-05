@@ -136,6 +136,7 @@ endif()
 
 add_executable(khala
     src/launcher.cpp
+    src/logger.cpp
     src/actions.cpp
     src/config.cpp
     src/fuzzy.cpp

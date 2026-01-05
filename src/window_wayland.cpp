@@ -2,6 +2,7 @@
 
 #include "window.h"
 #include "types.h"
+#include "logger.h"
 
 #include <wayland-client.h>
 #include <xdg-shell-client-protocol.h>
@@ -367,7 +368,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
     width = static_cast<int>(1920 * dimension.x);  // Default width assumption
     height = static_cast<unsigned int>(screen_height * dimension.y);
 
-    printf("Wayland window: %dx%d\n", width, height);
+    LOG_INFO("Wayland window: %dx%d", width, height);
 
     // Create surface
     surface = wl_compositor_create_surface(compositor);
@@ -397,17 +398,17 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
             // Use provided token from environment
             xdg_activation_v1_activate(activation_protocol, env_token, surface);
             unsetenv("XDG_ACTIVATION_TOKEN");
-            printf("Using XDG activation token from environment\n");
+            LOG_INFO("Using XDG activation token from environment");
         } else {
             // Request new token
             activation_token = xdg_activation_v1_get_activation_token(activation_protocol);
             xdg_activation_token_v1_add_listener(activation_token, &activation_token_listener, this);
             xdg_activation_token_v1_set_surface(activation_token, surface);
             xdg_activation_token_v1_commit(activation_token);
-            printf("Requesting XDG activation token\n");
+            LOG_INFO("Requesting XDG activation token");
         }
     } else {
-        printf("Warning: XDG Activation protocol not available - focus may not work\n");
+        LOG_WARNING("XDG Activation protocol not available - focus may not work");
     }
 
     wl_display_roundtrip(display);
@@ -483,15 +484,20 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width) {
 }
 
 cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned int w) {
+    LOG_DEBUG("Creating Cairo surface: %ux%u", w, h);
     const size_t stride = w * 4;  // 4 bytes per pixel (ARGB32)
     const size_t buffer_size = stride * h;
 
+    // Update window dimensions to match requested size
+    width = static_cast<int>(w);
+    height = h;
+
     // Cleanup old buffer if dimensions changed
-    if (buffer && (w != static_cast<unsigned int>(width) || h != height)) {
+    if (buffer) {
         wl_buffer_destroy(buffer);
         buffer = nullptr;
         if (shm_data) {
-            munmap(shm_data, width * height * 4);
+            munmap(shm_data, static_cast<unsigned int>(width) * height * 4);
             shm_data = nullptr;
         }
         if (buffer_fd >= 0) {
@@ -500,28 +506,56 @@ cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned i
         }
     }
 
-    // Create new buffer if needed
+    // Create new buffer
+    buffer_fd = create_anonymous_file(buffer_size);
+    if (buffer_fd < 0) {
+        throw std::runtime_error("Failed to create anonymous file");
+    }
+
+    shm_data = mmap(nullptr, buffer_size, PROT_READ | PROT_WRITE,
+                   MAP_SHARED, buffer_fd, 0);
+    if (shm_data == MAP_FAILED) {
+        close(buffer_fd);
+        buffer_fd = -1;
+        throw std::runtime_error("Failed to mmap buffer");
+    }
+
+    wl_shm_pool* pool = wl_shm_create_pool(shm, buffer_fd, buffer_size);
+    if (!pool) {
+        munmap(shm_data, buffer_size);
+        shm_data = nullptr;
+        close(buffer_fd);
+        buffer_fd = -1;
+        throw std::runtime_error("Failed to create SHM pool");
+    }
+
+    buffer = wl_shm_pool_create_buffer(pool, 0, w, h, stride,
+                                      WL_SHM_FORMAT_ARGB8888);
+    wl_shm_pool_destroy(pool);
+    
     if (!buffer) {
-        buffer_fd = create_anonymous_file(buffer_size);
-
-        shm_data = mmap(nullptr, buffer_size, PROT_READ | PROT_WRITE,
-                       MAP_SHARED, buffer_fd, 0);
-        if (shm_data == MAP_FAILED) {
-            close(buffer_fd);
-            throw std::runtime_error("Failed to mmap buffer");
-        }
-
-        wl_shm_pool* pool = wl_shm_create_pool(shm, buffer_fd, buffer_size);
-        buffer = wl_shm_pool_create_buffer(pool, 0, w, h, stride,
-                                          WL_SHM_FORMAT_ARGB8888);
-        wl_shm_pool_destroy(pool);
+        munmap(shm_data, buffer_size);
+        shm_data = nullptr;
+        close(buffer_fd);
+        buffer_fd = -1;
+        throw std::runtime_error("Failed to create buffer");
     }
 
     // Create Cairo image surface from our SHM buffer
-    return cairo_image_surface_create_for_data(
+    cairo_surface_t* surface = cairo_image_surface_create_for_data(
         static_cast<unsigned char*>(shm_data),
         CAIRO_FORMAT_ARGB32,
         w, h, stride);
+    
+    // Check if Cairo surface creation was successful
+    if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
+        LOG_ERROR("Cairo surface creation failed with status: %d", cairo_surface_status(surface));
+        cairo_surface_destroy(surface);
+        throw std::runtime_error("Failed to create Cairo surface");
+    }
+
+    LOG_DEBUG("Successfully created Cairo surface");
+    return surface;
 }
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking) {
