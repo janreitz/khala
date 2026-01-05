@@ -60,19 +60,22 @@ std::string format_file_count(size_t count)
     }
 }
 
-std::string create_pagination_text(size_t visible_offset, size_t max_visible_items, 
-                                   size_t total_results, size_t total_available_results)
+std::string create_pagination_text(size_t visible_offset,
+                                   size_t max_visible_items,
+                                   size_t total_results,
+                                   size_t total_available_results)
 {
     if (total_available_results == 0 || total_results <= max_visible_items) {
         return ""; // No pagination needed
     }
-    
+
     const size_t visible_start = visible_offset + 1; // 1-indexed for display
-    const size_t visible_end = std::min(visible_offset + max_visible_items, total_results);
-    
+    const size_t visible_end =
+        std::min(visible_offset + max_visible_items, total_results);
+
     char buffer[128];
-    snprintf(buffer, sizeof(buffer), "%zu-%zu/%s", 
-             visible_start, visible_end, format_file_count(total_available_results).c_str());
+    snprintf(buffer, sizeof(buffer), "%zu-%zu/%s", visible_start, visible_end,
+             format_file_count(total_available_results).c_str());
     return buffer;
 }
 
@@ -129,10 +132,9 @@ size_t calculate_max_visible_items(int window_height, int font_size)
     const int item_height = calculate_abs_item_height(font_size);
 
     // Calculate available space for items
-    const int available_for_items = window_height -
-                                    static_cast<int>(2 * BORDER_WIDTH) -
-                                    input_height -
-                                    static_cast<int>(ITEMS_SPACING);
+    const int available_for_items =
+        window_height - static_cast<int>(2 * BORDER_WIDTH) - input_height -
+        static_cast<int>(ITEMS_SPACING);
 
     // Calculate max visible items that can fit in available space
     return std::max(1, available_for_items / item_height);
@@ -144,8 +146,9 @@ int calculate_window_height(int font_size, size_t item_count,
     const size_t visible_items = std::min(item_count, max_visible_items);
 
     // Account for: top border + input area + spacing + items + bottom border
-    return static_cast<int>(2 * BORDER_WIDTH + calculate_abs_input_height(font_size) + ITEMS_SPACING +
-                            (visible_items * calculate_abs_item_height(font_size)));
+    return static_cast<int>(
+        2 * BORDER_WIDTH + calculate_abs_input_height(font_size) +
+        ITEMS_SPACING + (visible_items * calculate_abs_item_height(font_size)));
 }
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
@@ -226,9 +229,12 @@ void draw(XWindow &window, const Config &config, const State &state)
 {
     const double content_width = window.width - 2.0 * BORDER_WIDTH;
     // Calculate window height based on item count and max window height
-    const int max_height = static_cast<int>(window.screen_height * config.height_ratio);
-    const size_t max_visible_items = calculate_max_visible_items(max_height, config.font_size);
-    const int new_height = calculate_window_height(config.font_size, state.items.size(), max_visible_items);
+    const int max_height =
+        static_cast<int>(window.screen_height * config.height_ratio);
+    const size_t max_visible_items =
+        calculate_max_visible_items(max_height, config.font_size);
+    const int new_height = calculate_window_height(
+        config.font_size, state.items.size(), max_visible_items);
 
     if (new_height != window.height) {
         XResizeWindow(window.display, window.window, window.width, new_height);
@@ -270,7 +276,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     const int input_height = calculate_abs_input_height(config.font_size);
     draw_rounded_rect(cr, BORDER_WIDTH, BORDER_WIDTH, content_width,
                       input_height, CORNER_RADIUS, Corner::All);
-    
+
     // Use error styling if there's an error, otherwise normal styling
     if (state.has_error()) {
         cairo_set_source_rgba(cr, 1.0, 0.8, 0.8, 1.0); // Light red background
@@ -301,14 +307,15 @@ void draw(XWindow &window, const Config &config, const State &state)
     } else if (std::holds_alternative<ContextMenu>(state.mode)) {
         // Show selected item title when in context menu
         display_text =
-            fs::canonical(std::get<ContextMenu>(state.mode).selected_file)
-                .generic_string() +
+            std::get<ContextMenu>(state.mode).selected_file.generic_string() +
             " › Actions";
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
-            const std::string file_count_str = format_file_count(state.total_files);
-            display_text = "Search " + file_count_str + " files... (prefix > for utility actions, ! "
+            const std::string file_count_str =
+                format_file_count(state.total_files);
+            display_text = "Search " + file_count_str +
+                           " files... (prefix > for utility actions, ! "
                            "for applications)";
         }
     }
@@ -336,7 +343,7 @@ void draw(XWindow &window, const Config &config, const State &state)
     // Draw progress indicator in file search mode, right-aligned
     if (std::holds_alternative<ui::FileSearch>(state.mode) &&
         state.total_files > 0) {
-        
+
         std::string indicator_text;
         // Show scan status indicator when no query or no matches
         if (state.input_buffer.empty()) {
@@ -344,11 +351,11 @@ void draw(XWindow &window, const Config &config, const State &state)
         } else if (state.total_available_results == 0) {
             indicator_text = "0";
         } else {
-            indicator_text = 
-                create_pagination_text(state.visible_range_offset, max_visible_items, 
-                                       state.items.size(), state.total_available_results);
+            indicator_text = create_pagination_text(
+                state.visible_range_offset, max_visible_items,
+                state.items.size(), state.total_available_results);
         }
-        
+
         pango_layout_set_text(layout, indicator_text.c_str(), -1);
 
         // Get text dimensions for right alignment
@@ -377,7 +384,8 @@ void draw(XWindow &window, const Config &config, const State &state)
     }
 
     // Draw cursor at cursor position when not in context menu and no error
-    if (!std::holds_alternative<ContextMenu>(state.mode) && !state.has_error()) {
+    if (!std::holds_alternative<ContextMenu>(state.mode) &&
+        !state.has_error()) {
         // Get width of text up to cursor position
         const std::string text_before_cursor =
             state.input_buffer.substr(0, state.cursor_position);
@@ -415,9 +423,9 @@ void draw(XWindow &window, const Config &config, const State &state)
         dropdown_items.push_back(DropdownItem{
             .title = item.title,
             .description = item.description,
-            .title_match_positions = query_opt
-                                         ? fuzzy::fuzzy_match_optimal(item.title, query)
-                                         : std::vector<size_t>{},
+            .title_match_positions =
+                query_opt ? fuzzy::fuzzy_match_optimal(item.title, query)
+                          : std::vector<size_t>{},
             .description_match_positions =
                 query_opt ? fuzzy::fuzzy_match_optimal(item.description, query)
                           : std::vector<size_t>{}});
@@ -429,9 +437,11 @@ void draw(XWindow &window, const Config &config, const State &state)
 
     // Draw dropdown items
     const int item_height = calculate_abs_item_height(config.font_size);
-    const size_t range_end = std::min(state.visible_range_offset + max_visible_items, dropdown_items.size());
+    const size_t range_end = std::min(
+        state.visible_range_offset + max_visible_items, dropdown_items.size());
     for (size_t i = state.visible_range_offset; i < range_end; ++i) {
-        const double y_pos = dropdown_start_y + ((i - state.visible_range_offset) * item_height);
+        const double y_pos =
+            dropdown_start_y + ((i - state.visible_range_offset) * item_height);
 
         // Draw selection highlight
         const bool item_is_selected = (i == selection_index);
@@ -462,7 +472,8 @@ void draw(XWindow &window, const Config &config, const State &state)
         const double text_y_centered =
             calculate_text_y_centered(y_pos, item_height, text_height);
         cairo_move_to(cr, BORDER_WIDTH + TEXT_MARGIN, text_y_centered);
-        pango_layout_set_width(layout, (content_width - 2 * TEXT_MARGIN) * PANGO_SCALE);
+        pango_layout_set_width(layout,
+                               (content_width - 2 * TEXT_MARGIN) * PANGO_SCALE);
         pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
         pango_cairo_show_layout(cr, layout);
         pango_layout_set_width(layout, -1);
@@ -555,8 +566,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!std::holds_alternative<ContextMenu>(state.mode) &&
             !state.items.empty()) {
             const auto &file_item = state.get_selected_item();
-            const auto selected_file =
-                fs::path(file_item.description) / fs::path(file_item.title);
+            const auto selected_file = fs::path(file_item.title);
             state.mode = ContextMenu{.selected_file = selected_file};
             state.selected_item_index = 0;
             state.items = make_file_actions(selected_file, config);
@@ -630,7 +640,7 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
 {
     std::vector<Event> events;
     state.clear_error();
-    
+
     std::visit(overloaded{[&](const KeyboardEvent &ev) {
                    events = handle_keyboard_input(state, ev, config);
                }},
@@ -650,15 +660,18 @@ bool adjust_visible_range(State &state, size_t max_visible_items)
     if (state.selected_item_index < state.visible_range_offset) {
         // Selected item is above visible range, scroll up
         state.visible_range_offset = state.selected_item_index;
-    } else if (state.selected_item_index >= state.visible_range_offset + max_visible_items) {
+    } else if (state.selected_item_index >=
+               state.visible_range_offset + max_visible_items) {
         // Selected item is below visible range, scroll down
-        state.visible_range_offset = state.selected_item_index - max_visible_items + 1;
+        state.visible_range_offset =
+            state.selected_item_index - max_visible_items + 1;
     }
 
     return state.visible_range_offset != old_visible_range_offset;
 }
 
-size_t required_item_count(const State &state, size_t max_visible_items) {
+size_t required_item_count(const State &state, size_t max_visible_items)
+{
     return state.visible_range_offset + (max_visible_items * 2);
 }
 
