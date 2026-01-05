@@ -7,7 +7,7 @@
 #include "streamingindex.h"
 #include "ui.h"
 #include "utility.h"
-#include "xwindow.h"
+#include "window.h"
 
 #include <algorithm>
 #include <atomic>
@@ -37,7 +37,7 @@ int main()
     });
     const auto global_actions = get_global_actions(config);
 
-    XWindow window(
+    PlatformWindow window(
         ui::RelScreenCoord{
             .x = config.x_position,
             .y = config.y_position,
@@ -48,7 +48,7 @@ int main()
         });
 
     const int max_window_height =
-        static_cast<int>(window.screen_height * config.height_ratio);
+        static_cast<int>(window.get_screen_height() * config.height_ratio);
     const size_t max_visible_items =
         ui::calculate_max_visible_items(max_window_height, config.font_size);
 
@@ -96,7 +96,7 @@ int main()
     bool redraw = true;
     while (true) {
         const std::vector<ui::UserInputEvent> input_events =
-            get_input_events(window.display, false);
+            window.get_input_events(false);
 
         // Process input events and generate high-level events
         std::vector<ui::Event> events;
