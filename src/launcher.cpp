@@ -93,13 +93,10 @@ int main()
 
     // Current file search state
     std::vector<FileResult> current_file_results;
+    bool redraw = true;
     while (true) {
-        // Use non-blocking mode when actively scanning to allow UI updates
-        const bool should_block = false;
-            // !(std::holds_alternative<ui::FileSearch>(state.mode) &&
-            //   !state.scan_complete);
         const std::vector<ui::UserInputEvent> input_events =
-            get_input_events(window.display, should_block);
+            get_input_events(window.display, false);
 
         // Process input events and generate high-level events
         std::vector<ui::Event> events;
@@ -111,7 +108,7 @@ int main()
         }
 
         // Small sleep during non-blocking mode to avoid busy looping
-        if (!should_block && events.empty()) {
+        if (events.empty()) {
             std::this_thread::sleep_for(
                 std::chrono::milliseconds(16)); // ~60 FPS
         }
@@ -119,6 +116,7 @@ int main()
         // Process high-level events
         bool should_exit = false;
         for (const auto &event : events) {
+            redraw = true;
             if (std::holds_alternative<ui::ExitRequested>(event)) {
                 should_exit = true;
                 break;
@@ -246,11 +244,15 @@ int main()
 
                 // Convert results to UI items (keep all ranked results for scrolling)
                 state.items = ui::convert_file_results_to_items(current_file_results);
+                redraw = true;
             }
         }
 
         // Render UI
-        ui::draw(window, config, state);
+        if (redraw) {
+            ui::draw(window, config, state);
+            redraw = false;
+        }
     }
 
     // Cleanup
