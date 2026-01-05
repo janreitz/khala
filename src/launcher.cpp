@@ -193,6 +193,7 @@ int main()
                         state.items.push_back(ui::Item{
                             .title = app.name,
                             .description = app.description,
+                            .path = std::nullopt,
                             .command =
                                 CustomCommand{.path = std::nullopt,
                                               .shell_cmd = app.exec_command},
@@ -249,12 +250,14 @@ int main()
                             state.items.push_back(ui::Item{
                                 .title = "📁 " + file_path.generic_string(),
                                 .description = serialize_file_info(file_path),
+                                .path = file_path,
                                 .command = OpenDirectory{.path = file_path},
                             });
                         } else {
                             state.items.push_back(ui::Item{
                                 .title = "📄 " + file_path.generic_string(),
                                 .description = serialize_file_info(file_path),
+                                .path = file_path,
                                 .command = OpenFile{.path = file_path},
                             });
                         }
