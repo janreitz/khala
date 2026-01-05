@@ -1,7 +1,6 @@
 #include "actions.h"
 #include "ui.h"
 #include "fuzzy.h"
-#include "utility.h"
 #include "xwindow.h"
 
 #include <cairo-xlib.h>
@@ -13,7 +12,6 @@
 #include <pango/pangocairo.h>
 
 #include <algorithm>
-#include <array>
 #include <string>
 
 namespace ui
