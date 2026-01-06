@@ -324,14 +324,59 @@ static const wl_keyboard_listener keyboard_listener = {
     .modifiers = keyboard_modifiers_handler,
     .repeat_info = keyboard_repeat_info_handler};
 
+void pointer_enter_handler(void *data, wl_pointer *pointer,
+                                  uint32_t serial, wl_surface *surface,
+                                  wl_fixed_t sx, wl_fixed_t sy)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
+    win->pointer_serial = serial;  // Store this!
+    LOG_INFO("Pointer entered surface");
+}
+
+static void pointer_leave_handler(void *, wl_pointer *, uint32_t, wl_surface *)
+{
+    LOG_INFO("Pointer left surface");
+}
+
+static void pointer_motion_handler(void *, wl_pointer *, uint32_t,
+                                   wl_fixed_t, wl_fixed_t)
+{
+    // Track mouse position if needed
+}
+
+static void pointer_button_handler(void *data, wl_pointer *, uint32_t serial,
+                                   uint32_t time, uint32_t button, uint32_t state)
+{
+    LOG_INFO("Pointer button: %u, state: %u", button, state);
+    // Button 272 = left click, state 1 = pressed
+}
+
+static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t, wl_fixed_t)
+{
+    // Scroll events
+}
+
+static const wl_pointer_listener pointer_listener = {
+    .enter = pointer_enter_handler,
+    .leave = pointer_leave_handler,
+    .motion = pointer_motion_handler,
+    .button = pointer_button_handler,
+    .axis = pointer_axis_handler,
+};
+
 // Seat listener - handles input device capabilities
 void seat_capabilities_handler(void *data, wl_seat *seat, uint32_t caps)
 {
     PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
+    LOG_INFO("Seat capabilities: keyboard=%d, pointer=%d",
+             (caps & WL_SEAT_CAPABILITY_KEYBOARD) ? 1 : 0,
+             (caps & WL_SEAT_CAPABILITY_POINTER) ? 1 : 0);
+
     if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !win->keyboard) {
         win->keyboard = wl_seat_get_keyboard(seat);
         wl_keyboard_add_listener(win->keyboard, &keyboard_listener, win);
+        LOG_INFO("Keyboard listener attached");
     } else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && win->keyboard) {
         wl_keyboard_destroy(win->keyboard);
         win->keyboard = nullptr;
@@ -339,7 +384,7 @@ void seat_capabilities_handler(void *data, wl_seat *seat, uint32_t caps)
 
     if ((caps & WL_SEAT_CAPABILITY_POINTER) && !win->pointer) {
         win->pointer = wl_seat_get_pointer(seat);
-        // Add pointer listener if needed for mouse support
+        wl_pointer_add_listener(win->pointer, &pointer_listener, win);
     } else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && win->pointer) {
         wl_pointer_destroy(win->pointer);
         win->pointer = nullptr;
