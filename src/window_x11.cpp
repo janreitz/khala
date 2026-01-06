@@ -238,7 +238,7 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
 cairo_surface_t *PlatformWindow::get_cairo_surface(int h,
                                                    int w)
 {
-    if (cached_surface && width == w && height == h) {
+    if (cached_surface && cached_surface_width == w && cached_surface_height == h) {
         return cached_surface;
     }
 
@@ -249,6 +249,8 @@ cairo_surface_t *PlatformWindow::get_cairo_surface(int h,
     }
 
     cached_surface = create_cairo_surface(h, w);
+    cached_surface_width = w;
+    cached_surface_height = h;
     return cached_surface;
 }
 
