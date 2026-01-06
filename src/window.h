@@ -54,6 +54,7 @@ public:
     friend void keyboard_keymap_handler(void*, struct wl_keyboard*, uint32_t, int, uint32_t);
     friend void keyboard_key_handler(void*, struct wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t);
     friend void keyboard_modifiers_handler(void*, struct wl_keyboard*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    friend void pointer_enter_handler(void *, wl_pointer *, uint32_t, wl_surface *, wl_fixed_t, wl_fixed_t);
     friend void seat_capabilities_handler(void*, struct wl_seat*, uint32_t);
 #endif
 
@@ -79,6 +80,9 @@ private:
     xkb_context* xkb_ctx;
     xkb_keymap* keymap;
     xkb_state* kb_state;
+    
+    // XKB for mouse handling
+    uint32_t pointer_serial;
 
     // Shared memory buffer for rendering
     wl_shm* shm;
