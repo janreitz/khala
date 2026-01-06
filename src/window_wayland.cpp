@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdexcept>
 #include <string>
 #include <sys/mman.h>
@@ -88,6 +89,7 @@ static const wl_registry_listener registry_listener = {
 static void xdg_wm_base_ping_handler(void *, xdg_wm_base *xdg_shell,
                                      uint32_t serial)
 {
+    LOG_DEBUG("Received ping");
     xdg_wm_base_pong(xdg_shell, serial);
 }
 
@@ -645,21 +647,39 @@ cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int h,
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 {
-    if (blocking) {
+     if (blocking) {
         wl_display_dispatch(display);
     } else {
+        // Flush any pending outgoing requests
+        wl_display_flush(display);
+
+        // Acquire read lock
+        while (wl_display_prepare_read(display) != 0) {
+            // Acquire failed, need to dispatch pending events first
+            wl_display_dispatch_pending(display);
+        }
+
+        // Check if socket has data (non-blocking with 0 timeout)
+        struct pollfd pfd = {wl_display_get_fd(display), POLLIN, 0};
+        if (poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN)) {
+            // Actually read events from the inbound queue
+            wl_display_read_events(display);
+        } else {
+            // Release read lock
+            wl_display_cancel_read(display);
+        }
+
+        // Process any events now in the queue
         wl_display_dispatch_pending(display);
     }
 
-    // After dispatching, we need to damage and attach the buffer if we have one
-    // This ensures our rendered content is displayed
+    // Commit buffer if we have one
     if (buffer && surface) {
         wl_surface_attach(surface, buffer, 0, 0);
         wl_surface_damage_buffer(surface, 0, 0, width, height);
         wl_surface_commit(surface);
     }
 
-    // Return events collected by listeners
     std::vector<ui::UserInputEvent> events = std::move(pending_events);
     pending_events.clear();
     return events;
