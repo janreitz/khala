@@ -92,7 +92,7 @@ void output_name_handler(void *data, wl_output *output, const char *name)
 }
 
 void output_description_handler(void *data, wl_output *output,
-                                       const char *description)
+                                const char *description)
 {
     auto *window = static_cast<PlatformWindow *>(data);
     auto &info = window->output_infos[output];
@@ -106,9 +106,8 @@ void output_done_handler(void *data, wl_output *output)
     info.done = true;
     LOG_DEBUG("Output: name=%s desc=%s make=%s model=%s pos=(%d,%d) "
               "size=%dx%d scale=%d refresh=%d",
-              info.name.c_str(), info.description.c_str(),
-              info.make.c_str(), info.model.c_str(),
-              info.x, info.y, info.width, info.height,
+              info.name.c_str(), info.description.c_str(), info.make.c_str(),
+              info.model.c_str(), info.x, info.y, info.width, info.height,
               info.scale, info.refresh);
 }
 
@@ -559,7 +558,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     // Calculate window dimensions from screen resolution
     // (screen_width/height populated during first roundtrip via output
     // listener)
-    const auto& [output, info] = *output_infos.begin();
+    const auto &[output, info] = *output_infos.begin();
     LOG_INFO("Using first output by default");
     width = static_cast<int>(info.width * dimension.x);
     height = static_cast<unsigned int>(info.height * dimension.y);
@@ -679,6 +678,10 @@ PlatformWindow::~PlatformWindow()
     if (display) {
         wl_display_disconnect(display);
     }
+
+    if (cached_surface) {
+        cairo_surface_destroy(cached_surface);
+    }
 }
 
 void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
@@ -689,15 +692,34 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
     // We just track the size for our buffer allocation
 }
 
-cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int h,
-                                                      unsigned int w)
+cairo_surface_t *PlatformWindow::get_cairo_surface(int h,
+                                                   int w)
+{
+    if (cached_surface && cached_surface_width == w && cached_surface_height == h) {
+        return cached_surface;
+    }
+
+    // Dimensions changed—recreate
+    if (cached_surface) {
+        cairo_surface_destroy(cached_surface);
+        cached_surface = nullptr;
+    }
+
+    cached_surface = create_cairo_surface(h, w);
+    cached_surface_width = w;
+    cached_surface_height = h;
+    return cached_surface;
+}
+
+cairo_surface_t *PlatformWindow::create_cairo_surface(int h,
+                                                      int w)
 {
     LOG_DEBUG("Creating Cairo surface: %ux%u", w, h);
     const size_t stride = w * 4; // 4 bytes per pixel (ARGB32)
     const size_t buffer_size = stride * h;
 
     // Update window dimensions to match requested size
-    width = static_cast<int>(w);
+    width = w;
     height = h;
 
     // Cleanup old buffer if dimensions changed

@@ -36,8 +36,8 @@ class PlatformWindow
 
     // Window operations
     void resize(unsigned int height, unsigned int width);
-    cairo_surface_t *create_cairo_surface(unsigned int height,
-                                          unsigned int width);
+    // The surface is owned and will be cleaned up by PlatformWindow
+    cairo_surface_t *get_cairo_surface(int height, int width);
     std::vector<ui::UserInputEvent> get_input_events(bool blocking = true);
 
     // Accessors
@@ -84,10 +84,15 @@ class PlatformWindow
 
   private:
 #ifdef PLATFORM_X11
+    cairo_surface_t *create_cairo_surface(int h, int w);
+
+    cairo_surface_t *cached_surface = nullptr;
     Display *display;
     ::Window window;
     Colormap colormap;
 #elif defined(PLATFORM_WAYLAND)
+    cairo_surface_t *create_cairo_surface(int h, int w);
+
     wl_display *display;
     wl_compositor *compositor;
     wl_surface *surface;
@@ -124,6 +129,9 @@ class PlatformWindow
     uint32_t pointer_serial;
 
     // Shared memory buffer for rendering
+    cairo_surface_t *cached_surface = nullptr;
+    int cached_surface_width = 0;
+    int cached_surface_height = 0;
     wl_shm *shm;
     wl_buffer *buffer;
     void *shm_data;
@@ -137,7 +145,7 @@ class PlatformWindow
 
     // Common members (all platforms)
     int width;
-    unsigned int height;
+    int height;
     unsigned int screen_width;
     unsigned int screen_height;
 };
