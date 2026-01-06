@@ -52,6 +52,74 @@ int create_anonymous_file(size_t size)
 
 // Global listeners for Wayland protocols
 
+// Output listener - handles screen resolution and geometry
+void output_geometry_handler(void *data, wl_output *output, int32_t x,
+                             int32_t y, int32_t, int32_t, int32_t,
+                             const char *make, const char *model, int32_t)
+{
+    auto *window = static_cast<PlatformWindow *>(data);
+    auto &info = window->output_infos[output];
+    info.x = x;
+    info.y = y;
+    info.make = make;
+    info.model = model;
+}
+
+void output_mode_handler(void *data, wl_output *output, uint32_t flags,
+                         int32_t width, int32_t height, int32_t refresh)
+{
+    if (flags & WL_OUTPUT_MODE_CURRENT) {
+        auto *window = static_cast<PlatformWindow *>(data);
+        auto &info = window->output_infos[output];
+        info.width = width;
+        info.height = height;
+        info.refresh = refresh;
+    }
+}
+
+void output_scale_handler(void *data, wl_output *output, int32_t factor)
+{
+    auto *window = static_cast<PlatformWindow *>(data);
+    auto &info = window->output_infos[output];
+    info.scale = factor;
+}
+
+void output_name_handler(void *data, wl_output *output, const char *name)
+{
+    auto *window = static_cast<PlatformWindow *>(data);
+    auto &info = window->output_infos[output];
+    info.name = name;
+}
+
+void output_description_handler(void *data, wl_output *output,
+                                       const char *description)
+{
+    auto *window = static_cast<PlatformWindow *>(data);
+    auto &info = window->output_infos[output];
+    info.description = description;
+}
+
+void output_done_handler(void *data, wl_output *output)
+{
+    auto *window = static_cast<PlatformWindow *>(data);
+    auto &info = window->output_infos[output];
+    info.done = true;
+    LOG_DEBUG("Output: name=%s desc=%s make=%s model=%s pos=(%d,%d) "
+              "size=%dx%d scale=%d refresh=%d",
+              info.name.c_str(), info.description.c_str(),
+              info.make.c_str(), info.model.c_str(),
+              info.x, info.y, info.width, info.height,
+              info.scale, info.refresh);
+}
+
+static const wl_output_listener output_listener = {
+    .geometry = output_geometry_handler,
+    .mode = output_mode_handler,
+    .done = output_done_handler,
+    .scale = output_scale_handler,
+    .name = output_name_handler,
+    .description = output_description_handler};
+
 // Registry listener - binds global Wayland objects
 void registry_global_handler(void *data, wl_registry *registry, uint32_t name,
                              const char *interface, uint32_t)
@@ -70,6 +138,14 @@ void registry_global_handler(void *data, wl_registry *registry, uint32_t name,
     } else if (strcmp(interface, wl_shm_interface.name) == 0) {
         win->shm = static_cast<wl_shm *>(
             wl_registry_bind(registry, name, &wl_shm_interface, 1));
+    } else if (strcmp(interface, "wl_output") == 0) {
+        auto *output = static_cast<wl_output *>(
+            wl_registry_bind(registry, name, &wl_output_interface, 2));
+
+        // Insert with defaults, callbacks will populate
+        win->output_infos[output] = PlatformWindow::OutputInfo();
+
+        wl_output_add_listener(output, &output_listener, win);
     } else if (strcmp(interface, xdg_activation_v1_interface.name) == 0) {
         win->activation_protocol = static_cast<xdg_activation_v1 *>(
             wl_registry_bind(registry, name, &xdg_activation_v1_interface, 1));
@@ -93,7 +169,7 @@ static void xdg_wm_base_ping_handler(void *, xdg_wm_base *xdg_shell,
     xdg_wm_base_pong(xdg_shell, serial);
 }
 
-static const xdg_wm_base_listener xdg_wm_base_listener = {
+static const xdg_wm_base_listener my_xdg_wm_base_listener = {
     .ping = xdg_wm_base_ping_handler};
 
 // XDG Surface listener - handles configure events
@@ -103,7 +179,7 @@ static void xdg_surface_configure_handler(void *, xdg_surface *xdg_surface,
     xdg_surface_ack_configure(xdg_surface, serial);
 }
 
-static const xdg_surface_listener xdg_surface_listener = {
+static const xdg_surface_listener my_xdg_surface_listener = {
     .configure = xdg_surface_configure_handler};
 
 // XDG Toplevel listener - handles window state changes
@@ -326,12 +402,11 @@ static const wl_keyboard_listener keyboard_listener = {
     .modifiers = keyboard_modifiers_handler,
     .repeat_info = keyboard_repeat_info_handler};
 
-void pointer_enter_handler(void *data, wl_pointer *pointer,
-                                  uint32_t serial, wl_surface *surface,
-                                  wl_fixed_t sx, wl_fixed_t sy)
+void pointer_enter_handler(void *data, wl_pointer *pointer, uint32_t serial,
+                           wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy)
 {
     PlatformWindow *win = static_cast<PlatformWindow *>(data);
-    win->pointer_serial = serial;  // Store this!
+    win->pointer_serial = serial; // Store this!
     LOG_INFO("Pointer entered surface");
 }
 
@@ -340,30 +415,48 @@ static void pointer_leave_handler(void *, wl_pointer *, uint32_t, wl_surface *)
     LOG_INFO("Pointer left surface");
 }
 
-static void pointer_motion_handler(void *, wl_pointer *, uint32_t,
-                                   wl_fixed_t, wl_fixed_t)
+static void pointer_motion_handler(void *, wl_pointer *, uint32_t, wl_fixed_t,
+                                   wl_fixed_t)
 {
     // Track mouse position if needed
 }
 
 static void pointer_button_handler(void *data, wl_pointer *, uint32_t serial,
-                                   uint32_t time, uint32_t button, uint32_t state)
+                                   uint32_t time, uint32_t button,
+                                   uint32_t state)
 {
     LOG_INFO("Pointer button: %u, state: %u", button, state);
     // Button 272 = left click, state 1 = pressed
 }
 
-static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t, wl_fixed_t)
+static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t,
+                                 wl_fixed_t)
 {
     // Scroll events
 }
 
-static void pointer_frame_handler(void*, wl_pointer*){}
-static void pointer_axis_source_handler(void*, wl_pointer*, uint32_t axis_source){}
-static void pointer_axis_stop_handler(void*, wl_pointer*, uint32_t axis, uint32_t time){}
-static void pointer_axis_discrete_handler(void*, wl_pointer*, uint32_t axis, int32_t discrete){}
-static void pointer_axis_value120_handler(void*, wl_pointer*, uint32_t axis, int32_t value120){}
-static void pointer_axis_relative_direction_handler(void*, wl_pointer*, uint32_t axis, uint32_t direction){}
+static void pointer_frame_handler(void *, wl_pointer *) {}
+static void pointer_axis_source_handler(void *, wl_pointer *,
+                                        uint32_t axis_source)
+{
+}
+static void pointer_axis_stop_handler(void *, wl_pointer *, uint32_t axis,
+                                      uint32_t time)
+{
+}
+static void pointer_axis_discrete_handler(void *, wl_pointer *, uint32_t axis,
+                                          int32_t discrete)
+{
+}
+static void pointer_axis_value120_handler(void *, wl_pointer *, uint32_t axis,
+                                          int32_t value120)
+{
+}
+static void pointer_axis_relative_direction_handler(void *, wl_pointer *,
+                                                    uint32_t axis,
+                                                    uint32_t direction)
+{
+}
 
 static const wl_pointer_listener pointer_listener = {
     .enter = pointer_enter_handler,
@@ -423,7 +516,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
       xdg_surface_obj(nullptr), toplevel(nullptr), activation_protocol(nullptr),
       activation_token(nullptr), xkb_ctx(nullptr), keymap(nullptr),
       kb_state(nullptr), shm(nullptr), buffer(nullptr), shm_data(nullptr),
-      buffer_fd(-1), width(0), height(0), screen_height(1080)
+      buffer_fd(-1), width(0), height(0), screen_width(1920),
+      screen_height(1080)
 {
     // Connect to Wayland display
     display = wl_display_connect(nullptr);
@@ -449,19 +543,26 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     }
 
     // Add XDG shell listener
-    xdg_wm_base_add_listener(xdg_shell, &xdg_wm_base_listener, this);
+    xdg_wm_base_add_listener(xdg_shell, &my_xdg_wm_base_listener, this);
 
     // Add seat listener for input
     if (seat) {
         wl_seat_add_listener(seat, &seat_listener, this);
     }
 
-    // TODO: Multi-monitor detection using wl_output protocol
-    // For now, use defaults or estimate from config
-    screen_height = 1080;                         // Default height
-    width = static_cast<int>(1920 * dimension.x); // Default width assumption
-    height = static_cast<unsigned int>(screen_height * dimension.y);
+    // Critical: second roundtrip to receive output property events
+    wl_display_roundtrip(display);
+    if (output_infos.empty()) {
+        throw std::runtime_error("No wayland output");
+    }
 
+    // Calculate window dimensions from screen resolution
+    // (screen_width/height populated during first roundtrip via output
+    // listener)
+    const auto& [output, info] = *output_infos.begin();
+    LOG_INFO("Using first output by default");
+    width = static_cast<int>(info.width * dimension.x);
+    height = static_cast<unsigned int>(info.height * dimension.y);
     LOG_INFO("Wayland window: %dx%d", width, height);
 
     // Create surface
@@ -472,7 +573,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
 
     // Create XDG surface and toplevel
     xdg_surface_obj = xdg_wm_base_get_xdg_surface(xdg_shell, surface);
-    xdg_surface_add_listener(xdg_surface_obj, &xdg_surface_listener, this);
+    xdg_surface_add_listener(xdg_surface_obj, &my_xdg_surface_listener, this);
 
     toplevel = xdg_surface_get_toplevel(xdg_surface_obj);
     xdg_toplevel_add_listener(toplevel, &toplevel_listener, this);
@@ -480,6 +581,10 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     // Set window properties
     xdg_toplevel_set_title(toplevel, "khala");
     xdg_toplevel_set_app_id(toplevel, "com.khala.launcher");
+
+    // Set window size constraints based on actual screen resolution
+    xdg_toplevel_set_min_size(toplevel, width, height);
+    xdg_toplevel_set_max_size(toplevel, width, height);
 
     // Commit surface to trigger configure
     wl_surface_commit(surface);
@@ -554,6 +659,9 @@ PlatformWindow::~PlatformWindow()
 
     if (seat) {
         wl_seat_destroy(seat);
+    }
+    for (auto [output, _] : output_infos) {
+        wl_output_destroy(output);
     }
     if (activation_protocol) {
         xdg_activation_v1_destroy(activation_protocol);
@@ -660,7 +768,7 @@ cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int h,
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 {
-     if (blocking) {
+    if (blocking) {
         wl_display_dispatch(display);
     } else {
         // Flush any pending outgoing requests
