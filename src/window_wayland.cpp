@@ -1,28 +1,31 @@
 #ifdef PLATFORM_WAYLAND
 
-#include "window.h"
-#include "types.h"
 #include "logger.h"
+#include "types.h"
+#include "window.h"
 
-#include <wayland-client.h>
-#include <xdg-shell-client-protocol.h>
-#include <xdg-activation-v1-client-protocol.h>
-#include <xkbcommon/xkbcommon.h>
 #include <cairo.h>
+#include <wayland-client-protocol.h>
+#include <wayland-client.h>
+#include <xdg-activation-v1-client-protocol.h>
+#include <xdg-shell-client-protocol.h>
+#include <xkbcommon/xkbcommon.h>
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <cstring>
 #include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
 #include <stdexcept>
 #include <string>
+#include <sys/mman.h>
+#include <unistd.h>
 
-namespace {
+namespace
+{
 
 // Helper function to create anonymous file for shared memory
-int create_anonymous_file(size_t size) {
-    const char* path = getenv("XDG_RUNTIME_DIR");
+int create_anonymous_file(size_t size)
+{
+    const char *path = getenv("XDG_RUNTIME_DIR");
     if (!path) {
         throw std::runtime_error("XDG_RUNTIME_DIR not set");
     }
@@ -48,87 +51,106 @@ int create_anonymous_file(size_t size) {
 // Global listeners for Wayland protocols
 
 // Registry listener - binds global Wayland objects
-void registry_global_handler(void* data, wl_registry* registry,
-                                    uint32_t name, const char* interface, uint32_t version) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void registry_global_handler(void *data, wl_registry *registry, uint32_t name,
+                             const char *interface, uint32_t)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
     if (strcmp(interface, wl_compositor_interface.name) == 0) {
-        win->compositor = static_cast<wl_compositor*>(
+        win->compositor = static_cast<wl_compositor *>(
             wl_registry_bind(registry, name, &wl_compositor_interface, 4));
-    }
-    else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
-        win->xdg_shell = static_cast<xdg_wm_base*>(
+    } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
+        win->xdg_shell = static_cast<xdg_wm_base *>(
             wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
-    }
-    else if (strcmp(interface, wl_seat_interface.name) == 0) {
-        win->seat = static_cast<wl_seat*>(
+    } else if (strcmp(interface, wl_seat_interface.name) == 0) {
+        win->seat = static_cast<wl_seat *>(
             wl_registry_bind(registry, name, &wl_seat_interface, 1));
-    }
-    else if (strcmp(interface, wl_shm_interface.name) == 0) {
-        win->shm = static_cast<wl_shm*>(
+    } else if (strcmp(interface, wl_shm_interface.name) == 0) {
+        win->shm = static_cast<wl_shm *>(
             wl_registry_bind(registry, name, &wl_shm_interface, 1));
-    }
-    else if (strcmp(interface, xdg_activation_v1_interface.name) == 0) {
-        win->activation_protocol = static_cast<xdg_activation_v1*>(
+    } else if (strcmp(interface, xdg_activation_v1_interface.name) == 0) {
+        win->activation_protocol = static_cast<xdg_activation_v1 *>(
             wl_registry_bind(registry, name, &xdg_activation_v1_interface, 1));
     }
 }
 
-static void registry_global_remove_handler(void*, wl_registry*, uint32_t) {
+static void registry_global_remove_handler(void *, wl_registry *, uint32_t)
+{
     // Not needed for now
 }
 
 static const wl_registry_listener registry_listener = {
     .global = registry_global_handler,
-    .global_remove = registry_global_remove_handler
-};
+    .global_remove = registry_global_remove_handler};
 
 // XDG WM Base listener - handles ping events
-static void xdg_wm_base_ping_handler(void*, xdg_wm_base* xdg_shell, uint32_t serial) {
+static void xdg_wm_base_ping_handler(void *, xdg_wm_base *xdg_shell,
+                                     uint32_t serial)
+{
     xdg_wm_base_pong(xdg_shell, serial);
 }
 
 static const xdg_wm_base_listener xdg_wm_base_listener = {
-    .ping = xdg_wm_base_ping_handler
-};
+    .ping = xdg_wm_base_ping_handler};
 
 // XDG Surface listener - handles configure events
-static void xdg_surface_configure_handler(void*, xdg_surface* xdg_surface, uint32_t serial) {
+static void xdg_surface_configure_handler(void *, xdg_surface *xdg_surface,
+                                          uint32_t serial)
+{
     xdg_surface_ack_configure(xdg_surface, serial);
 }
 
 static const xdg_surface_listener xdg_surface_listener = {
-    .configure = xdg_surface_configure_handler
-};
+    .configure = xdg_surface_configure_handler};
 
 // XDG Toplevel listener - handles window state changes
-void toplevel_configure_handler(void* data, xdg_toplevel*,
-                                       int32_t width, int32_t height,
-                                       wl_array*) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void toplevel_configure_handler(void *data, xdg_toplevel *, int32_t width,
+                                int32_t height, wl_array *)
+{
+    auto win = static_cast<PlatformWindow *>(data);
     if (width > 0 && height > 0) {
-        win->width = width;
-        win->height = height;
+        win->resize(height, width);
     }
 }
 
-static void toplevel_close_handler(void*, xdg_toplevel*) {
+static void toplevel_close_handler(void *, xdg_toplevel *)
+{
     // Window close requested - could add exit event
+}
+
+static void toplevel_configure_bounds_handler(void *data, xdg_toplevel *,
+                                              int32_t width, int32_t height)
+{
+    auto win = static_cast<PlatformWindow *>(data);
+    if (width > 0 && height > 0) {
+        win->resize(height, width);
+    }
+}
+
+void toplevel_wm_capabilities_handler(void *, xdg_toplevel *,
+
+                                      wl_array *)
+{
+    // TODO
 }
 
 static const xdg_toplevel_listener toplevel_listener = {
     .configure = toplevel_configure_handler,
-    .close = toplevel_close_handler
+    .close = toplevel_close_handler,
+    .configure_bounds = toplevel_configure_bounds_handler,
+    .wm_capabilities = toplevel_wm_capabilities_handler,
 };
 
 // XDG Activation token listener
-void activation_token_done_handler(void* data, xdg_activation_token_v1* token,
-                                         const char* token_str) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void activation_token_done_handler(void *data, xdg_activation_token_v1 *token,
+                                   const char *token_str)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
     // Use token to request focus
     if (win->activation_protocol && win->surface) {
-        xdg_activation_v1_activate(win->activation_protocol, token_str, win->surface);
+        xdg_activation_v1_activate(win->activation_protocol, token_str,
+                                   win->surface);
     }
 
     xdg_activation_token_v1_destroy(token);
@@ -136,28 +158,29 @@ void activation_token_done_handler(void* data, xdg_activation_token_v1* token,
 }
 
 static const xdg_activation_token_v1_listener activation_token_listener = {
-    .done = activation_token_done_handler
-};
+    .done = activation_token_done_handler};
 
 // Keyboard listener - handles keyboard events
-void keyboard_keymap_handler(void* data, wl_keyboard*,
-                                   uint32_t format, int fd, uint32_t size) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void keyboard_keymap_handler(void *data, wl_keyboard *, uint32_t format, int fd,
+                             uint32_t size)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
     if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
         close(fd);
         return;
     }
 
-    char* map_shm = static_cast<char*>(
-        mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0));
+    char *map_shm =
+        static_cast<char *>(mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0));
     if (map_shm == MAP_FAILED) {
         close(fd);
         return;
     }
 
-    xkb_keymap* new_keymap = xkb_keymap_new_from_string(
-        win->xkb_ctx, map_shm, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+    xkb_keymap *new_keymap = xkb_keymap_new_from_string(
+        win->xkb_ctx, map_shm, XKB_KEYMAP_FORMAT_TEXT_V1,
+        XKB_KEYMAP_COMPILE_NO_FLAGS);
     munmap(map_shm, size);
     close(fd);
 
@@ -165,7 +188,7 @@ void keyboard_keymap_handler(void* data, wl_keyboard*,
         return;
     }
 
-    xkb_state* new_state = xkb_state_new(new_keymap);
+    xkb_state *new_state = xkb_state_new(new_keymap);
     if (!new_state) {
         xkb_keymap_unref(new_keymap);
         return;
@@ -182,20 +205,25 @@ void keyboard_keymap_handler(void* data, wl_keyboard*,
     win->kb_state = new_state;
 }
 
-static void keyboard_enter_handler(void*, wl_keyboard*, uint32_t, wl_surface*, wl_array*) {
+static void keyboard_enter_handler(void *, wl_keyboard *, uint32_t,
+                                   wl_surface *, wl_array *)
+{
     // Keyboard focus gained
 }
 
-static void keyboard_leave_handler(void*, wl_keyboard*, uint32_t, wl_surface*) {
+static void keyboard_leave_handler(void *, wl_keyboard *, uint32_t,
+                                   wl_surface *)
+{
     // Keyboard focus lost
 }
 
-void keyboard_key_handler(void* data, wl_keyboard*, uint32_t,
-                                uint32_t, uint32_t key, uint32_t state) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void keyboard_key_handler(void *data, wl_keyboard *, uint32_t, uint32_t,
+                          uint32_t key, uint32_t state)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
     if (state != WL_KEYBOARD_KEY_STATE_PRESSED) {
-        return;  // Only handle key press
+        return; // Only handle key press
     }
 
     if (!win->kb_state) {
@@ -255,7 +283,8 @@ void keyboard_key_handler(void* data, wl_keyboard*, uint32_t,
     default:
         // Handle regular character input
         char buffer[8];
-        int size = xkb_state_key_get_utf8(win->kb_state, keycode, buffer, sizeof(buffer));
+        int size = xkb_state_key_get_utf8(win->kb_state, keycode, buffer,
+                                          sizeof(buffer));
         if (size > 0 && size < static_cast<int>(sizeof(buffer))) {
             buffer[size] = '\0';
             // Only add printable ASCII characters
@@ -269,17 +298,20 @@ void keyboard_key_handler(void* data, wl_keyboard*, uint32_t,
     }
 }
 
-void keyboard_modifiers_handler(void* data, wl_keyboard*, uint32_t,
-                                      uint32_t mods_depressed, uint32_t mods_latched,
-                                      uint32_t mods_locked, uint32_t group) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void keyboard_modifiers_handler(void *data, wl_keyboard *, uint32_t,
+                                uint32_t mods_depressed, uint32_t mods_latched,
+                                uint32_t mods_locked, uint32_t group)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
     if (win->kb_state) {
         xkb_state_update_mask(win->kb_state, mods_depressed, mods_latched,
-                             mods_locked, 0, 0, group);
+                              mods_locked, 0, 0, group);
     }
 }
 
-static void keyboard_repeat_info_handler(void*, wl_keyboard*, int32_t, int32_t) {
+static void keyboard_repeat_info_handler(void *, wl_keyboard *, int32_t,
+                                         int32_t)
+{
     // Key repeat info - not needed for now
 }
 
@@ -289,12 +321,12 @@ static const wl_keyboard_listener keyboard_listener = {
     .leave = keyboard_leave_handler,
     .key = keyboard_key_handler,
     .modifiers = keyboard_modifiers_handler,
-    .repeat_info = keyboard_repeat_info_handler
-};
+    .repeat_info = keyboard_repeat_info_handler};
 
 // Seat listener - handles input device capabilities
-void seat_capabilities_handler(void* data, wl_seat* seat, uint32_t caps) {
-    PlatformWindow* win = static_cast<PlatformWindow*>(data);
+void seat_capabilities_handler(void *data, wl_seat *seat, uint32_t caps)
+{
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
     if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !win->keyboard) {
         win->keyboard = wl_seat_get_keyboard(seat);
@@ -313,24 +345,24 @@ void seat_capabilities_handler(void* data, wl_seat* seat, uint32_t caps) {
     }
 }
 
-static void seat_name_handler(void*, wl_seat*, const char*) {
+static void seat_name_handler(void *, wl_seat *, const char *)
+{
     // Seat name - not needed
 }
 
 static const wl_seat_listener seat_listener = {
-    .capabilities = seat_capabilities_handler,
-    .name = seat_name_handler
-};
+    .capabilities = seat_capabilities_handler, .name = seat_name_handler};
 
 // PlatformWindow implementation
 
-PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension)
+PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
+                               ui::RelScreenCoord dimension)
     : display(nullptr), compositor(nullptr), surface(nullptr), seat(nullptr),
-      keyboard(nullptr), pointer(nullptr), xdg_shell(nullptr), xdg_surface_obj(nullptr),
-      toplevel(nullptr), activation_protocol(nullptr), activation_token(nullptr),
-      xkb_ctx(nullptr), keymap(nullptr), kb_state(nullptr),
-      shm(nullptr), buffer(nullptr), shm_data(nullptr), buffer_fd(-1),
-      width(0), height(0), screen_height(1080)
+      keyboard(nullptr), pointer(nullptr), xdg_shell(nullptr),
+      xdg_surface_obj(nullptr), toplevel(nullptr), activation_protocol(nullptr),
+      activation_token(nullptr), xkb_ctx(nullptr), keymap(nullptr),
+      kb_state(nullptr), shm(nullptr), buffer(nullptr), shm_data(nullptr),
+      buffer_fd(-1), width(0), height(0), screen_height(1080)
 {
     // Connect to Wayland display
     display = wl_display_connect(nullptr);
@@ -346,12 +378,13 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
     }
 
     // Bind Wayland protocols via registry
-    wl_registry* registry = wl_display_get_registry(display);
+    wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, this);
-    wl_display_roundtrip(display);  // Wait for all globals
+    wl_display_roundtrip(display); // Wait for all globals
 
     if (!compositor || !xdg_shell || !shm) {
-        throw std::runtime_error("Compositor doesn't support required protocols");
+        throw std::runtime_error(
+            "Compositor doesn't support required protocols");
     }
 
     // Add XDG shell listener
@@ -364,8 +397,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
 
     // TODO: Multi-monitor detection using wl_output protocol
     // For now, use defaults or estimate from config
-    screen_height = 1080;  // Default height
-    width = static_cast<int>(1920 * dimension.x);  // Default width assumption
+    screen_height = 1080;                         // Default height
+    width = static_cast<int>(1920 * dimension.x); // Default width assumption
     height = static_cast<unsigned int>(screen_height * dimension.y);
 
     LOG_INFO("Wayland window: %dx%d", width, height);
@@ -392,7 +425,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
     wl_display_roundtrip(display);
 
     // Request focus using XDG Activation
-    const char* env_token = getenv("XDG_ACTIVATION_TOKEN");
+    const char *env_token = getenv("XDG_ACTIVATION_TOKEN");
     if (activation_protocol) {
         if (env_token && env_token[0] != '\0') {
             // Use provided token from environment
@@ -401,14 +434,17 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
             LOG_INFO("Using XDG activation token from environment");
         } else {
             // Request new token
-            activation_token = xdg_activation_v1_get_activation_token(activation_protocol);
-            xdg_activation_token_v1_add_listener(activation_token, &activation_token_listener, this);
+            activation_token =
+                xdg_activation_v1_get_activation_token(activation_protocol);
+            xdg_activation_token_v1_add_listener(
+                activation_token, &activation_token_listener, this);
             xdg_activation_token_v1_set_surface(activation_token, surface);
             xdg_activation_token_v1_commit(activation_token);
             LOG_INFO("Requesting XDG activation token");
         }
     } else {
-        LOG_WARNING("XDG Activation protocol not available - focus may not work");
+        LOG_WARNING(
+            "XDG Activation protocol not available - focus may not work");
     }
 
     wl_display_roundtrip(display);
@@ -476,16 +512,19 @@ PlatformWindow::~PlatformWindow()
     }
 }
 
-void PlatformWindow::resize(unsigned int new_height, unsigned int new_width) {
+void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
+{
     height = new_height;
     width = new_width;
     // Note: Wayland clients don't resize directly - the compositor handles it
     // We just track the size for our buffer allocation
 }
 
-cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned int w) {
+cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int h,
+                                                      unsigned int w)
+{
     LOG_DEBUG("Creating Cairo surface: %ux%u", w, h);
-    const size_t stride = w * 4;  // 4 bytes per pixel (ARGB32)
+    const size_t stride = w * 4; // 4 bytes per pixel (ARGB32)
     const size_t buffer_size = stride * h;
 
     // Update window dimensions to match requested size
@@ -512,15 +551,15 @@ cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned i
         throw std::runtime_error("Failed to create anonymous file");
     }
 
-    shm_data = mmap(nullptr, buffer_size, PROT_READ | PROT_WRITE,
-                   MAP_SHARED, buffer_fd, 0);
+    shm_data = mmap(nullptr, buffer_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    buffer_fd, 0);
     if (shm_data == MAP_FAILED) {
         close(buffer_fd);
         buffer_fd = -1;
         throw std::runtime_error("Failed to mmap buffer");
     }
 
-    wl_shm_pool* pool = wl_shm_create_pool(shm, buffer_fd, buffer_size);
+    wl_shm_pool *pool = wl_shm_create_pool(shm, buffer_fd, buffer_size);
     if (!pool) {
         munmap(shm_data, buffer_size);
         shm_data = nullptr;
@@ -530,9 +569,9 @@ cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned i
     }
 
     buffer = wl_shm_pool_create_buffer(pool, 0, w, h, stride,
-                                      WL_SHM_FORMAT_ARGB8888);
+                                       WL_SHM_FORMAT_ARGB8888);
     wl_shm_pool_destroy(pool);
-    
+
     if (!buffer) {
         munmap(shm_data, buffer_size);
         shm_data = nullptr;
@@ -542,14 +581,14 @@ cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned i
     }
 
     // Create Cairo image surface from our SHM buffer
-    cairo_surface_t* surface = cairo_image_surface_create_for_data(
-        static_cast<unsigned char*>(shm_data),
-        CAIRO_FORMAT_ARGB32,
-        w, h, stride);
-    
+    cairo_surface_t *surface = cairo_image_surface_create_for_data(
+        static_cast<unsigned char *>(shm_data), CAIRO_FORMAT_ARGB32, w, h,
+        stride);
+
     // Check if Cairo surface creation was successful
     if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
-        LOG_ERROR("Cairo surface creation failed with status: %d", cairo_surface_status(surface));
+        LOG_ERROR("Cairo surface creation failed with status: %d",
+                  cairo_surface_status(surface));
         cairo_surface_destroy(surface);
         throw std::runtime_error("Failed to create Cairo surface");
     }
@@ -558,7 +597,8 @@ cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int h, unsigned i
     return surface;
 }
 
-std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking) {
+std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
+{
     if (blocking) {
         wl_display_dispatch(display);
     } else {
