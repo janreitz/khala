@@ -94,16 +94,15 @@ void Logger::log(LogLevel level, const char* format, va_list args) {
     // Format the message
     char buffer[4096];
     vsnprintf(buffer, sizeof(buffer), format, args);
-    
+
     std::string formatted_msg = formatMessage(level, std::string(buffer));
-    
+
     std::lock_guard<std::mutex> lock(mutex_);
-    
-    // Always output to stderr for warnings and errors
-    if (level == LogLevel::WARNING || level == LogLevel::ERROR) {
-        std::cerr << formatted_msg << std::endl;
-    }
-    
+
+    // Always output to stdout
+    fprintf(stdout, "%s\n", formatted_msg.c_str());
+    fflush(stdout);
+
     // Write to file if available
     if (log_file_ && log_file_->is_open()) {
         *log_file_ << formatted_msg << std::endl;
