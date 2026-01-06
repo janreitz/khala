@@ -714,7 +714,7 @@ std::vector<Item> convert_file_results_to_items(
                 });
             }
         } catch (const std::exception &e) {
-            printf("Could not make canonical path for %s: %s\n",
+            LOG_WARNING("Could not make canonical path for %s: %s",
                    result.path.c_str(), e.what());
         }
     }

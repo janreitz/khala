@@ -1,5 +1,6 @@
 #include "indexer.h"
 #include "utility.h"
+#include "logger.h"
 
 #include <atomic>
 #include <cstdio>
@@ -70,7 +71,7 @@ scan_filesystem_parallel(const fs::path &root_path,
             }
         }
     } catch (const fs::filesystem_error &e) {
-        fprintf(stderr, "Error reading root: %s\n", e.what());
+        LOG_ERROR("Error reading root: %s", e.what());
         return result;
     }
 
@@ -144,7 +145,7 @@ void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
     try {
         to_expand.push_back(fs::canonical(root_path));
     } catch (const fs::filesystem_error &e) {
-        fprintf(stderr, "Error reading root: %s\n", e.what());
+        LOG_ERROR("Error reading root: %s", e.what());
         return;
     }
 
@@ -182,7 +183,7 @@ void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
         std::min(work_units.size(),
                  static_cast<size_t>(std::thread::hardware_concurrency()));
 
-    printf("Number of work units %ld, hardware_concurrency: %d, number of threads: %ld\n", work_units.size(), std::thread::hardware_concurrency(), num_threads);
+    LOG_DEBUG("Number of work units %ld, hardware_concurrency: %d, number of threads: %ld", work_units.size(), std::thread::hardware_concurrency(), num_threads);
     workers.reserve(num_threads);
 
     for (size_t i = 0; i < num_threads; i++) {

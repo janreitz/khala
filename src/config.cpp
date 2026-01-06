@@ -1,5 +1,6 @@
 // config.cpp
 #include "config.h"
+#include "logger.h"
 
 #include <charconv>
 #include <cstdint>
@@ -267,12 +268,12 @@ void load_theme(const std::string &theme_name,
             get_color_or(map, "selection_description_color",
                          config.selection_description_color);
 
-        printf("Loaded theme '%s' from %s\n", theme_name.c_str(),
+        LOG_INFO("Loaded theme '%s' from %s", theme_name.c_str(),
                theme_file.generic_string().c_str());
         return; // Found and loaded, return immediately
     }
 
-    printf("Warning: Theme '%s' not found, using built-in defaults\n",
+    LOG_WARNING("Theme '%s' not found, using built-in defaults",
            theme_name.c_str());
 }
 
@@ -397,6 +398,6 @@ void Config::save(const fs::path &path) const
 
     file.flush();
 
-    printf("Written config to %s",
+    LOG_INFO("Written config to %s",
            fs::canonical(path).generic_string().c_str());
 }
