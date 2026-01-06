@@ -358,12 +358,25 @@ static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t, wl_fi
     // Scroll events
 }
 
+static void pointer_frame_handler(void*, wl_pointer*){}
+static void pointer_axis_source_handler(void*, wl_pointer*, uint32_t axis_source){}
+static void pointer_axis_stop_handler(void*, wl_pointer*, uint32_t axis, uint32_t time){}
+static void pointer_axis_discrete_handler(void*, wl_pointer*, uint32_t axis, int32_t discrete){}
+static void pointer_axis_value120_handler(void*, wl_pointer*, uint32_t axis, int32_t value120){}
+static void pointer_axis_relative_direction_handler(void*, wl_pointer*, uint32_t axis, uint32_t direction){}
+
 static const wl_pointer_listener pointer_listener = {
     .enter = pointer_enter_handler,
     .leave = pointer_leave_handler,
     .motion = pointer_motion_handler,
     .button = pointer_button_handler,
     .axis = pointer_axis_handler,
+    .frame = pointer_frame_handler,
+    .axis_source = pointer_axis_source_handler,
+    .axis_stop = pointer_axis_stop_handler,
+    .axis_discrete = pointer_axis_discrete_handler,
+    .axis_value120 = pointer_axis_value120_handler,
+    .axis_relative_direction = pointer_axis_relative_direction_handler,
 };
 
 // Seat listener - handles input device capabilities
