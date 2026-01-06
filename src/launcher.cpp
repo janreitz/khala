@@ -36,7 +36,7 @@ int main()
         try {
             config.save(config.config_path);
         } catch (const std::exception &e) {
-            printf("Could not write config to %s: %s",
+            LOG_ERROR("Could not write config to %s: %s",
                    config.config_path.c_str(), e.what());
         }
     });
@@ -63,7 +63,7 @@ int main()
     StreamingIndex streaming_index;
     std::vector<indexer::DesktopApp> desktop_apps =
         indexer::scan_desktop_files();
-    printf("Loaded %zu desktop apps\n", desktop_apps.size());
+    LOG_INFO("Loaded %zu desktop apps", desktop_apps.size());
 
     // Communication channels
     LastWriterWinsSlot<ResultUpdate> result_updates;
@@ -76,7 +76,7 @@ int main()
     std::atomic_bool query_changed{true}; // Signal initial processing
     std::atomic_bool should_exit{false};
 
-    printf("Loading index for %s...\n",
+    LOG_INFO("Loading index for %s...",
            fs::canonical(config.index_root).generic_string().c_str());
 
     // Launch streaming indexer
@@ -84,7 +84,7 @@ int main()
         indexer::scan_filesystem_streaming(config.index_root, streaming_index,
                                            config.ignore_dirs,
                                            config.ignore_dir_names, 10'000);
-        printf("Scan complete - %zu total files\n",
+        LOG_INFO("Scan complete - %zu total files",
                streaming_index.get_total_files());
     });
 
@@ -140,7 +140,7 @@ int main()
                     }
                 }
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
-                printf("Selected: %s\n",
+                LOG_DEBUG("Selected: %s",
                        state.get_selected_item().title.c_str());
                 state.set_error(process_command(state.get_selected_item().command, config));
                 if (!state.has_error() && config.quit_on_action) {

@@ -5,6 +5,7 @@
 #include "window.h"
 
 #include <cairo.h>
+#include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 #include <wayland-client.h>
 #include <xdg-activation-v1-client-protocol.h>
@@ -31,7 +32,7 @@ int create_anonymous_file(size_t size)
     }
 
     std::string name = std::string(path) + "/khala-shm-XXXXXX";
-    int fd = mkstemp(&name[0]);
+    const int fd = mkstemp(&name[0]);
     if (fd < 0) {
         throw std::runtime_error("Failed to create temporary file");
     }
@@ -425,7 +426,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     wl_display_roundtrip(display);
 
     // Request focus using XDG Activation
-    const char *env_token = getenv("XDG_ACTIVATION_TOKEN");
+    const char *env_token = std::getenv("XDG_ACTIVATION_TOKEN");
     if (activation_protocol) {
         if (env_token && env_token[0] != '\0') {
             // Use provided token from environment

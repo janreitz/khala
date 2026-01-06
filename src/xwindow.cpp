@@ -1,6 +1,7 @@
 #include "xwindow.h"
 #include "ui.h"
 #include "utility.h"
+#include "logger.h"
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -31,22 +32,22 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
     // Check if XRandR extension is available
     int xrandr_event_base, xrandr_error_base;
     if (!XRRQueryExtension(display, &xrandr_event_base, &xrandr_error_base)) {
-        printf("XRandR extension not available\n");
+        LOG_WARNING("XRandR extension not available");
         return info;
     }
 
     // Check XRandR version
     int major_version, minor_version;
     if (!XRRQueryVersion(display, &major_version, &minor_version)) {
-        printf("XRandR version query failed\n");
+        LOG_WARNING("XRandR version query failed");
         return info;
     }
 
-    printf("XRandR version: %d.%d\n", major_version, minor_version);
+    LOG_INFO("XRandR version: %d.%d", major_version, minor_version);
 
     // We need at least XRandR 1.2 for monitor info
     if (major_version < 1 || (major_version == 1 && minor_version < 2)) {
-        printf("XRandR version too old (need 1.2+)\n");
+        LOG_WARNING("XRandR version too old (need 1.2+)");
         return info;
     }
 
@@ -55,7 +56,7 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
     // Get screen resources
     XRRScreenResources *screen_resources = XRRGetScreenResources(display, root);
     if (!screen_resources) {
-        printf("Failed to get XRandR screen resources\n");
+        LOG_ERROR("Failed to get XRandR screen resources");
         return info;
     }
 
@@ -64,7 +65,7 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
 
     // If no primary is set, use the first connected output
     if (primary == None) {
-        printf("No primary output set, looking for first connected output\n");
+        LOG_INFO("No primary output set, looking for first connected output");
         for (int i = 0; i < screen_resources->noutput; i++) {
             XRROutputInfo *output_info = XRRGetOutputInfo(
                 display, screen_resources, screen_resources->outputs[i]);
@@ -125,10 +126,10 @@ XWindow::XWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension)
         primary_screen_height = primary_monitor.height;
         primary_screen_x = primary_monitor.x;
         primary_screen_y = primary_monitor.y;
-        printf("Using XRandR primary monitor info\n");
+        LOG_INFO("Using XRandR primary monitor info");
     } else {
         // Fallback to heuristics
-        printf("Falling back to heuristic monitor detection\n");
+        LOG_INFO("Falling back to heuristic monitor detection");
         const int total_width = DisplayWidth(display, screen);
         const int total_height = DisplayHeight(display, screen);
 
@@ -170,9 +171,9 @@ XWindow::XWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension)
         primary_screen_y + static_cast<int>(primary_screen_height * top_left.y);
 
     // Debug output
-    printf("Primary monitor: %dx%d at (%d,%d)\n", primary_screen_width,
+    LOG_DEBUG("Primary monitor: %dx%d at (%d,%d)", primary_screen_width,
            primary_screen_height, primary_screen_x, primary_screen_y);
-    printf("Window: %dx%d at (%d,%d)\n", width, height, x, y);
+    LOG_DEBUG("Window: %dx%d at (%d,%d)", width, height, x, y);
 
     XVisualInfo vinfo;
     XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo);
