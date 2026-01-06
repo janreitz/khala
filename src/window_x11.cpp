@@ -1,9 +1,9 @@
 #ifdef PLATFORM_X11
 
-#include "window.h"
+#include "logger.h"
 #include "ui.h"
 #include "utility.h"
-#include "logger.h"
+#include "window.h"
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -107,7 +107,8 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
 
 } // anonymous namespace
 
-PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord dimension)
+PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
+                               ui::RelScreenCoord dimension)
 {
     display = XOpenDisplay(nullptr);
     if (!display) {
@@ -120,7 +121,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
     int primary_screen_width, primary_screen_height;
     int primary_screen_x = 0, primary_screen_y = 0;
 
-    const MonitorInfo primary_monitor = get_primary_monitor_xrandr(display, screen);
+    const MonitorInfo primary_monitor =
+        get_primary_monitor_xrandr(display, screen);
 
     if (primary_monitor.found) {
         // Use XRandR info
@@ -174,7 +176,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left, ui::RelScreenCoord d
 
     // Debug output
     LOG_DEBUG("Primary monitor: %dx%d at (%d,%d)", primary_screen_width,
-           primary_screen_height, primary_screen_x, primary_screen_y);
+              primary_screen_height, primary_screen_x, primary_screen_y);
     LOG_DEBUG("Window: %dx%d at (%d,%d)", width, height, x, y);
 
     XVisualInfo vinfo;
@@ -221,22 +223,44 @@ PlatformWindow::~PlatformWindow()
             XFreeColormap(display, colormap);
         XCloseDisplay(display);
     }
+    if (cached_surface) {
+        cairo_surface_destroy(cached_surface);
+    }
 }
 
-void PlatformWindow::resize(unsigned int new_height, unsigned int new_width) {
+void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
+{
     XResizeWindow(display, window, new_width, new_height);
     height = new_height;
     width = new_width;
 }
 
-cairo_surface_t* PlatformWindow::create_cairo_surface(unsigned int height, unsigned int width) {
+cairo_surface_t *PlatformWindow::get_cairo_surface(int h,
+                                                   int w)
+{
+    if (cached_surface && width == w && height == h) {
+        return cached_surface;
+    }
+
+    // Dimensions changed—recreate
+    if (cached_surface) {
+        cairo_surface_destroy(cached_surface);
+        cached_surface = nullptr;
+    }
+
+    cached_surface = create_cairo_surface(h, w);
+    return cached_surface;
+}
+
+cairo_surface_t *PlatformWindow::create_cairo_surface(int height,
+                                                      int width)
+{
     XWindowAttributes window_attrs;
     XGetWindowAttributes(display, window, &window_attrs);
     Visual *visual = window_attrs.visual;
 
     // Create Cairo surface for X11 window
-    return cairo_xlib_surface_create(
-        display, window, visual, width, height);
+    return cairo_xlib_surface_create(display, window, visual, width, height);
 }
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
