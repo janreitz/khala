@@ -87,6 +87,8 @@ class PlatformWindow
     cairo_surface_t *create_cairo_surface(int h, int w);
 
     cairo_surface_t *cached_surface = nullptr;
+    int cached_surface_width = 0;
+    int cached_surface_height = 0;
     Display *display;
     ::Window window;
     Colormap colormap;
