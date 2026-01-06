@@ -171,6 +171,7 @@ add_executable(indexer_benchmark
     src/indexer_benchmark.cpp
     src/config.cpp
     src/indexer.cpp
+    src/logger.cpp
     src/ranker.cpp
     src/streamingindex.cpp
     src/utility.cpp
