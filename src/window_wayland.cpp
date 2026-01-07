@@ -226,7 +226,7 @@ void activation_token_done_handler(void *data, xdg_activation_token_v1 *token,
     PlatformWindow *win = static_cast<PlatformWindow *>(data);
 
     // Use token to request focus
-    if (win->activation_protocol && win->surface) {
+    if (win->activation_protocol != nullptr && win->surface != nullptr) {
         xdg_activation_v1_activate(win->activation_protocol, token_str,
                                    win->surface);
     }
@@ -262,20 +262,20 @@ void keyboard_keymap_handler(void *data, wl_keyboard *, uint32_t format, int fd,
     munmap(map_shm, size);
     close(fd);
 
-    if (!new_keymap) {
+    if (new_keymap == nullptr) {
         return;
     }
 
     xkb_state *new_state = xkb_state_new(new_keymap);
-    if (!new_state) {
+    if (new_state == nullptr) {
         xkb_keymap_unref(new_keymap);
         return;
     }
 
-    if (win->kb_state) {
+    if (win->kb_state != nullptr) {
         xkb_state_unref(win->kb_state);
     }
-    if (win->keymap) {
+    if (win->keymap != nullptr) {
         xkb_keymap_unref(win->keymap);
     }
 
@@ -304,13 +304,13 @@ void keyboard_key_handler(void *data, wl_keyboard *, uint32_t, uint32_t,
         return; // Only handle key press
     }
 
-    if (!win->kb_state) {
+    if (win->kb_state == nullptr) {
         return;
     }
 
     // XKB uses key + 8 for keycodes
-    xkb_keycode_t keycode = key + 8;
-    xkb_keysym_t keysym = xkb_state_key_get_one_sym(win->kb_state, keycode);
+    const xkb_keycode_t keycode = key + 8;
+    const xkb_keysym_t keysym = xkb_state_key_get_one_sym(win->kb_state, keycode);
 
     // Map XKB keysyms to our KeyCode enum
     ui::KeyboardEvent event;
@@ -1032,7 +1032,7 @@ void PlatformWindow::commit_surface()
     cairo_surface_flush(cairo_surface);
 
     // Commit buffer to Wayland compositor
-    if (current_buffer && surface) {
+    if (current_buffer != nullptr && surface != nullptr) {
         // Transition: DRAWING -> SUBMITTED
         current_buffer->state = WaylandBuffer::State::SUBMITTED;
 
