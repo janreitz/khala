@@ -29,8 +29,8 @@ struct WaylandBuffer {
     int shm_fd;
     cairo_surface_t* cairo_surface;
 
-    int width;
-    int height;
+    unsigned int width;
+    unsigned int height;
     size_t size;
 
     enum class State {
@@ -124,7 +124,7 @@ class PlatformWindow
     ::Window window;
     Colormap colormap;
 #elif defined(PLATFORM_WAYLAND)
-    cairo_surface_t *create_cairo_surface(int h, int w);
+    cairo_surface_t *create_cairo_surface(unsigned int h, unsigned int w);
     cairo_surface_t *get_cairo_surface();
     bool surface_cache_valid() const;
 
@@ -175,9 +175,9 @@ class PlatformWindow
     uint64_t frame_counter;
 
     // Buffer pool management methods
-    WaylandBuffer* allocate_buffer(int width, int height);
-    WaylandBuffer* find_free_buffer(int width, int height);
-    void create_wl_buffer(WaylandBuffer& buf, int w, int h);
+    WaylandBuffer* allocate_buffer(unsigned int width, unsigned int height);
+    WaylandBuffer* find_free_buffer(unsigned int width, unsigned int height);
+    void create_wl_buffer(WaylandBuffer& buf, unsigned int w, unsigned int h);
     void cleanup_old_buffers();
     void destroy_buffer(WaylandBuffer& buf);
 
