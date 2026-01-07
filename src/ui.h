@@ -27,6 +27,8 @@ constexpr double ITEM_VERTICAL_PADDING = 8.0;    // Vertical padding for each it
 int calculate_abs_input_height(int font_size);
 int calculate_abs_item_height(int font_size);
 size_t calculate_max_visible_items(int window_height, int font_size);
+unsigned int calculate_window_height(int font_size, size_t item_count,
+                                     size_t max_visible_items);
 
 struct Item {
     std::string title;
@@ -105,6 +107,7 @@ size_t required_item_count(const State &state, size_t max_visible_items);
 std::vector<Item> convert_file_results_to_items(
     const std::vector<FileResult> &file_results);
 
-void draw(PlatformWindow &window, const Config &config, const State &state);
+void draw(cairo_t *cr, int window_width, int window_height,
+          const Config &config, const State &state);
 
 } // namespace ui

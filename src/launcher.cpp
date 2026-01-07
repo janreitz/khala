@@ -255,8 +255,24 @@ int main()
 
         // Render UI
         if (redraw) {
-            ui::draw(window, config, state);
-            window.commit_surface();
+            // Calculate and apply window resize before getting context
+            const int max_height =
+                static_cast<int>(window.get_screen_height() * config.height_ratio);
+            const size_t max_visible_items =
+                ui::calculate_max_visible_items(max_height, config.font_size);
+            const unsigned int new_height = ui::calculate_window_height(
+                config.font_size, state.items.size(), max_visible_items);
+
+            if (new_height != window.get_height()) {
+                window.resize(new_height, window.get_width());
+            }
+
+            // Get context and draw
+            cairo_t *cr = window.get_cairo_context();
+            if (cr) {
+                ui::draw(cr, window.get_width(), window.get_height(), config, state);
+                window.commit_surface();
+            }
             redraw = false;
         }
     }

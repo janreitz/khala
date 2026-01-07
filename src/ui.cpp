@@ -227,35 +227,11 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
     cairo_close_path(cr);
 }
 
-void draw(PlatformWindow &window, const Config &config, const State &state)
+void draw(cairo_t *cr, int window_width, int window_height,
+          const Config &config, const State &state)
 {
-    const double content_width = window.get_width() - 2.0 * BORDER_WIDTH;
-    // Calculate window height based on item count and max window height
-    const int max_height =
-        static_cast<int>(window.get_screen_height() * config.height_ratio);
-    const size_t max_visible_items =
-        calculate_max_visible_items(max_height, config.font_size);
-    const unsigned int new_height = calculate_window_height(
-        config.font_size, state.items.size(), max_visible_items);
-
-    if (new_height != window.get_height()) {
-        window.resize(new_height, window.get_width());
-    }
-
-    cairo_surface_t *surface = window.get_cairo_surface();
-    if (!surface) {
-        LOG_ERROR("UI: Failed to get Cairo surface");
-        return; // Failed to create surface
-    }
-
-    // Create Cairo context
-    LOG_DEBUG("UI: Creating Cairo context");
-    cairo_t *cr = cairo_create(surface);
-    if (!cr || cairo_status(cr) != CAIRO_STATUS_SUCCESS) {
-        LOG_ERROR("UI: Failed to create Cairo context, status: %d", cr ? cairo_status(cr) : -1);
-        return; // Failed to create context
-    }
-    const defer cleanup_cr([cr]() noexcept { cairo_destroy(cr); });
+    const double content_width = window_width - 2.0 * BORDER_WIDTH;
+    const size_t max_visible_items = calculate_max_visible_items(window_height, config.font_size);
 
     // Create Pango layout for text rendering
     PangoLayout *layout = pango_cairo_create_layout(cr);
@@ -272,7 +248,7 @@ void draw(PlatformWindow &window, const Config &config, const State &state)
 
     // Draw background
     set_color(cr, config.background_color);
-    draw_rounded_rect(cr, 0, 0, window.get_width(), window.get_height(), CORNER_RADIUS,
+    draw_rounded_rect(cr, 0, 0, window_width, window_height, CORNER_RADIUS,
                       Corner::All);
     cairo_fill(cr);
 

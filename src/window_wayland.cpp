@@ -692,6 +692,11 @@ PlatformWindow::~PlatformWindow()
         wl_display_disconnect(display);
     }
 
+    if (cached_context) {
+        cairo_destroy(cached_context);
+        cached_context = nullptr;
+    }
+
     if (cached_surface) {
         // Don't destroy - already destroyed in buffer pool cleanup
         cached_surface = nullptr;
@@ -884,10 +889,7 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
 cairo_surface_t *PlatformWindow::get_cairo_surface()
 {
     // Check if we have current buffer with matching dimensions
-    if (current_buffer &&
-        current_buffer->width == width &&
-        current_buffer->height == height &&
-        current_buffer->state == WaylandBuffer::State::DRAWING) {
+    if (surface_cache_valid()) {
         // Cache hit - return existing buffer
         return current_buffer->cairo_surface;
     }
@@ -899,23 +901,61 @@ cairo_surface_t *PlatformWindow::get_cairo_surface()
 
     // Allocate new buffer from pool
     cached_surface = create_cairo_surface(height, width);
-    cached_surface_width = width;
-    cached_surface_height = height;
 
     return cached_surface;
 }
 
+cairo_t *PlatformWindow::get_cairo_context()
+{
+    if (surface_cache_valid() && cached_context) {
+        return cached_context;
+    }
+    
+    // If surface changed, destroy old context and create new one
+    if (cached_context) {
+        cairo_destroy(cached_context);
+        cached_context = nullptr;
+    }
+    
+    // Get the current surface
+    cairo_surface_t *surface = get_cairo_surface();
+
+    // Create context if we don't have one
+    cached_context = cairo_create(surface);
+    if (!cached_context || cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
+        LOG_ERROR("Failed to create Cairo context, status: %d",
+                    cached_context ? cairo_status(cached_context) : -1);
+        if (cached_context) {
+            cairo_destroy(cached_context);
+            cached_context = nullptr;
+        }
+        return nullptr;
+    }
+    LOG_DEBUG("Created new Cairo context");
+
+    return cached_context;
+}
+
 bool PlatformWindow::surface_cache_valid() const
 {
-    if (cached_surface == nullptr) {
-        LOG_DEBUG("Surface cache miss: cached_surface == nullptr");
+    if (!current_buffer) {
+        LOG_DEBUG("Surface cache miss: no buffer");
         return false;
     }
-
-    if (cached_surface_width != width || cached_surface_height != height) {
+    
+    if (current_buffer->width != width || current_buffer->height != height) {
         LOG_DEBUG("Surface cache miss: dimensions changed (cached: %ux%u "
                   "window: %ux%u)",
-                  cached_surface_width, cached_surface_height, width, height);
+                  current_buffer->width, current_buffer->height, width, height);
+        return false;
+    }
+    if (current_buffer->state != WaylandBuffer::State::DRAWING) {
+        LOG_DEBUG("Surface cache miss: current_buffer->state != WaylandBuffer::State::DRAWING");
+        return false;
+    }
+    
+    if (cached_surface == nullptr) {
+        LOG_DEBUG("Surface cache miss: cached_surface == nullptr");
         return false;
     }
 
