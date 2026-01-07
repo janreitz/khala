@@ -266,12 +266,14 @@ int main()
             if (new_height != window.get_height()) {
                 window.resize(new_height, window.get_width());
             }
-
-            // Get context and draw
-            cairo_t *cr = window.get_cairo_context();
-            if (cr) {
+            try {
+                // Get context and draw
+                cairo_t *cr = window.get_cairo_context();
                 ui::draw(cr, window.get_width(), window.get_height(), config, state);
                 window.commit_surface();
+            } catch (const std::exception& e) {
+                LOG_ERROR("Failed to render UI: %s", e.what());
+                // Continue running - don't crash on render failure
             }
             redraw = false;
         }

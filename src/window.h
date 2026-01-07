@@ -60,9 +60,11 @@ class PlatformWindow
     // The context and underlying surface are owned by PlatformWindow
     // Caller must not destroy the returned context
     // Context may be invalidated by resize() - always get fresh context before drawing
+    // Throws std::runtime_error if context creation fails
     cairo_t* get_cairo_context();
     // Commits the rendered surface to display
     // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)
+    // Throws std::runtime_error if surface/buffer is unavailable
     void commit_surface();
     std::vector<ui::UserInputEvent> get_input_events(bool blocking = true);
 
