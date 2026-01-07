@@ -59,6 +59,7 @@ class PlatformWindow
     // Returns cairo context for drawing
     // The context and underlying surface are owned by PlatformWindow
     // Caller must not destroy the returned context
+    // Context may be invalidated by resize() - always get fresh context before drawing
     cairo_t* get_cairo_context();
     // Commits the rendered surface to display
     // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)
@@ -115,8 +116,6 @@ class PlatformWindow
 
     cairo_surface_t *cached_surface = nullptr;
     cairo_t *cached_context = nullptr;
-    int cached_surface_width = 0;
-    int cached_surface_height = 0;
     Display *display;
     ::Window window;
     Colormap colormap;
@@ -163,8 +162,6 @@ class PlatformWindow
     // Shared memory buffer for rendering
     cairo_surface_t *cached_surface = nullptr;
     cairo_t *cached_context = nullptr;
-    int cached_surface_width = 0;
-    int cached_surface_height = 0;
     wl_shm *shm;
 
     // Buffer pool for proper Wayland buffer lifecycle management
