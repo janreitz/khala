@@ -242,10 +242,9 @@ void draw(PlatformWindow &window, const Config &config, const State &state)
         window.resize(new_height, window.get_width());
     }
 
-    LOG_DEBUG("UI: Creating Cairo surface for window %ux%u", window.get_width(), window.get_height());
     cairo_surface_t *surface = window.get_cairo_surface();
     if (!surface) {
-        LOG_ERROR("UI: Failed to create Cairo surface");
+        LOG_ERROR("UI: Failed to get Cairo surface");
         return; // Failed to create surface
     }
 
