@@ -19,6 +19,12 @@ struct OpenFile {
 struct OpenDirectory {
     fs::path path;
 };
+struct RemoveFile {
+    fs::path path;
+};
+struct RemoveFileRecursive {
+    fs::path path;
+};
 struct CopyPathToClipboard {
     fs::path path;
 };
@@ -40,7 +46,7 @@ struct CustomCommand {
     bool stdout_to_clipboard = false;
 };
 
-using Command = std::variant<OpenFile, OpenDirectory,
+using Command = std::variant<OpenFile, OpenDirectory, RemoveFile, RemoveFileRecursive,
                              CopyPathToClipboard, CopyContentToClipboard,
                              CopyISOTimestamp, CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
