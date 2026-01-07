@@ -1,0 +1,41 @@
+name: Ubuntu
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [x11, wayland]
+
+    name: Build (${{ matrix.platform }})
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          libtbb-dev \
+          libcairo2-dev \
+          libpango1.0-dev \
+          libx11-dev \
+          libxrandr-dev \
+          libwayland-dev \
+          wayland-protocols \
+          libxkbcommon-dev \
+          pkg-config
+
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DPLATFORM=${{ matrix.platform }}
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
