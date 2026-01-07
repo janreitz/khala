@@ -324,15 +324,15 @@ Config Config::load(const fs::path &path)
                 if (entry.path().extension() != ".ini")
                     continue;
 
-                auto map = parse_ini(entry.path());
+                auto command_map = parse_ini(entry.path());
 
                 const bool is_file_action =
-                    get_bool_or(map, "is_file_action", false);
+                    get_bool_or(command_map, "is_file_action", false);
                 const bool stdout_to_clipboard =
-                    get_bool_or(map, "stdout_to_clipboard", false);
-                std::string title = get_string_or(map, "title", "");
-                std::string description = get_string_or(map, "description", "");
-                std::string shell_cmd = get_string_or(map, "shell_cmd", "");
+                    get_bool_or(command_map, "stdout_to_clipboard", false);
+                std::string title = get_string_or(command_map, "title", "");
+                std::string description = get_string_or(command_map, "description", "");
+                std::string shell_cmd = get_string_or(command_map, "shell_cmd", "");
 
                 if (title.empty() || shell_cmd.empty())
                     continue;
