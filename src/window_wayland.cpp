@@ -40,7 +40,7 @@ int create_anonymous_file(size_t size)
 
     unlink(name.c_str());
 
-    if (ftruncate(fd, size) < 0) {
+    if (ftruncate(fd, static_cast<off_t>(size)) < 0) {
         close(fd);
         throw std::runtime_error("Failed to truncate file");
     }
@@ -185,9 +185,10 @@ static const xdg_surface_listener my_xdg_surface_listener = {
 void toplevel_configure_handler(void *data, xdg_toplevel *, int32_t width,
                                 int32_t height, wl_array *)
 {
-    auto win = static_cast<PlatformWindow *>(data);
+    auto* win = static_cast<PlatformWindow *>(data);
     if (width > 0 && height > 0) {
-        win->resize(height, width);
+        win->resize(static_cast<unsigned int>(width),
+                    static_cast<unsigned int>(height));
     }
 }
 
@@ -199,9 +200,10 @@ static void toplevel_close_handler(void *, xdg_toplevel *)
 static void toplevel_configure_bounds_handler(void *data, xdg_toplevel *,
                                               int32_t width, int32_t height)
 {
-    auto win = static_cast<PlatformWindow *>(data);
+    auto* win = static_cast<PlatformWindow *>(data);
     if (width > 0 && height > 0) {
-        win->resize(height, width);
+        win->resize(static_cast<unsigned int>(width),
+                    static_cast<unsigned int>(height));
     }
 }
 
@@ -401,11 +403,11 @@ static const wl_keyboard_listener keyboard_listener = {
     .modifiers = keyboard_modifiers_handler,
     .repeat_info = keyboard_repeat_info_handler};
 
-void pointer_enter_handler(void *data, wl_pointer *pointer, uint32_t serial,
-                           wl_surface *surface, wl_fixed_t sx, wl_fixed_t sy)
+void pointer_enter_handler(void *data, wl_pointer *, uint32_t serial,
+                           wl_surface *, wl_fixed_t , wl_fixed_t )
 {
     PlatformWindow *win = static_cast<PlatformWindow *>(data);
-    win->pointer_serial = serial; // Store this!
+    win->pointer_serial = serial;
     LOG_INFO("Pointer entered surface");
 }
 
@@ -420,8 +422,8 @@ static void pointer_motion_handler(void *, wl_pointer *, uint32_t, wl_fixed_t,
     // Track mouse position if needed
 }
 
-static void pointer_button_handler(void *data, wl_pointer *, uint32_t serial,
-                                   uint32_t time, uint32_t button,
+static void pointer_button_handler(void *, wl_pointer *, uint32_t,
+                                   uint32_t, uint32_t button,
                                    uint32_t state)
 {
     LOG_INFO("Pointer button: %u, state: %u", button, state);
@@ -436,24 +438,24 @@ static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t,
 
 static void pointer_frame_handler(void *, wl_pointer *) {}
 static void pointer_axis_source_handler(void *, wl_pointer *,
-                                        uint32_t axis_source)
+                                        uint32_t)
 {
 }
-static void pointer_axis_stop_handler(void *, wl_pointer *, uint32_t axis,
-                                      uint32_t time)
+static void pointer_axis_stop_handler(void *, wl_pointer *, uint32_t,
+                                      uint32_t)
 {
 }
-static void pointer_axis_discrete_handler(void *, wl_pointer *, uint32_t axis,
-                                          int32_t discrete)
+static void pointer_axis_discrete_handler(void *, wl_pointer *, uint32_t,
+                                          int32_t)
 {
 }
-static void pointer_axis_value120_handler(void *, wl_pointer *, uint32_t axis,
-                                          int32_t value120)
+static void pointer_axis_value120_handler(void *, wl_pointer *, uint32_t,
+                                          int32_t)
 {
 }
 static void pointer_axis_relative_direction_handler(void *, wl_pointer *,
-                                                    uint32_t axis,
-                                                    uint32_t direction)
+                                                    uint32_t,
+                                                    uint32_t)
 {
 }
 
@@ -507,7 +509,7 @@ static const wl_seat_listener seat_listener = {
     .capabilities = seat_capabilities_handler, .name = seat_name_handler};
 
 // Buffer listener - handles buffer release events from compositor
-static void buffer_release_handler(void* data, wl_buffer* wl_buf)
+static void buffer_release_handler(void* data, wl_buffer*)
 {
     auto* buffer_entry = static_cast<WaylandBuffer*>(data);
     LOG_DEBUG("Buffer released: %dx%d", buffer_entry->width, buffer_entry->height);
@@ -520,7 +522,7 @@ static const wl_buffer_listener buffer_listener = {
 
 // PlatformWindow implementation
 
-PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
+PlatformWindow::PlatformWindow(ui::RelScreenCoord,
                                ui::RelScreenCoord dimension)
     : display(nullptr), compositor(nullptr), surface(nullptr), seat(nullptr),
       keyboard(nullptr), pointer(nullptr), xdg_shell(nullptr),
@@ -572,7 +574,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     // listener)
     const auto &[output, info] = *output_infos.begin();
     LOG_INFO("Using first output by default");
-    width = static_cast<int>(info.width * dimension.x);
+    width = static_cast<unsigned int>(info.width * dimension.x);
     height = static_cast<unsigned int>(info.height * dimension.y);
     LOG_INFO("Wayland window: %dx%d", width, height);
 
@@ -594,8 +596,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     xdg_toplevel_set_app_id(toplevel, "com.khala.launcher");
 
     // Set window size constraints based on actual screen resolution
-    xdg_toplevel_set_min_size(toplevel, width, height);
-    xdg_toplevel_set_max_size(toplevel, width, height);
+    xdg_toplevel_set_min_size(toplevel, static_cast<int>(width), static_cast<int>(height));
+    xdg_toplevel_set_max_size(toplevel, static_cast<int>(width), static_cast<int>(height));
 
     // Commit surface to trigger configure
     wl_surface_commit(surface);
@@ -705,10 +707,10 @@ PlatformWindow::~PlatformWindow()
 
 // Buffer pool management methods
 
-void PlatformWindow::create_wl_buffer(WaylandBuffer& buf, int w, int h)
+void PlatformWindow::create_wl_buffer(WaylandBuffer& buf, unsigned int w, unsigned int h)
 {
-    const size_t stride = w * 4;
-    const size_t buffer_size = stride * h;
+    const auto stride = w * 4;
+    const auto buffer_size = stride * h;
 
     // Create anonymous file
     buf.shm_fd = create_anonymous_file(buffer_size);
@@ -725,7 +727,7 @@ void PlatformWindow::create_wl_buffer(WaylandBuffer& buf, int w, int h)
     }
 
     // Create wl_shm_pool and wl_buffer
-    wl_shm_pool* pool = wl_shm_create_pool(shm, buf.shm_fd, buffer_size);
+    wl_shm_pool* pool = wl_shm_create_pool(shm, buf.shm_fd, static_cast<int32_t>(buffer_size));
     if (!pool) {
         munmap(buf.shm_data, buffer_size);
         close(buf.shm_fd);
@@ -733,7 +735,7 @@ void PlatformWindow::create_wl_buffer(WaylandBuffer& buf, int w, int h)
     }
 
     buf.wl_buffer_obj = wl_shm_pool_create_buffer(
-        pool, 0, w, h, stride, WL_SHM_FORMAT_ARGB8888);
+        pool, 0, static_cast<int32_t>(w), static_cast<int32_t>(h), static_cast<int32_t>(stride), WL_SHM_FORMAT_ARGB8888);
     wl_shm_pool_destroy(pool);  // Can destroy pool immediately
 
     if (!buf.wl_buffer_obj) {
@@ -748,7 +750,7 @@ void PlatformWindow::create_wl_buffer(WaylandBuffer& buf, int w, int h)
     // Create Cairo surface
     buf.cairo_surface = cairo_image_surface_create_for_data(
         static_cast<unsigned char*>(buf.shm_data),
-        CAIRO_FORMAT_ARGB32, w, h, stride);
+        CAIRO_FORMAT_ARGB32, static_cast<int32_t>(w), static_cast<int32_t>(h), static_cast<int32_t>(stride));
 
     if (cairo_surface_status(buf.cairo_surface) != CAIRO_STATUS_SUCCESS) {
         wl_buffer_destroy(buf.wl_buffer_obj);
@@ -764,7 +766,7 @@ void PlatformWindow::create_wl_buffer(WaylandBuffer& buf, int w, int h)
     buf.state = WaylandBuffer::State::FREE;
     buf.last_used_frame = 0;
 
-    LOG_DEBUG("Created buffer: %dx%d (%zu bytes)", w, h, buffer_size);
+    LOG_DEBUG("Created buffer: %dx%d (%u bytes)", w, h, buffer_size);
 }
 
 void PlatformWindow::destroy_buffer(WaylandBuffer& buf)
@@ -792,12 +794,12 @@ void PlatformWindow::destroy_buffer(WaylandBuffer& buf)
     }
 }
 
-WaylandBuffer* PlatformWindow::find_free_buffer(int width, int height)
+WaylandBuffer* PlatformWindow::find_free_buffer(unsigned int buf_width, unsigned int buf_height)
 {
     for (auto& buf : buffer_pool) {
         if (buf.state == WaylandBuffer::State::FREE &&
-            buf.width == width &&
-            buf.height == height) {
+            buf.width == buf_width &&
+            buf.height == buf_height) {
             return &buf;
         }
     }
@@ -834,12 +836,12 @@ void PlatformWindow::cleanup_old_buffers()
     }
 }
 
-WaylandBuffer* PlatformWindow::allocate_buffer(int width, int height)
+WaylandBuffer* PlatformWindow::allocate_buffer(unsigned int buf_width, unsigned int buf_height)
 {
     // Step 1: Try to find existing FREE buffer with matching dimensions
-    WaylandBuffer* buf = find_free_buffer(width, height);
+    WaylandBuffer* buf = find_free_buffer(buf_width, buf_height);
     if (buf != nullptr) {
-        LOG_DEBUG("Reusing existing buffer: %dx%d", width, height);
+        LOG_DEBUG("Reusing existing buffer: %dx%d", buf_width, buf_height);
         buf->state = WaylandBuffer::State::DRAWING;
         buf->last_used_frame = frame_counter++;
         return buf;
@@ -848,11 +850,11 @@ WaylandBuffer* PlatformWindow::allocate_buffer(int width, int height)
     // Step 2: If pool not full, create new buffer
     if (buffer_pool.size() < MAX_BUFFERS) {
         LOG_DEBUG("Creating new buffer in pool: %dx%d (pool size: %zu)",
-                  width, height, buffer_pool.size());
+                  buf_width, buf_height, buffer_pool.size());
         buffer_pool.emplace_back();
         WaylandBuffer& new_buf = buffer_pool.back();
 
-        create_wl_buffer(new_buf, width, height);
+        create_wl_buffer(new_buf, buf_width, buf_height);
         new_buf.state = WaylandBuffer::State::DRAWING;
         new_buf.last_used_frame = frame_counter++;
 
@@ -863,7 +865,7 @@ WaylandBuffer* PlatformWindow::allocate_buffer(int width, int height)
     cleanup_old_buffers();
 
     // Step 4: Try again after cleanup
-    buf = find_free_buffer(width, height);
+    buf = find_free_buffer(buf_width, buf_height);
     if (buf != nullptr) {
         buf->state = WaylandBuffer::State::DRAWING;
         buf->last_used_frame = frame_counter++;
@@ -875,7 +877,7 @@ WaylandBuffer* PlatformWindow::allocate_buffer(int width, int height)
 
     // Dispatch events to try to get a release
     wl_display_roundtrip(display);
-    return allocate_buffer(width, height);  // Retry
+    return allocate_buffer(buf_width, buf_height);  // Retry
 }
 
 void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
@@ -911,17 +913,15 @@ cairo_t *PlatformWindow::get_cairo_context()
         return cached_context;
     }
     
-    // If surface changed, destroy old context and create new one
     if (cached_context) {
         cairo_destroy(cached_context);
         cached_context = nullptr;
     }
     
-    // Get the current surface
-    cairo_surface_t *surface = get_cairo_surface();
+    cairo_surface_t *current_surface = get_cairo_surface();
 
     // Create context if we don't have one
-    cached_context = cairo_create(surface);
+    cached_context = cairo_create(current_surface);
     if (cached_context == nullptr || cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
         const int status = cached_context != nullptr ? cairo_status(cached_context) : -1;
         if (cached_context != nullptr) {
@@ -967,7 +967,7 @@ bool PlatformWindow::surface_cache_valid() const
     return true;
 }
 
-cairo_surface_t *PlatformWindow::create_cairo_surface(int h, int w)
+cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int h, unsigned int w)
 {
     LOG_DEBUG("Creating Cairo surface: %ux%u", w, h);
 
@@ -1038,7 +1038,7 @@ void PlatformWindow::commit_surface()
     current_buffer->state = WaylandBuffer::State::SUBMITTED;
 
     wl_surface_attach(surface, current_buffer->wl_buffer_obj, 0, 0);
-    wl_surface_damage_buffer(surface, 0, 0, width, height);
+    wl_surface_damage_buffer(surface, 0, 0, static_cast<int32_t>(width), static_cast<int32_t>(height));
     wl_surface_commit(surface);
 
     LOG_DEBUG("Committed surface to compositor: %dx%d",
