@@ -87,7 +87,8 @@ class PlatformWindow
   private:
 #ifdef PLATFORM_X11
     cairo_surface_t *create_cairo_surface(int h, int w);
-
+    bool surface_cache_valid() const;
+    
     cairo_surface_t *cached_surface = nullptr;
     int cached_surface_width = 0;
     int cached_surface_height = 0;
@@ -96,6 +97,7 @@ class PlatformWindow
     Colormap colormap;
 #elif defined(PLATFORM_WAYLAND)
     cairo_surface_t *create_cairo_surface(int h, int w);
+    bool surface_cache_valid() const;
 
     wl_display *display;
     wl_compositor *compositor;

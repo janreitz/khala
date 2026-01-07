@@ -694,9 +694,7 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
 
 cairo_surface_t *PlatformWindow::get_cairo_surface()
 {
-    if (cached_surface != nullptr && 
-        cached_surface_width == width && 
-        cached_surface_height == height) {
+    if (surface_cache_valid()) {
         return cached_surface;
     }
 
@@ -711,8 +709,30 @@ cairo_surface_t *PlatformWindow::get_cairo_surface()
     return cached_surface;
 }
 
-cairo_surface_t *PlatformWindow::create_cairo_surface(int h,
-                                                      int w)
+bool PlatformWindow::surface_cache_valid() const
+{
+    if (cached_surface == nullptr) {
+        LOG_DEBUG("Surface cache miss: cached_surface == nullptr");
+        return false;
+    }
+
+    if (cached_surface_width != width || cached_surface_height != height) {
+        LOG_DEBUG("Surface cache miss: dimensions changed (cached: %ux%u "
+                  "window: %ux%u)",
+                  cached_surface_width, cached_surface_height, width, height);
+        return false;
+    }
+
+    const auto surface_status = cairo_surface_status(cached_surface);
+    if (surface_status != CAIRO_STATUS_SUCCESS) {
+        LOG_DEBUG("Surface cache miss: cairo_surface_status %d",
+                  surface_status);
+        return false;
+    }
+    return true;
+}
+
+cairo_surface_t *PlatformWindow::create_cairo_surface(int h, int w)
 {
     LOG_DEBUG("Creating Cairo surface: %ux%u", w, h);
     const size_t stride = w * 4; // 4 bytes per pixel (ARGB32)
