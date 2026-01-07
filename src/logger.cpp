@@ -35,9 +35,9 @@ void Logger::init(const std::string& log_dir) {
         std::filesystem::create_directories(dir);
         
         auto now = std::chrono::system_clock::now();
-        auto time_t = std::chrono::system_clock::to_time_t(now);
+        auto time_value = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
-        ss << dir << "/khala_" << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S") << ".log";
+        ss << dir << "/khala_" << std::put_time(std::localtime(&time_value), "%Y%m%d_%H%M%S") << ".log";
         
         log_file_ = std::make_unique<std::ofstream>(ss.str(), std::ios::app);
         if (!log_file_->is_open()) {
@@ -120,12 +120,12 @@ std::string Logger::formatMessage(LogLevel level, const std::string& message) {
 
 std::string Logger::getCurrentTimestamp() {
     auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto time_value = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()) % 1000;
-    
+
     std::stringstream ss;
-    ss << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S");
+    ss << std::put_time(std::localtime(&time_value), "%Y-%m-%d %H:%M:%S");
     ss << "." << std::setfill('0') << std::setw(3) << ms.count();
     return ss.str();
 }

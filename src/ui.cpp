@@ -48,12 +48,12 @@ double calculate_text_y_centered(double container_y, double container_height,
 std::string format_file_count(size_t count)
 {
     if (count >= 1'000'000) {
-        double millions = count / 1'000'000.0;
+        double millions = static_cast<double>(count) / 1'000'000.0;
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%.1fM", millions);
         return buffer;
     } else if (count >= 1'000) {
-        double thousands = count / 1'000.0;
+        double thousands = static_cast<double>(count) / 1'000.0;
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%.1fK", thousands);
         return buffer;
@@ -139,7 +139,7 @@ size_t calculate_max_visible_items(int window_height, int font_size)
         static_cast<int>(ITEMS_SPACING);
 
     // Calculate max visible items that can fit in available space
-    return std::max(1, available_for_items / item_height);
+    return static_cast<size_t>(std::max(1, available_for_items / item_height));
 }
 
 unsigned int calculate_window_height(int font_size, size_t item_count,
@@ -150,7 +150,7 @@ unsigned int calculate_window_height(int font_size, size_t item_count,
     // Account for: top border + input area + spacing + items + bottom border
     return static_cast<unsigned int>(
         2 * BORDER_WIDTH + calculate_abs_input_height(font_size) +
-        ITEMS_SPACING + (visible_items * calculate_abs_item_height(font_size)));
+        ITEMS_SPACING + (static_cast<double>(visible_items) * calculate_abs_item_height(font_size)));
 }
 
 Item State::get_selected_item() const { return items.at(selected_item_index); }
@@ -422,7 +422,7 @@ void draw(cairo_t *cr, int window_width, int window_height,
         state.visible_range_offset + max_visible_items, dropdown_items.size());
     for (size_t i = state.visible_range_offset; i < range_end; ++i) {
         const double y_pos =
-            dropdown_start_y + ((i - state.visible_range_offset) * item_height);
+            dropdown_start_y + (static_cast<double>(i - state.visible_range_offset) * static_cast<double>(item_height));
 
         // Draw selection highlight
         const bool item_is_selected = (i == selection_index);
@@ -448,13 +448,13 @@ void draw(cairo_t *cr, int window_width, int window_height,
             dropdown_items.at(i).title,
             dropdown_items.at(i).title_match_positions);
         pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
-        int text_width_unused, text_height;
-        pango_layout_get_size(layout, &text_width_unused, &text_height);
+        int text_width_unused, item_text_height;
+        pango_layout_get_size(layout, &text_width_unused, &item_text_height);
         const double text_y_centered =
-            calculate_text_y_centered(y_pos, item_height, text_height);
+            calculate_text_y_centered(y_pos, item_height, item_text_height);
         cairo_move_to(cr, BORDER_WIDTH + TEXT_MARGIN, text_y_centered);
         pango_layout_set_width(layout,
-                               (content_width - 2 * TEXT_MARGIN) * PANGO_SCALE);
+                               static_cast<int>((content_width - 2 * TEXT_MARGIN) * PANGO_SCALE));
         pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
         pango_cairo_show_layout(cr, layout);
         pango_layout_set_width(layout, -1);
@@ -468,9 +468,9 @@ void draw(cairo_t *cr, int window_width, int window_height,
             pango_layout_get_size(layout, &title_width, &title_height);
 
             // Calculate available width for description
-            const int available_width = content_width - 2 * TEXT_MARGIN -
+            const int available_width = static_cast<int>(content_width - 2 * TEXT_MARGIN -
                                         (title_width / PANGO_SCALE) -
-                                        DESCRIPTION_SPACING;
+                                        DESCRIPTION_SPACING);
 
             // Set description color
             if (item_is_selected) {

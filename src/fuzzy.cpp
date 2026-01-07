@@ -22,7 +22,7 @@ float fuzzy_score(std::string_view path, std::string_view query)
     bool prev_matched = false;
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
-        char pc = std::tolower(static_cast<unsigned char>(path[i]));
+        char pc = static_cast<char>(std::tolower(static_cast<unsigned char>(path[i])));
         char qc = query[query_idx];
 
         if (pc == qc) {
@@ -46,7 +46,7 @@ float fuzzy_score(std::string_view path, std::string_view query)
             // Penalty: gap between matches
             if (query_idx > 0) {
                 size_t gap = i - last_match - 1;
-                score -= gap * 0.1f;
+                score -= static_cast<float>(gap) * 0.1f;
             }
 
             last_match = i;
@@ -63,7 +63,7 @@ float fuzzy_score(std::string_view path, std::string_view query)
     }
 
     // Bonus: prefer shorter paths (less noise)
-    score -= path.size() * 0.01f;
+    score -= static_cast<float>(path.size()) * 0.01f;
 
     // Bonus: prefer matches in filename
     const size_t last_slash = path.rfind('/');
@@ -96,7 +96,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
     bool is_prefix_of_filename = true;
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
-        const char pc = std::tolower(static_cast<unsigned char>(path[i]));
+        const char pc = static_cast<char>(std::tolower(static_cast<unsigned char>(path[i])));
         const char qc = query[query_idx];
 
         if (pc == qc) {
@@ -119,7 +119,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
                 if (last_match != std::string_view::npos) {
                     size_t gap = i - last_match - 1;
                     // Steeper gap penalty
-                    score -= gap * 0.5f;
+                    score -= static_cast<float>(gap) * 0.5f;
                 }
             }
 
@@ -174,10 +174,10 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
     }
 
     // Prefer shorter paths (normalize to avoid huge penalties for deep paths)
-    score -= std::min(path.size(), size_t(100)) * 0.02f;
+    score -= static_cast<float>(std::min(path.size(), size_t(100))) * 0.02f;
 
     // Prefer shorter filenames when query matches
-    score -= std::min(filename.size(), size_t(50)) * 0.05f;
+    score -= static_cast<float>(std::min(filename.size(), size_t(50))) * 0.05f;
 
     return score;
 }
@@ -239,7 +239,7 @@ float fuzzy_score_3(std::string_view path, std::string_view query_lower)
                 consecutive_count = 0;
                 if (last_match != SIZE_MAX) {
                     const size_t gap = i - last_match - 1;
-                    score -= gap * 0.5f;
+                    score -= static_cast<float>(gap) * 0.5f;
                 }
             }
 
@@ -291,7 +291,7 @@ float fuzzy_score_3(std::string_view path, std::string_view query_lower)
     }
 
     // Length penalties (mild)
-    score -= path.size() * 0.02f;
+    score -= static_cast<float>(path.size()) * 0.02f;
 
     return score;
 }
@@ -351,7 +351,7 @@ float fuzzy_score_4(std::string_view path, std::string_view query_lower)
             } else {
                 consecutive_count = 0;
                 if (last_match != SIZE_MAX) {
-                    score -= (i - last_match - 1) * 0.5f;
+                    score -= static_cast<float>(i - last_match - 1) * 0.5f;
                 }
             }
             
@@ -403,9 +403,9 @@ float fuzzy_score_4(std::string_view path, std::string_view query_lower)
             }
         }
     }
-    
-    score -= path_len * 0.02f;
-    
+
+    score -= static_cast<float>(path_len) * 0.02f;
+
     return score;
 }
 
@@ -426,7 +426,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
     {
         const char* p = path_data + path_len;
         while (p > path_data && *--p != '/') {}
-        if (*p == '/') filename_start = p - path_data + 1;
+        if (*p == '/') filename_start = static_cast<size_t>(p - path_data + 1);
     }
     
     // Lambda to score a match starting from a given position
@@ -440,26 +440,26 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
         
         for (size_t i = start; i < path_len; ++i) {
             if (path_len - i < query_len - qi) return -1000.0f;  // impossible
-            
-            unsigned char c = path_data[i];
-            c += ((unsigned)(c - 'A') < 26) << 5;
-            
-            if (c == (unsigned char)query_data[qi]) {
+
+            unsigned char c = static_cast<unsigned char>(path_data[i]);
+            c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+
+            if (c == static_cast<unsigned char>(query_data[qi])) {
                 if (last_match + 1 == i) {
                     score += 1.0f + static_cast<float>(++consecutive + 1);
                 } else {
                     if (last_match != SIZE_MAX) {
-                        score += 1.0f - (i - last_match - 1) * 0.5f;
+                        score += 1.0f - static_cast<float>(i - last_match - 1) * 0.5f;
                     } else {
                         score += 1.0f;
                     }
                     consecutive = 0;
                 }
-                
+
                 if (i == 0 || i == filename_start) {
                     score += 5.0f;
                 } else {
-                    unsigned char prev = path_data[i - 1];
+                    unsigned char prev = static_cast<unsigned char>(path_data[i - 1]);
                     if (prev == '/' || prev == '_' || prev == '-' || 
                         prev == '.' || prev == ' ' ||
                         (prev >= 'a' && prev <= 'z' && 
@@ -493,23 +493,23 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
                 }
             }
         }
-        
-        score -= path_len * 0.02f;
+
+        score -= static_cast<float>(path_len) * 0.02f;
         return score;
     };
-    
+
     // Find all potential starting positions (where first query char matches)
     // But limit to reasonable candidates to avoid O(n*m) blowup
-    unsigned char first_char = (unsigned char)query_data[0];
+    unsigned char first_char = static_cast<unsigned char>(query_data[0]);
     
     float best_score = -1000.0f;
     int candidates_tried = 0;
     constexpr int MAX_CANDIDATES = 8;  // Limit search breadth
-    
+
     for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
-        unsigned char c = path_data[i];
-        c += ((unsigned)(c - 'A') < 26) << 5;
-        
+        unsigned char c = static_cast<unsigned char>(path_data[i]);
+        c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+
         if (c == first_char) {
             // Prioritize good starting positions
             bool is_boundary = (i == 0 || i == filename_start ||
@@ -542,7 +542,7 @@ std::vector<size_t> fuzzy_match(std::string_view path, std::string_view query)
     size_t query_idx = 0;
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
-        char pc = std::tolower(static_cast<unsigned char>(path[i]));
+        char pc = static_cast<char>(std::tolower(static_cast<unsigned char>(path[i])));
         char qc = query[query_idx];
 
         if (pc == qc) {
@@ -575,9 +575,9 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path, std::string_view 
     {
         const char* p = path_data + path_len;
         while (p > path_data && *--p != '/') {}
-        if (*p == '/') filename_start = p - path_data + 1;
+        if (*p == '/') filename_start = static_cast<size_t>(p - path_data + 1);
     }
-    
+
     auto try_match_from = [&](size_t start) -> std::pair<float, std::vector<size_t>> {
         std::vector<size_t> positions;
         positions.reserve(query_len);
@@ -587,31 +587,31 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path, std::string_view 
         int consecutive = 0;
         bool is_filename_prefix = true;
         bool all_in_filename = true;
-        
+
         for (size_t i = start; i < path_len; ++i) {
             if (path_len - i < query_len - qi) return {-1000.0f, {}};
-            
-            unsigned char c = path_data[i];
-            c += ((unsigned)(c - 'A') < 26) << 5;
-            
-            if (c == (unsigned char)query_data[qi]) {
+
+            unsigned char c = static_cast<unsigned char>(path_data[i]);
+            c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+
+            if (c == static_cast<unsigned char>(query_data[qi])) {
                 positions.push_back(i);
-                
+
                 if (last_match + 1 == i) {
                     score += 1.0f + static_cast<float>(++consecutive + 1);
                 } else {
                     if (last_match != SIZE_MAX) {
-                        score += 1.0f - (i - last_match - 1) * 0.5f;
+                        score += 1.0f - static_cast<float>(i - last_match - 1) * 0.5f;
                     } else {
                         score += 1.0f;
                     }
                     consecutive = 0;
                 }
-                
+
                 if (i == 0 || i == filename_start) {
                     score += 5.0f;
                 } else {
-                    unsigned char prev = path_data[i - 1];
+                    unsigned char prev = static_cast<unsigned char>(path_data[i - 1]);
                     if (prev == '/' || prev == '_' || prev == '-' || 
                         prev == '.' || prev == ' ' ||
                         (prev >= 'a' && prev <= 'z' && 
@@ -648,17 +648,17 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path, std::string_view 
         
         return {score, std::move(positions)};
     };
-    
-    unsigned char first_char = (unsigned char)query_data[0];
+
+    unsigned char first_char = static_cast<unsigned char>(query_data[0]);
     float best_score = -1000.0f;
     std::vector<size_t> best_positions;
     int candidates_tried = 0;
     constexpr int MAX_CANDIDATES = 8;
-    
+
     for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
-        unsigned char c = path_data[i];
-        c += ((unsigned)(c - 'A') < 26) << 5;
-        
+        unsigned char c = static_cast<unsigned char>(path_data[i]);
+        c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+
         if (c == first_char) {
             bool is_boundary = (i == 0 || i == filename_start ||
                                path_data[i-1] == '/' || path_data[i-1] == '_' ||

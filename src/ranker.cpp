@@ -182,8 +182,8 @@ void StreamingRanker::resort_results()
 {
     const size_t n = std::min(current_request_.requested_count, scored_results_.size());
     // Sort all scored results to get top requested_count
-    std::partial_sort(scored_results_.begin(), 
-                      scored_results_.begin() + n,
+    std::partial_sort(scored_results_.begin(),
+                      scored_results_.begin() + static_cast<std::ptrdiff_t>(n),
                       scored_results_.end(),
                       [](const auto &a, const auto &b) { return a.score > b.score; });
 

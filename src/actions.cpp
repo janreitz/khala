@@ -149,7 +149,7 @@ void run_custom_command_with_capture(const CustomCommand &cmd)
         char buffer[4096];
         ssize_t bytes_read;
         while ((bytes_read = read(pipefd[0], buffer, sizeof(buffer))) > 0) {
-            output.append(buffer, bytes_read);
+            output.append(buffer, static_cast<size_t>(bytes_read));
         }
         close(pipefd[0]);
 
@@ -346,24 +346,24 @@ std::optional<std::string> process_command(const Command &cmd,
     try {
         std::visit(
             overloaded{
-                [&](const OpenFile &cmd) {
-                    run_command({config.editor, cmd.path.string()});
+                [&](const OpenFile &open_file) {
+                    run_command({config.editor, open_file.path.string()});
                 },
-                [&](const OpenDirectory &cmd) {
+                [&](const OpenDirectory &open_dir) {
                     run_command(
-                        {config.file_manager, cmd.path.parent_path().string()});
+                        {config.file_manager, open_dir.path.parent_path().string()});
                 },
-                [](const CopyPathToClipboard &cmd) {
-                    copy_to_clipboard(cmd.path.string());
+                [](const CopyPathToClipboard &copy_path) {
+                    copy_to_clipboard(copy_path.path.string());
                 },
-                [](const CopyContentToClipboard &cmd) {
-                    copy_to_clipboard(read_file(cmd.path));
+                [](const CopyContentToClipboard &copy_content) {
+                    copy_to_clipboard(read_file(copy_content.path));
                 },
                 [](const CopyISOTimestamp &) {
                     auto now = std::chrono::system_clock::now();
-                    auto time_t = std::chrono::system_clock::to_time_t(now);
+                    auto time_value = std::chrono::system_clock::to_time_t(now);
                     std::ostringstream oss;
-                    oss << std::put_time(std::gmtime(&time_t),
+                    oss << std::put_time(std::gmtime(&time_value),
                                          "%Y-%m-%dT%H:%M:%SZ");
                     copy_to_clipboard(oss.str());
                 },
@@ -401,7 +401,7 @@ std::optional<std::string> process_command(const Command &cmd,
 
                     copy_to_clipboard(oss.str());
                 },
-                [](const CustomCommand &cmd) { run_custom_command(cmd); }},
+                [](const CustomCommand &custom_cmd) { run_custom_command(custom_cmd); }},
             cmd);
         return std::nullopt;
     } catch (const std::exception &e) {

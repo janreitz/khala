@@ -119,11 +119,11 @@ int main()
         }
 
         // Process high-level events
-        bool should_exit = false;
+        bool exit_requested = false;
         for (const auto &event : events) {
             redraw = true;
             if (std::holds_alternative<ui::ExitRequested>(event)) {
-                should_exit = true;
+                exit_requested = true;
                 break;
             } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
                 // Adjust visible range to keep selected item visible
@@ -234,7 +234,7 @@ int main()
         }
 
         // Exit if requested
-        if (should_exit) {
+        if (exit_requested) {
             break;
         }
 
@@ -258,13 +258,13 @@ int main()
             // Calculate and apply window resize before getting context
             const int max_height =
                 static_cast<int>(window.get_screen_height() * config.height_ratio);
-            const size_t max_visible_items =
+            const size_t current_max_visible_items =
                 ui::calculate_max_visible_items(max_height, config.font_size);
             const unsigned int new_height = ui::calculate_window_height(
-                config.font_size, state.items.size(), max_visible_items);
+                config.font_size, state.items.size(), current_max_visible_items);
 
-            if (new_height != window.get_height()) {
-                window.resize(new_height, window.get_width());
+            if (new_height != static_cast<unsigned int>(window.get_height())) {
+                window.resize(new_height, static_cast<unsigned int>(window.get_width()));
             }
             try {
                 // Get context and draw
