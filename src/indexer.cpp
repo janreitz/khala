@@ -37,7 +37,7 @@ PackedStrings scan_subtree(const fs::path &root,
                 }
             }
 
-            if (it->is_regular_file()) {
+            if (it->is_regular_file()  || it->is_directory()) {
                 paths.push(it->path().string());
             }
         }
@@ -110,7 +110,7 @@ void scan_subtree_streaming(const fs::path &root,
                 }
             }
 
-            // if (it->is_regular_file()) {
+            if (it->is_regular_file() || it->is_directory()) {
                 current_chunk.push(it->path().string());
 
                 if (current_chunk.size() >= chunk_size) {
@@ -118,7 +118,7 @@ void scan_subtree_streaming(const fs::path &root,
                     index.add_chunk(std::move(current_chunk));
                     current_chunk = PackedStrings{};
                 }
-            // }
+            }
         }
     } catch (const fs::filesystem_error &) {
     }
