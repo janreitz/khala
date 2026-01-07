@@ -128,14 +128,14 @@ int calculate_abs_item_height(int font_size)
     return static_cast<int>(font_size + 2 * ITEM_VERTICAL_PADDING);
 }
 
-size_t calculate_max_visible_items(int window_height, int font_size)
+size_t calculate_max_visible_items(unsigned int window_height, int font_size)
 {
     const int input_height = calculate_abs_input_height(font_size);
     const int item_height = calculate_abs_item_height(font_size);
 
     // Calculate available space for items
     const int available_for_items =
-        window_height - static_cast<int>(2 * BORDER_WIDTH) - input_height -
+        static_cast<int>(window_height) - static_cast<int>(2 * BORDER_WIDTH) - input_height -
         static_cast<int>(ITEMS_SPACING);
 
     // Calculate max visible items that can fit in available space
@@ -227,7 +227,7 @@ static void draw_rounded_rect(cairo_t *cr, double x, double y, double width,
     cairo_close_path(cr);
 }
 
-void draw(cairo_t *cr, int window_width, int window_height,
+void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
           const Config &config, const State &state)
 {
     const double content_width = window_width - 2.0 * BORDER_WIDTH;

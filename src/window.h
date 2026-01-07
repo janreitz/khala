@@ -69,8 +69,8 @@ class PlatformWindow
     std::vector<ui::UserInputEvent> get_input_events(bool blocking = true);
 
     // Accessors
-    int get_width() const { return width; }
-    int get_height() const { return height; }
+    unsigned int get_width() const { return width; }
+    unsigned int get_height() const { return height; }
     unsigned int get_screen_height() const { return screen_height; }
 
     // Non-copyable
@@ -112,13 +112,13 @@ class PlatformWindow
 
   private:
 #ifdef PLATFORM_X11
-    cairo_surface_t *create_cairo_surface(int h, int w);
+    cairo_surface_t *create_cairo_surface(unsigned int surface_height, unsigned int surface_width);
     cairo_surface_t *get_cairo_surface();
     bool surface_cache_valid() const;
 
     cairo_surface_t *cached_surface = nullptr;
-    int cached_surface_width = 0;
-    int cached_surface_height = 0;
+    unsigned int cached_surface_width = 0;
+    unsigned int cached_surface_height = 0;
     cairo_t *cached_context = nullptr;
     Display *display;
     ::Window window;
@@ -188,8 +188,8 @@ class PlatformWindow
 #endif
 
     // Common members (all platforms)
-    int width;
-    int height;
+    unsigned int width;
+    unsigned int height;
     unsigned int screen_width;
     unsigned int screen_height;
 };

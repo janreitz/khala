@@ -52,8 +52,8 @@ int main()
             .y = config.height_ratio,
         });
 
-    const int max_window_height =
-        static_cast<int>(window.get_screen_height() * config.height_ratio);
+    const auto max_window_height =
+        static_cast<unsigned int>(window.get_screen_height() * config.height_ratio);
     const size_t max_visible_items =
         ui::calculate_max_visible_items(max_window_height, config.font_size);
 
@@ -256,8 +256,8 @@ int main()
         // Render UI
         if (redraw) {
             // Calculate and apply window resize before getting context
-            const int max_height =
-                static_cast<int>(window.get_screen_height() * config.height_ratio);
+            const auto max_height =
+                static_cast<unsigned int>(window.get_screen_height() * config.height_ratio);
             const size_t current_max_visible_items =
                 ui::calculate_max_visible_items(max_height, config.font_size);
             const unsigned int new_height = ui::calculate_window_height(
