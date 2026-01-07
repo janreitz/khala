@@ -252,6 +252,14 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                      .description = config.file_manager,
                      .path = std::nullopt,
                      .command = OpenDirectory{path}},
+            ui::Item{.title = "Remove Directory",
+                     .description = "",
+                     .path = std::nullopt,
+                     .command = RemoveFile{path}},
+            ui::Item{.title = "Remove Directory Recursive",
+                     .description = "",
+                     .path = std::nullopt,
+                     .command = RemoveFileRecursive{path}},
             ui::Item{.title = "Copy Path to Clipboard",
                      .description = "",
                      .path = std::nullopt,
@@ -264,6 +272,10 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                      .description = config.editor,
                      .path = std::nullopt,
                      .command = OpenFile{path}},
+            ui::Item{.title = "Remove File",
+                     .description = "",
+                     .path = std::nullopt,
+                     .command = RemoveFile{path}},
             ui::Item{.title = "Copy Path to Clipboard",
                      .description = "",
                      .path = std::nullopt,
@@ -352,6 +364,12 @@ std::optional<std::string> process_command(const Command &cmd,
                 [&](const OpenDirectory &open_dir) {
                     run_command(
                         {config.file_manager, open_dir.path.parent_path().string()});
+                },
+                [](const RemoveFile &rm_file) {
+                    fs::remove(rm_file.path);
+                },
+                [](const RemoveFileRecursive &rm_file) {
+                    fs::remove_all(rm_file.path);
                 },
                 [](const CopyPathToClipboard &copy_path) {
                     copy_to_clipboard(copy_path.path.string());
