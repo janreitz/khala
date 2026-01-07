@@ -235,22 +235,22 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
     width = new_width;
 }
 
-cairo_surface_t *PlatformWindow::get_cairo_surface(int h,
-                                                   int w)
+cairo_surface_t *PlatformWindow::get_cairo_surface()
 {
-    if (cached_surface && cached_surface_width == w && cached_surface_height == h) {
+    if (cached_surface != nullptr && 
+        cached_surface_width == width && 
+        cached_surface_height == height) {
         return cached_surface;
     }
 
-    // Dimensions changed—recreate
-    if (cached_surface) {
+    if (cached_surface != nullptr) {
         cairo_surface_destroy(cached_surface);
         cached_surface = nullptr;
     }
 
-    cached_surface = create_cairo_surface(h, w);
-    cached_surface_width = w;
-    cached_surface_height = h;
+    cached_surface = create_cairo_surface(height, width);
+    cached_surface_width = width;
+    cached_surface_height = height;
     return cached_surface;
 }
 

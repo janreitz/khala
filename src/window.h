@@ -36,8 +36,10 @@ class PlatformWindow
 
     // Window operations
     void resize(unsigned int height, unsigned int width);
+    // Returns surface matching current window dimensions
+    // Automatically recreates if window was resized
     // The surface is owned and will be cleaned up by PlatformWindow
-    cairo_surface_t *get_cairo_surface(int height, int width);
+    cairo_surface_t* get_cairo_surface();
     std::vector<ui::UserInputEvent> get_input_events(bool blocking = true);
 
     // Accessors
