@@ -20,29 +20,26 @@ namespace
 {
 
 struct MonitorInfo {
-    int width;
-    int height;
+    unsigned int width;
+    unsigned int height;
     int x;
     int y;
-    bool found;
 };
 
-MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
+std::optional<MonitorInfo> get_primary_monitor_xrandr(Display *display, int screen)
 {
-    MonitorInfo info = {0, 0, 0, 0, false};
-
     // Check if XRandR extension is available
     int xrandr_event_base, xrandr_error_base;
     if (!XRRQueryExtension(display, &xrandr_event_base, &xrandr_error_base)) {
         LOG_WARNING("XRandR extension not available");
-        return info;
+        return std::nullopt;
     }
 
     // Check XRandR version
     int major_version, minor_version;
     if (!XRRQueryVersion(display, &major_version, &minor_version)) {
         LOG_WARNING("XRandR version query failed");
-        return info;
+        return std::nullopt;
     }
 
     LOG_INFO("XRandR version: %d.%d", major_version, minor_version);
@@ -50,7 +47,7 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
     // We need at least XRandR 1.2 for monitor info
     if (major_version < 1 || (major_version == 1 && minor_version < 2)) {
         LOG_WARNING("XRandR version too old (need 1.2+)");
-        return info;
+        return std::nullopt;
     }
 
     ::Window root = RootWindow(display, screen);
@@ -59,8 +56,10 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
     XRRScreenResources *screen_resources = XRRGetScreenResources(display, root);
     if (!screen_resources) {
         LOG_ERROR("Failed to get XRandR screen resources");
-        return info;
+        return std::nullopt;
     }
+
+    std::optional<MonitorInfo> result;
 
     // Find primary output
     RROutput primary = XRRGetOutputPrimary(display, root);
@@ -89,11 +88,12 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
             XRRCrtcInfo *crtc_info =
                 XRRGetCrtcInfo(display, screen_resources, output_info->crtc);
             if (crtc_info) {
-                info.width = crtc_info->width;
-                info.height = crtc_info->height;
-                info.x = crtc_info->x;
-                info.y = crtc_info->y;
-                info.found = true;
+                result = MonitorInfo{
+                    crtc_info->width,
+                    crtc_info->height,
+                    crtc_info->x,
+                    crtc_info->y
+                };
                 XRRFreeCrtcInfo(crtc_info);
             }
         }
@@ -102,7 +102,7 @@ MonitorInfo get_primary_monitor_xrandr(Display *display, int screen)
     }
 
     XRRFreeScreenResources(screen_resources);
-    return info;
+    return result;
 }
 
 } // anonymous namespace
@@ -118,24 +118,24 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     const int screen = DefaultScreen(display);
 
     // Get primary monitor info using XRandR first
-    int primary_screen_width, primary_screen_height;
+    unsigned int primary_screen_width, primary_screen_height;
     int primary_screen_x = 0, primary_screen_y = 0;
 
-    const MonitorInfo primary_monitor =
-        get_primary_monitor_xrandr(display, screen);
+    ;
 
-    if (primary_monitor.found) {
+    if (const auto primary_monitor =
+        get_primary_monitor_xrandr(display, screen)) {
         // Use XRandR info
-        primary_screen_width = primary_monitor.width;
-        primary_screen_height = primary_monitor.height;
-        primary_screen_x = primary_monitor.x;
-        primary_screen_y = primary_monitor.y;
+        primary_screen_width = primary_monitor->width;
+        primary_screen_height = primary_monitor->height;
+        primary_screen_x = primary_monitor->x;
+        primary_screen_y = primary_monitor->y;
         LOG_INFO("Using XRandR primary monitor info");
     } else {
         // Fallback to heuristics
         LOG_INFO("Falling back to heuristic monitor detection");
-        const int total_width = DisplayWidth(display, screen);
-        const int total_height = DisplayHeight(display, screen);
+        const auto total_width = static_cast<unsigned int>(DisplayWidth(display, screen));
+        const auto total_height = static_cast<unsigned int>(DisplayHeight(display, screen));
 
         // Simple heuristic for multi-monitor detection:
         // If aspect ratio suggests multiple monitors, estimate primary monitor
@@ -150,7 +150,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
         } else if (aspect_ratio > 2.5) {
             // Wide screen, could be ultrawide or dual monitor
             // Use 60% of width as a reasonable estimate for primary monitor
-            primary_screen_width = static_cast<int>(total_width * 0.6);
+            primary_screen_width = static_cast<unsigned int>(total_width * 0.6);
             primary_screen_height = total_height;
         } else {
             // Normal aspect ratio, likely single monitor
@@ -166,8 +166,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
 
     // Calculate window dimensions based on primary screen size and config
     // ratios
-    width = static_cast<int>(primary_screen_width * dimension.x);
-    height = static_cast<int>(primary_screen_height * dimension.y);
+    width = static_cast<unsigned int>(primary_screen_width * dimension.x);
+    height = static_cast<unsigned int>(primary_screen_height * dimension.y);
 
     const int x =
         primary_screen_x + static_cast<int>(primary_screen_width * top_left.x);
@@ -307,15 +307,15 @@ bool PlatformWindow::surface_cache_valid() const
     return true;
 }
 
-cairo_surface_t *PlatformWindow::create_cairo_surface(int height,
-                                                      int width)
+cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int surface_height,
+                                                      unsigned int surface_width)
 {
     XWindowAttributes window_attrs;
     XGetWindowAttributes(display, window, &window_attrs);
     Visual *visual = window_attrs.visual;
 
     // Create Cairo surface for X11 window
-    return cairo_xlib_surface_create(display, window, visual, width, height);
+    return cairo_xlib_surface_create(display, window, visual, static_cast<int>(surface_width), static_cast<int>(surface_height));
 }
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
@@ -391,14 +391,15 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
                                       .character = std::nullopt});
             } else {
                 // Handle regular character input
-                std::array<char, 32> char_buffer;
-                const int len =
-                    XLookupString(&event.xkey, char_buffer.data(),
-                                  char_buffer.size(), nullptr, nullptr);
+                constexpr int BUFFER_SIZE = 32;
+                std::array<char, BUFFER_SIZE> char_buffer;
+                const auto len =
+                    static_cast<size_t>(XLookupString(&event.xkey, char_buffer.data(),
+                                  char_buffer.size(), nullptr, nullptr));
                 if (len > 0) {
                     char_buffer[len] = '\0';
                     // Only add printable characters
-                    for (int i = 0; i < len; ++i) {
+                    for (size_t i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
                             events.push_back(ui::KeyboardEvent{
                                 .key = ui::KeyCode::Character,
