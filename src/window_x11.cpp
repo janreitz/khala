@@ -216,15 +216,18 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
 
 PlatformWindow::~PlatformWindow()
 {
+    if (cached_context) {
+        cairo_destroy(cached_context);
+    }
+    if (cached_surface) {
+        cairo_surface_destroy(cached_surface);
+    }
     if (display) {
         if (window)
             XDestroyWindow(display, window);
         if (colormap)
             XFreeColormap(display, colormap);
         XCloseDisplay(display);
-    }
-    if (cached_surface) {
-        cairo_surface_destroy(cached_surface);
     }
 }
 
@@ -250,6 +253,36 @@ cairo_surface_t *PlatformWindow::get_cairo_surface()
     cached_surface_width = width;
     cached_surface_height = height;
     return cached_surface;
+}
+
+cairo_t *PlatformWindow::get_cairo_context()
+{
+    if (surface_cache_valid() && cached_context) {
+        return cached_context;
+    }
+    
+    if (cached_context) {
+        cairo_destroy(cached_context);
+        cached_context = nullptr;
+    }
+
+    // Get the current surface
+    cairo_surface_t *surface = get_cairo_surface();
+
+    // Create context if we don't have one
+    cached_context = cairo_create(surface);
+    if (!cached_context || cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
+        LOG_ERROR("Failed to create Cairo context, status: %d",
+                    cached_context ? cairo_status(cached_context) : -1);
+        if (cached_context) {
+            cairo_destroy(cached_context);
+            cached_context = nullptr;
+        }
+        return nullptr;
+    }
+    LOG_DEBUG("Created new Cairo context");
+
+    return cached_context;
 }
 
 bool PlatformWindow::surface_cache_valid() const

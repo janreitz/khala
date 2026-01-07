@@ -56,10 +56,10 @@ class PlatformWindow
 
     // Window operations
     void resize(unsigned int height, unsigned int width);
-    // Returns surface matching current window dimensions
-    // Automatically recreates if window was resized
-    // The surface is owned and will be cleaned up by PlatformWindow
-    cairo_surface_t* get_cairo_surface();
+    // Returns cairo context for drawing
+    // The context and underlying surface are owned by PlatformWindow
+    // Caller must not destroy the returned context
+    cairo_t* get_cairo_context();
     // Commits the rendered surface to display
     // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)
     void commit_surface();
@@ -110,9 +110,11 @@ class PlatformWindow
   private:
 #ifdef PLATFORM_X11
     cairo_surface_t *create_cairo_surface(int h, int w);
+    cairo_surface_t *get_cairo_surface();
     bool surface_cache_valid() const;
-    
+
     cairo_surface_t *cached_surface = nullptr;
+    cairo_t *cached_context = nullptr;
     int cached_surface_width = 0;
     int cached_surface_height = 0;
     Display *display;
@@ -120,6 +122,7 @@ class PlatformWindow
     Colormap colormap;
 #elif defined(PLATFORM_WAYLAND)
     cairo_surface_t *create_cairo_surface(int h, int w);
+    cairo_surface_t *get_cairo_surface();
     bool surface_cache_valid() const;
 
     wl_display *display;
@@ -159,6 +162,7 @@ class PlatformWindow
 
     // Shared memory buffer for rendering
     cairo_surface_t *cached_surface = nullptr;
+    cairo_t *cached_context = nullptr;
     int cached_surface_width = 0;
     int cached_surface_height = 0;
     wl_shm *shm;
