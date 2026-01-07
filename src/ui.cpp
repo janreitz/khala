@@ -238,12 +238,9 @@ void draw(cairo_t *cr, int window_width, int window_height,
     const defer cleanup_layout([layout]() noexcept { g_object_unref(layout); });
 
     // Clear everything with transparent background
-    LOG_DEBUG("UI: Setting up Cairo for painting");
     cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.0);
     cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
-    LOG_DEBUG("UI: About to call cairo_paint");
     cairo_paint(cr);
-    LOG_DEBUG("UI: cairo_paint completed successfully");
     cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 
     // Draw background
