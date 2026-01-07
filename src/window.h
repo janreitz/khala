@@ -117,6 +117,8 @@ class PlatformWindow
     bool surface_cache_valid() const;
 
     cairo_surface_t *cached_surface = nullptr;
+    int cached_surface_width = 0;
+    int cached_surface_height = 0;
     cairo_t *cached_context = nullptr;
     Display *display;
     ::Window window;
