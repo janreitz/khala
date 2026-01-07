@@ -922,14 +922,13 @@ cairo_t *PlatformWindow::get_cairo_context()
 
     // Create context if we don't have one
     cached_context = cairo_create(surface);
-    if (!cached_context || cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
-        LOG_ERROR("Failed to create Cairo context, status: %d",
-                    cached_context ? cairo_status(cached_context) : -1);
-        if (cached_context) {
+    if (cached_context == nullptr || cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
+        const int status = cached_context != nullptr ? cairo_status(cached_context) : -1;
+        if (cached_context != nullptr) {
             cairo_destroy(cached_context);
             cached_context = nullptr;
         }
-        return nullptr;
+        throw std::runtime_error("Failed to create Cairo context, status: " + std::to_string(status));
     }
     LOG_DEBUG("Created new Cairo context");
 
@@ -1023,26 +1022,27 @@ void PlatformWindow::commit_surface()
 {
     // Get the cairo surface to flush
     cairo_surface_t* cairo_surface = get_cairo_surface();
-    if (!cairo_surface) {
-        LOG_ERROR("Cannot commit: no cairo surface available");
-        return;
+    if (cairo_surface == nullptr) {
+        throw std::runtime_error("Cannot commit surface: no cairo surface available");
     }
 
     // Flush cairo operations to the underlying buffer
     cairo_surface_flush(cairo_surface);
 
     // Commit buffer to Wayland compositor
-    if (current_buffer != nullptr && surface != nullptr) {
-        // Transition: DRAWING -> SUBMITTED
-        current_buffer->state = WaylandBuffer::State::SUBMITTED;
-
-        wl_surface_attach(surface, current_buffer->wl_buffer_obj, 0, 0);
-        wl_surface_damage_buffer(surface, 0, 0, width, height);
-        wl_surface_commit(surface);
-
-        LOG_DEBUG("Committed surface to compositor: %dx%d",
-                  current_buffer->width, current_buffer->height);
+    if (current_buffer == nullptr || surface == nullptr) {
+        throw std::runtime_error("Cannot commit surface: missing buffer or surface");
     }
+
+    // Transition: DRAWING -> SUBMITTED
+    current_buffer->state = WaylandBuffer::State::SUBMITTED;
+
+    wl_surface_attach(surface, current_buffer->wl_buffer_obj, 0, 0);
+    wl_surface_damage_buffer(surface, 0, 0, width, height);
+    wl_surface_commit(surface);
+
+    LOG_DEBUG("Committed surface to compositor: %dx%d",
+              current_buffer->width, current_buffer->height);
 }
 
 #endif // PLATFORM_WAYLAND
