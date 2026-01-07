@@ -1,3 +1,5 @@
+[![Ubuntu](https://github.com/janreitz/khala/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/ubuntu.yml) [![Fedora](https://github.com/janreitz/khala/actions/workflows/fedora.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/fedora.yml)
+
 # Khala
 
 A lightweight application launcher and file finder for Linux with support for X11 and Wayland.

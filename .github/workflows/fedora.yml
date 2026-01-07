@@ -1,0 +1,41 @@
+name: Fedora
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    strategy:
+      matrix:
+        platform: [x11, wayland]
+
+    name: Build (${{ matrix.platform }})
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        dnf install -y \
+          cmake \
+          gcc-c++ \
+          tbb-devel \
+          cairo-devel \
+          pango-devel \
+          libX11-devel \
+          libXrandr-devel \
+          wayland-devel \
+          wayland-protocols-devel \
+          libxkbcommon-devel \
+          pkgconfig
+
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DPLATFORM=${{ matrix.platform }}
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
