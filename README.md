@@ -23,28 +23,62 @@ A lightweight application launcher and file finder for Linux with support for X1
 - X11 development libraries (libX11, libXrandr (extension for multi-monitor setups))
 
 **For Wayland platform:**
-- Wayland development libraries (wayland-client, wayland-cursor)
+- Wayland development libraries
 - Wayland protocols
 - xkbcommon development libraries
 
 **Ubuntu/Debian (X11):**
 ```bash
-sudo apt install build-essential cmake libx11-dev libxrandr-dev libcairo2-dev libpango1.0-dev libtbb-dev pkg-config
+sudo apt-get install \
+    cmake \
+    build-essential \
+    libtbb-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libx11-dev \
+    libxrandr-dev \
+    pkg-config
 ```
 
 **Ubuntu/Debian (Wayland):**
 ```bash
-sudo apt install build-essential cmake libwayland-dev wayland-protocols libxkbcommon-dev libcairo2-dev libpango1.0-dev libtbb-dev pkg-config
+sudo apt-get install \
+    cmake \
+    build-essential \
+    libtbb-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libwayland-dev \
+    wayland-protocols \
+    libxkbcommon-dev \
+    pkg-config
 ```
 
 **Fedora/RHEL/CentOS (X11):**
 ```bash
-sudo dnf install gcc-c++ cmake libX11-devel libXrandr-devel cairo-devel pango-devel tbb-devel pkgconfig
+dnf install \
+    cmake \
+    gcc-c++ \
+    tbb-devel \
+    cairo-devel \
+    pango-devel \
+    libX11-devel \
+    libXrandr-devel \
+    pkgconfig
 ```
 
 **Fedora/RHEL/CentOS (Wayland):**
 ```bash
-sudo dnf install gcc-c++ cmake wayland-devel wayland-protocols-devel libxkbcommon-devel cairo-devel pango-devel tbb-devel pkgconfig
+dnf install -y \
+    cmake \
+    gcc-c++ \
+    tbb-devel \
+    cairo-devel \
+    pango-devel \
+    wayland-devel \
+    wayland-protocols-devel \
+    libxkbcommon-devel \
+    pkgconfig
 ```
 
 ### Build from source
