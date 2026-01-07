@@ -1023,6 +1023,10 @@ void PlatformWindow::commit_surface()
 {
     // Get the cairo surface to flush
     cairo_surface_t* cairo_surface = get_cairo_surface();
+    if (!cairo_surface) {
+        LOG_ERROR("Cannot commit: no cairo surface available");
+        return;
+    }
 
     // Flush cairo operations to the underlying buffer
     cairo_surface_flush(cairo_surface);
