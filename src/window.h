@@ -68,7 +68,7 @@ class PlatformWindow
 
     // Accessors
     int get_width() const { return width; }
-    unsigned int get_height() const { return height; }
+    int get_height() const { return height; }
     unsigned int get_screen_height() const { return screen_height; }
 
     // Non-copyable
