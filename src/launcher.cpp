@@ -256,6 +256,7 @@ int main()
         // Render UI
         if (redraw) {
             ui::draw(window, config, state);
+            window.commit_surface();
             redraw = false;
         }
     }
