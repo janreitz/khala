@@ -532,9 +532,6 @@ void draw(PlatformWindow &window, const Config &config, const State &state)
         // Reset font for next iteration
         pango_layout_set_font_description(layout, font_desc);
     }
-
-    // Flush to display
-    cairo_surface_flush(surface);
 }
 
 std::vector<Event> handle_keyboard_input(State &state,

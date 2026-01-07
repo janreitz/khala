@@ -21,6 +21,26 @@ struct xdg_surface;
 struct xdg_toplevel;
 struct xdg_activation_v1;
 struct xdg_activation_token_v1;
+
+// Buffer pool entry for Wayland buffer lifecycle management
+struct WaylandBuffer {
+    wl_buffer* wl_buffer_obj;
+    void* shm_data;
+    int shm_fd;
+    cairo_surface_t* cairo_surface;
+
+    int width;
+    int height;
+    size_t size;
+
+    enum class State {
+        FREE,        // Available for reuse or destruction
+        DRAWING,     // Currently being drawn to by Cairo
+        SUBMITTED,   // Attached to surface, waiting for compositor release
+    } state;
+
+    uint64_t last_used_frame;
+};
 #elif defined(PLATFORM_WIN32)
 #include <cairo-win32.h>
 #include <windows.h>
@@ -40,6 +60,9 @@ class PlatformWindow
     // Automatically recreates if window was resized
     // The surface is owned and will be cleaned up by PlatformWindow
     cairo_surface_t* get_cairo_surface();
+    // Commits the rendered surface to display
+    // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)
+    void commit_surface();
     std::vector<ui::UserInputEvent> get_input_events(bool blocking = true);
 
     // Accessors
@@ -139,9 +162,19 @@ class PlatformWindow
     int cached_surface_width = 0;
     int cached_surface_height = 0;
     wl_shm *shm;
-    wl_buffer *buffer;
-    void *shm_data;
-    int buffer_fd;
+
+    // Buffer pool for proper Wayland buffer lifecycle management
+    static constexpr size_t MAX_BUFFERS = 3;
+    std::vector<WaylandBuffer> buffer_pool;
+    WaylandBuffer* current_buffer;
+    uint64_t frame_counter;
+
+    // Buffer pool management methods
+    WaylandBuffer* allocate_buffer(int width, int height);
+    WaylandBuffer* find_free_buffer(int width, int height);
+    void create_wl_buffer(WaylandBuffer& buf, int w, int h);
+    void cleanup_old_buffers();
+    void destroy_buffer(WaylandBuffer& buf);
 
     std::vector<ui::UserInputEvent> pending_events;
 #elif defined(PLATFORM_WIN32)

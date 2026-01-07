@@ -383,4 +383,14 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
     return events;
 }
 
+void PlatformWindow::commit_surface()
+{
+    // Get the cairo surface to flush
+    cairo_surface_t* cairo_surface = get_cairo_surface();
+
+    // Flush cairo operations to the underlying buffer
+    // For X11, this ensures all cairo operations are sent to the X server
+    cairo_surface_flush(cairo_surface);
+}
+
 #endif // PLATFORM_X11
