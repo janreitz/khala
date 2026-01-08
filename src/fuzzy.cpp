@@ -1,6 +1,7 @@
 #include "fuzzy.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdint>
 #include <string>
@@ -603,7 +604,9 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
     
     const char* path_data = path.data();
     const size_t path_len = path.size();
-    
+    std::array<char, MAX_PATH_LENGTH> path_data_lower;
+    simd_to_lower(path.data(), path_len, path_data_lower.data());
+
     if (path_len < query_len) return 0.0f;
     
     // Find filename start
@@ -621,10 +624,9 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
         for (size_t i = start; i < path_len; ++i) {
             if (path_len - i < query_len - qi) return -1000.0f;  // impossible
 
-            unsigned char c = static_cast<unsigned char>(path_data[i]);
-            c = to_lower(c);
+            unsigned char path_char_lower = static_cast<unsigned char>(path_data_lower[i]);
 
-            if (c == static_cast<unsigned char>(query_data[qi])) {
+            if (path_char_lower == static_cast<unsigned char>(query_data[qi])) {
                 if (last_match + 1 == i) {
                     score += 1.0f + static_cast<float>(++consecutive + 1);
                 } else {
@@ -687,17 +689,16 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
     constexpr int MAX_CANDIDATES = 8;  // Limit search breadth
 
     for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
-        unsigned char c = static_cast<unsigned char>(path_data[i]);
-        c = to_lower(c);
+        unsigned char path_char_lower = static_cast<unsigned char>(path_data_lower[i]);
 
-        if (c == first_char) {
+        if (path_char_lower == first_char) {
             // Prioritize good starting positions
             bool is_boundary = (i == 0 || i == filename_start ||
                                path_data[i-1] == '/' || path_data[i-1] == '_' ||
                                path_data[i-1] == '-' || path_data[i-1] == '.' ||
                                path_data[i-1] == ' ' ||
                                (path_data[i-1] >= 'a' && path_data[i-1] <= 'z' &&
-                                path_data[i] >= 'A' && path_data[i] <= 'Z'));
+                                path.data()[i] >= 'A' && path_data[i] <= 'Z'));
             
             // Always try boundary matches; limit non-boundary matches
             if (is_boundary || candidates_tried < 3) {

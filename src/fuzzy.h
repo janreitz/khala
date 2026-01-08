@@ -7,6 +7,8 @@
 
 namespace fuzzy {
 
+static constexpr size_t MAX_PATH_LENGTH = 512;
+
 // Fuzzy scoring functions
 // The functions expect lowercase queries and do not perform case conversion internally.
 float fuzzy_score(std::string_view path, std::string_view query);
