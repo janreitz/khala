@@ -465,6 +465,33 @@ int simd_find_last_or(std::string_view str, char c, int _default)
     return _default;
 }
 
+// Returns index of first occurrence of c at or after start, or -1 if not found
+int simd_find_first_or(const char* data, size_t len, char c, size_t start, int _default) {
+    const __m128i compare_against = _mm_set1_epi8(c);
+    size_t offset = start;
+    
+    while (offset + 16 <= len) {
+        const __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + offset));
+        const __m128i cmp_result = _mm_cmpeq_epi8(chunk, compare_against);
+        const unsigned int match_mask = static_cast<unsigned int>(_mm_movemask_epi8(cmp_result));
+        
+        if (match_mask != 0) {
+            return static_cast<int>(offset) + __builtin_ctz(match_mask);
+        }
+        offset += 16;
+    }
+    
+    // Scalar tail
+    while (offset < len) {
+        if (data[offset] == c) {
+            return static_cast<int>(offset);
+        }
+        offset++;
+    }
+    
+    return _default;
+}
+
 void simd_to_lower(const char *src, size_t len, char *out_buffer)
 {
     size_t i = 0;
@@ -770,37 +797,33 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
 
     // Find all potential starting positions (where first query char matches)
     // But limit to reasonable candidates to avoid O(n*m) blowup
-    const auto first_char = static_cast<unsigned char>(query_data[0]);
+    const char first_char = query_data[0];
 
     float best_score = -1000.0f;
     int candidates_tried = 0;
     constexpr int MAX_CANDIDATES = 8; // Limit search breadth
+    auto path_idx = simd_find_first_or(path_data_lower.data(), path_len, first_char, 0, -1);
 
-    for (size_t path_idx = 0;
-         path_idx < path_len && candidates_tried < MAX_CANDIDATES; ++path_idx) {
-        const auto path_char_lower =
-            static_cast<unsigned char>(path_data_lower[path_idx]);
+    while (path_idx >= 0 && candidates_tried < MAX_CANDIDATES) {
+        // Prioritize good starting positions
+        const auto path_char = path_data[path_idx];
+        const auto prev_path_char = path_idx > 0 ? path_data[path_idx - 1] : '\0';
+        const bool is_boundary =
+            (path_idx == 0 || static_cast<unsigned int>(path_idx) == filename_start ||
+                prev_path_char == '/' || prev_path_char == '_' ||
+                prev_path_char == '-' || prev_path_char == '.' ||
+                prev_path_char == ' ' ||
+                (prev_path_char >= 'a' && prev_path_char <= 'z' &&
+                path_char >= 'A' && path_char <= 'Z'));
 
-        if (path_char_lower == first_char) {
-            // Prioritize good starting positions
-            const auto path_char = path_data[path_idx];
-            const auto prev_path_char = path_data[path_idx - 1];
-            const bool is_boundary =
-                (path_idx == 0 || path_idx == filename_start ||
-                 prev_path_char == '/' || prev_path_char == '_' ||
-                 prev_path_char == '-' || prev_path_char == '.' ||
-                 prev_path_char == ' ' ||
-                 (prev_path_char >= 'a' && prev_path_char <= 'z' &&
-                  path_char >= 'A' && path_char <= 'Z'));
-
-            // Always try boundary matches; limit non-boundary matches
-            if (is_boundary || candidates_tried < 3) {
-                const float s = score_from(path_idx);
-                if (s > best_score)
-                    best_score = s;
-                candidates_tried++;
-            }
+        // Always try boundary matches; limit non-boundary matches
+        if (is_boundary || candidates_tried < 3) {
+            const float s = score_from(static_cast<size_t>(path_idx));
+            if (s > best_score)
+                best_score = s;
+            candidates_tried++;
         }
+        path_idx = simd_find_first_or(path_data_lower.data(), path_len, first_char, static_cast<size_t>(path_idx + 1), -1);
     }
 
     return best_score > -999.0f ? best_score : 0.0f;
