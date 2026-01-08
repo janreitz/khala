@@ -11,6 +11,10 @@
 namespace fuzzy
 {
 
+unsigned char to_lower(unsigned char c) {
+    return static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+}
+
 float fuzzy_score(std::string_view path, std::string_view query)
 {
     if (query.empty())
@@ -472,8 +476,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
             if (path_len - i < query_len - qi) return -1000.0f;  // impossible
 
             unsigned char c = static_cast<unsigned char>(path_data[i]);
-            // to_lower
-            c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+            c = to_lower(c);
 
             if (c == static_cast<unsigned char>(query_data[qi])) {
                 if (last_match + 1 == i) {
@@ -539,7 +542,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
 
     for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
         unsigned char c = static_cast<unsigned char>(path_data[i]);
-        c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+        c = to_lower(c);
 
         if (c == first_char) {
             // Prioritize good starting positions
@@ -590,7 +593,7 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
             if (path_len - i < query_len - qi) return -1000.0f;  // impossible
 
             unsigned char c = static_cast<unsigned char>(path_data[i]);
-            c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+            c = to_lower(c);
 
             if (c == static_cast<unsigned char>(query_data[qi])) {
                 if (last_match + 1 == i) {
@@ -656,7 +659,7 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
 
     for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
         unsigned char c = static_cast<unsigned char>(path_data[i]);
-        c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+        c = to_lower(c);
 
         if (c == first_char) {
             // Prioritize good starting positions
@@ -740,7 +743,7 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path, std::string_view 
             if (path_len - i < query_len - qi) return {-1000.0f, {}};
 
             unsigned char c = static_cast<unsigned char>(path_data[i]);
-            c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+            c = to_lower(c);
 
             if (c == static_cast<unsigned char>(query_data[qi])) {
                 positions.push_back(i);
@@ -805,7 +808,7 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path, std::string_view 
 
     for (size_t i = 0; i < path_len && candidates_tried < MAX_CANDIDATES; ++i) {
         unsigned char c = static_cast<unsigned char>(path_data[i]);
-        c = static_cast<unsigned char>(c + ((static_cast<unsigned>(c - 'A') < 26) << 5));
+        c = to_lower(c);
 
         if (c == first_char) {
             bool is_boundary = (i == 0 || i == filename_start ||
