@@ -449,6 +449,39 @@ int simd_find_last_or(std::string_view str, char c, int _default) {
     return _default;
 }
 
+void simd_to_lower(std::string_view data, char* out_buffer)
+{
+    const char* src = data.data();
+    const size_t len = data.size();
+    
+    size_t i = 0;
+    
+#if defined(__SSE2__)
+    const __m128i upper_a = _mm_set1_epi8('A');
+    const __m128i upper_z = _mm_set1_epi8('Z');
+    const __m128i lower_bit = _mm_set1_epi8(0x20);
+    
+    for (; i + 16 <= len; i += 16) {
+        __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + i));
+        
+        __m128i ge_a = _mm_cmpgt_epi8(chunk, _mm_sub_epi8(upper_a, _mm_set1_epi8(1)));
+        __m128i le_z = _mm_cmpgt_epi8(upper_z, _mm_sub_epi8(chunk, _mm_set1_epi8(1)));
+        __m128i is_upper = _mm_and_si128(ge_a, le_z);
+        
+        __m128i to_add = _mm_and_si128(is_upper, lower_bit);
+        __m128i result = _mm_add_epi8(chunk, to_add);
+        
+        _mm_storeu_si128(reinterpret_cast<__m128i*>(out_buffer + i), result);
+    }
+#endif
+
+    // Scalar fallback for remainder
+    for (; i < len; ++i) {
+        const char c = static_cast<char>(src[i]);
+        out_buffer[i] = (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 0x20) : c;
+    }
+}
+
 float fuzzy_score_5(std::string_view path, std::string_view query_lower)
 {
     const char* query_data = query_lower.data();
