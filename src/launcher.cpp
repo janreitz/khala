@@ -177,7 +177,7 @@ int main()
                     auto ranked = rank(
                         global_actions,
                         [&query](const ui::Item &item) {
-                            return fuzzy::fuzzy_score(item.title, query);
+                            return fuzzy::fuzzy_score_5_simd(item.title, query);
                         },
                         global_actions.size());
 
@@ -198,7 +198,7 @@ int main()
                     auto ranked = rank(
                         desktop_apps,
                         [&query](const indexer::DesktopApp &app) {
-                            return fuzzy::fuzzy_score(app.name, query);
+                            return fuzzy::fuzzy_score_5_simd(app.name, query);
                         },
                         desktop_apps.size());
 
