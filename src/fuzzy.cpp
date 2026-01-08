@@ -469,9 +469,9 @@ int simd_find_last_or(std::string_view str, char c, int _default)
 int simd_find_first_or(const char *data, size_t len, char c, size_t start,
                        int _default)
 {
-    const __m128i compare_against = _mm_set1_epi8(c);
     size_t offset = start;
-
+#if defined(__SSE2__)
+    const __m128i compare_against = _mm_set1_epi8(c);
     while (offset + 16 <= len) {
         const __m128i chunk =
             _mm_loadu_si128(reinterpret_cast<const __m128i *>(data + offset));
@@ -484,7 +484,7 @@ int simd_find_first_or(const char *data, size_t len, char c, size_t start,
         }
         offset += 16;
     }
-
+#endif
     // Scalar tail
     while (offset < len) {
         if (data[offset] == c) {
@@ -549,6 +549,7 @@ size_t simd_find_all(const char *data, size_t len, char target,
     size_t pos_idx = 0;
     size_t data_idx = 0;
 
+#if defined(__SSE2__)
     const __m128i target_vec = _mm_set1_epi8(target);
 
     // Process 16 bytes at a time
@@ -567,7 +568,7 @@ size_t simd_find_all(const char *data, size_t len, char target,
 
         data_idx += 16;
     }
-
+#endif
     // Scalar tail
     while (data_idx < len && pos_idx < max_results) {
         if (data[data_idx] == target) {
