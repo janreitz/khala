@@ -114,6 +114,8 @@ PackedStrings::PackedStrings()
 {
     data_.reserve(1024 * 1024);
     indices_.reserve(16384);
+    // Enter 16 characters padding for SIMD operations searching backwards
+    push("FFFFFFFFFFFFFFFF"); 
 }
 
 void PackedStrings::push(const std::string &str)
