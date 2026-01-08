@@ -466,21 +466,25 @@ int simd_find_last_or(std::string_view str, char c, int _default)
 }
 
 // Returns index of first occurrence of c at or after start, or -1 if not found
-int simd_find_first_or(const char* data, size_t len, char c, size_t start, int _default) {
+int simd_find_first_or(const char *data, size_t len, char c, size_t start,
+                       int _default)
+{
     const __m128i compare_against = _mm_set1_epi8(c);
     size_t offset = start;
-    
+
     while (offset + 16 <= len) {
-        const __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + offset));
+        const __m128i chunk =
+            _mm_loadu_si128(reinterpret_cast<const __m128i *>(data + offset));
         const __m128i cmp_result = _mm_cmpeq_epi8(chunk, compare_against);
-        const unsigned int match_mask = static_cast<unsigned int>(_mm_movemask_epi8(cmp_result));
-        
+        const unsigned int match_mask =
+            static_cast<unsigned int>(_mm_movemask_epi8(cmp_result));
+
         if (match_mask != 0) {
             return static_cast<int>(offset) + __builtin_ctz(match_mask);
         }
         offset += 16;
     }
-    
+
     // Scalar tail
     while (offset < len) {
         if (data[offset] == c) {
@@ -488,7 +492,7 @@ int simd_find_first_or(const char* data, size_t len, char c, size_t start, int _
         }
         offset++;
     }
-    
+
     return _default;
 }
 
@@ -524,10 +528,12 @@ void simd_to_lower(const char *src, size_t len, char *out_buffer)
 }
 
 // Returns positions of all matches (up to max_results)
-size_t find_all(const char* data, size_t len, char target,
-                size_t* positions, size_t max_results) {
+size_t find_all(const char *data, size_t len, char target, size_t *positions,
+                size_t max_results)
+{
     size_t pos_idx = 0;
-    for (size_t data_idx = 0; data_idx < len && pos_idx < max_results; ++data_idx) {
+    for (size_t data_idx = 0; data_idx < len && pos_idx < max_results;
+         ++data_idx) {
         if (data[data_idx] == target) {
             positions[pos_idx++] = data_idx;
         }
@@ -537,28 +543,31 @@ size_t find_all(const char* data, size_t len, char target,
 
 // Returns positions of all matches (up to max_results)
 
-size_t simd_find_all(const char* data, size_t len, char target,
-                     size_t* positions, size_t max_results) {
+size_t simd_find_all(const char *data, size_t len, char target,
+                     size_t *positions, size_t max_results)
+{
     size_t pos_idx = 0;
     size_t data_idx = 0;
-    
+
     const __m128i target_vec = _mm_set1_epi8(target);
-    
+
     // Process 16 bytes at a time
     while (data_idx + 16 <= len && pos_idx < max_results) {
-        const __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + data_idx));
+        const __m128i chunk =
+            _mm_loadu_si128(reinterpret_cast<const __m128i *>(data + data_idx));
         const __m128i cmp = _mm_cmpeq_epi8(chunk, target_vec);
         int mask = _mm_movemask_epi8(cmp);
-        
+
         while (mask != 0 && pos_idx < max_results) {
-            const auto bit_pos = static_cast<size_t>(__builtin_ctz(static_cast<unsigned int>(mask))); // Position of lowest set bit
+            const auto bit_pos = static_cast<size_t>(__builtin_ctz(
+                static_cast<unsigned int>(mask))); // Position of lowest set bit
             positions[pos_idx++] = data_idx + bit_pos;
             mask &= mask - 1; // Clear lowest set bit
         }
-        
+
         data_idx += 16;
     }
-    
+
     // Scalar tail
     while (data_idx < len && pos_idx < max_results) {
         if (data[data_idx] == target) {
@@ -566,7 +575,7 @@ size_t simd_find_all(const char* data, size_t len, char target,
         }
         data_idx++;
     }
-    
+
     return pos_idx;
 }
 
@@ -802,19 +811,22 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
     float best_score = -1000.0f;
     int candidates_tried = 0;
     constexpr int MAX_CANDIDATES = 8; // Limit search breadth
-    auto path_idx = simd_find_first_or(path_data_lower.data(), path_len, first_char, 0, -1);
+    auto path_idx =
+        simd_find_first_or(path_data_lower.data(), path_len, first_char, 0, -1);
 
     while (path_idx >= 0 && candidates_tried < MAX_CANDIDATES) {
         // Prioritize good starting positions
         const auto path_char = path_data[path_idx];
-        const auto prev_path_char = path_idx > 0 ? path_data[path_idx - 1] : '\0';
+        const auto prev_path_char =
+            path_idx > 0 ? path_data[path_idx - 1] : '\0';
         const bool is_boundary =
-            (path_idx == 0 || static_cast<unsigned int>(path_idx) == filename_start ||
-                prev_path_char == '/' || prev_path_char == '_' ||
-                prev_path_char == '-' || prev_path_char == '.' ||
-                prev_path_char == ' ' ||
-                (prev_path_char >= 'a' && prev_path_char <= 'z' &&
-                path_char >= 'A' && path_char <= 'Z'));
+            (path_idx == 0 ||
+             static_cast<unsigned int>(path_idx) == filename_start ||
+             prev_path_char == '/' || prev_path_char == '_' ||
+             prev_path_char == '-' || prev_path_char == '.' ||
+             prev_path_char == ' ' ||
+             (prev_path_char >= 'a' && prev_path_char <= 'z' &&
+              path_char >= 'A' && path_char <= 'Z'));
 
         // Always try boundary matches; limit non-boundary matches
         if (is_boundary || candidates_tried < 3) {
@@ -823,7 +835,9 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
                 best_score = s;
             candidates_tried++;
         }
-        path_idx = simd_find_first_or(path_data_lower.data(), path_len, first_char, static_cast<size_t>(path_idx + 1), -1);
+        path_idx =
+            simd_find_first_or(path_data_lower.data(), path_len, first_char,
+                               static_cast<size_t>(path_idx + 1), -1);
     }
 
     return best_score > -999.0f ? best_score : 0.0f;
