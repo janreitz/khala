@@ -449,23 +449,19 @@ int simd_find_last_or(std::string_view str, char c, int _default) {
     return _default;
 }
 
-void simd_to_lower(std::string_view data, char* out_buffer)
+void simd_to_lower(const char* src, size_t len, char* out_buffer)
 {
-    const char* src = data.data();
-    const size_t len = data.size();
-    
     size_t i = 0;
     
 #if defined(__SSE2__)
-    const __m128i upper_a = _mm_set1_epi8('A');
-    const __m128i upper_z = _mm_set1_epi8('Z');
+    const __m128i upper_a = _mm_set1_epi8('A' - 1);
+    const __m128i upper_z = _mm_set1_epi8('Z' + 1);
     const __m128i lower_bit = _mm_set1_epi8(0x20);
-    
     for (; i + 16 <= len; i += 16) {
         __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + i));
-        
-        __m128i ge_a = _mm_cmpgt_epi8(chunk, _mm_sub_epi8(upper_a, _mm_set1_epi8(1)));
-        __m128i le_z = _mm_cmpgt_epi8(upper_z, _mm_sub_epi8(chunk, _mm_set1_epi8(1)));
+              
+        __m128i ge_a = _mm_cmpgt_epi8(chunk, upper_a);
+        __m128i le_z = _mm_cmpgt_epi8(upper_z, chunk);
         __m128i is_upper = _mm_and_si128(ge_a, le_z);
         
         __m128i to_add = _mm_and_si128(is_upper, lower_bit);
