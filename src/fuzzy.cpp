@@ -496,6 +496,53 @@ void simd_to_lower(const char *src, size_t len, char *out_buffer)
     }
 }
 
+// Returns positions of all matches (up to max_results)
+size_t find_all(const char* data, size_t len, char target,
+                size_t* positions, size_t max_results) {
+    size_t pos_idx = 0;
+    for (size_t data_idx = 0; data_idx < len && pos_idx < max_results; ++data_idx) {
+        if (data[data_idx] == target) {
+            positions[pos_idx++] = data_idx;
+        }
+    }
+    return pos_idx;
+}
+
+// Returns positions of all matches (up to max_results)
+
+size_t simd_find_all(const char* data, size_t len, char target,
+                     size_t* positions, size_t max_results) {
+    size_t pos_idx = 0;
+    size_t data_idx = 0;
+    
+    const __m128i target_vec = _mm_set1_epi8(target);
+    
+    // Process 16 bytes at a time
+    while (data_idx + 16 <= len && pos_idx < max_results) {
+        const __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(data + data_idx));
+        const __m128i cmp = _mm_cmpeq_epi8(chunk, target_vec);
+        int mask = _mm_movemask_epi8(cmp);
+        
+        while (mask != 0 && pos_idx < max_results) {
+            const auto bit_pos = static_cast<size_t>(__builtin_ctz(static_cast<unsigned int>(mask))); // Position of lowest set bit
+            positions[pos_idx++] = data_idx + bit_pos;
+            mask &= mask - 1; // Clear lowest set bit
+        }
+        
+        data_idx += 16;
+    }
+    
+    // Scalar tail
+    while (data_idx < len && pos_idx < max_results) {
+        if (data[data_idx] == target) {
+            positions[pos_idx++] = data_idx;
+        }
+        data_idx++;
+    }
+    
+    return pos_idx;
+}
+
 float fuzzy_score_5(std::string_view path, std::string_view query_lower)
 {
     const char *query_data = query_lower.data();
