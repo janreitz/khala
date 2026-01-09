@@ -60,8 +60,15 @@ struct Config {
     bool quit_on_action = true;
 
     // Indexing
-    fs::path index_root = std::getenv("HOME");
+    static fs::path default_index_root();
+    fs::path index_root = default_index_root();
+#ifdef PLATFORM_WIN32
+    std::set<fs::path> ignore_dirs{"C:\\Windows", 
+                                   "C:\\$Recycle.Bin"};
+#else
     std::set<fs::path> ignore_dirs{"/proc"};
+#endif
+
     std::set<std::string> ignore_dir_names = {
         ".git", "node_modules", "env",     ".svn",
         ".hg",  "__pycache__",  ".vscode", ".idea"};
@@ -75,6 +82,7 @@ struct Config {
 
     static Config load(const fs::path &path);
     void save(const fs::path &path) const;
+
 };
 
 void load_theme(const std::string &theme_name,

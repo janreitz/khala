@@ -1,7 +1,11 @@
 #include "logger.h"
+#include "utility.h"
+
 #include <filesystem>
 #include <iostream>
 #include <cstdlib>
+
+namespace fs = std::filesystem;
 
 void Logger::init(const std::string& log_dir) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -10,8 +14,8 @@ void Logger::init(const std::string& log_dir) {
         return;
     }
 
-    std::string dir = log_dir;
-    if (dir.empty()) {
+    fs::path dir(log_dir);
+    if (dir.empty() || !fs::exists(dir)) {
         // Use KHALA_DATA_DIR or fallback to XDG_DATA_HOME or ~/.local/share
         const char* khala_data = std::getenv("KHALA_DATA_DIR");
         if (khala_data) {
@@ -21,11 +25,11 @@ void Logger::init(const std::string& log_dir) {
             if (xdg_data) {
                 dir = std::string(xdg_data) + "/khala/logs";
             } else {
-                const char* home = std::getenv("HOME");
+                const auto home = get_home_dir();
                 if (home) {
-                    dir = std::string(home) + "/.local/share/khala/logs";
+                    dir = home.value() / ".local/share/khala/logs";
                 } else {
-                    dir = "/tmp/khala/logs";
+                    dir = get_temp_dir() / "khala/logs";
                 }
             }
         }

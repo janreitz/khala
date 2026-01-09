@@ -228,12 +228,16 @@ std::optional<Color> parse_color(const std::string &str)
     return color;
 }
 
+fs::path Config::default_index_root()
+{
+    const auto home_dir = get_home_dir();
+    return home_dir.value_or(".");
+}
+
 fs::path Config::default_path()
 {
-    const char *home = std::getenv("HOME");
-    if (!home)
-        return {};
-    return fs::path(home) / ".khala" / "config.ini";
+    const auto home_dir = get_home_dir();
+    return home_dir.value_or(".") / ".khala" / "config.ini";
 }
 
 void load_theme(const std::string &theme_name,

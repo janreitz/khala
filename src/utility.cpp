@@ -275,3 +275,38 @@ std::string path_to_string(const fs::path& path) {
     return path.filename().string();
 #endif
 }
+
+std::optional<std::filesystem::path> get_home_dir() {
+#ifdef _WIN32
+    const char *home = std::getenv("USERPROFILE");
+#else
+    const char *home = std::getenv("HOME");
+#endif
+    if (!home) {
+        return std::nullopt;
+    }
+    const fs::path home_path(home);
+    if (!fs::exists(home_path)) {
+        return std::nullopt;
+    }
+    return home_path;
+}
+
+fs::path get_temp_dir()
+{
+#ifdef _WIN32
+    const char *temp = std::getenv("TEMP");
+    if (!temp) {
+        temp = std::getenv("TMP");
+    }
+    if (!temp) {
+        return fs::path("C:\\Temp");
+    }
+#else
+    const char *temp = std::getenv("TMPDIR");
+    if (!temp) {
+        temp = "/tmp";
+    }
+#endif
+    return fs::path(temp);
+}
