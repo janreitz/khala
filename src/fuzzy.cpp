@@ -739,11 +739,9 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
             if (path_len - path_idx < query_len - query_idx)
                 return -1000.0F; // impossible
 
-            const auto path_char_lower =
-                static_cast<unsigned char>(path_data_lower[path_idx]);
+            const auto path_char_lower = path_data_lower[path_idx];
 
-            if (path_char_lower ==
-                static_cast<unsigned char>(query_data[query_idx])) {
+            if (path_char_lower == query_data[query_idx]) {
                 if (last_match + 1 == path_idx) {
                     score += 1.0F + static_cast<float>(++consecutive + 1);
                 } else {
@@ -761,8 +759,7 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
                 if (path_idx == 0 || path_idx == filename_start) {
                     score += 5.0F;
                 } else {
-                    const auto prev =
-                        static_cast<unsigned char>(path_data[path_idx - 1]);
+                    const auto prev = path_data[path_idx - 1];
                     if (prev == '/' || prev == '_' || prev == '-' ||
                         prev == '.' || prev == ' ' ||
                         (prev >= 'a' && prev <= 'z' &&
