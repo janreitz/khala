@@ -91,7 +91,7 @@ int main()
                 size_t scored_paths = 0;
                 for (const auto& path : paths) {
                     float score = scoring_func(path, test_query);
-                    if (score > 0.0f) {
+                    if (score > 0.0F) {
                         scored_paths++;
                     }
                 }

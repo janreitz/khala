@@ -164,7 +164,7 @@ void StreamingRanker::process_chunks()
 
         // Add only results with score > 0 to flattened results
         for (const auto& result : chunk_scored) {
-            if (result.score > 0.0f) {
+            if (result.score > 0.0F) {
                 scored_results_.push_back(result);
             }
         }
