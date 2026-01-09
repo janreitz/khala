@@ -6,16 +6,18 @@
 #include "logger.h"
 #include "ranker.h"
 #include "streamingindex.h"
+#include "types.h"
 #include "ui.h"
 #include "utility.h"
 #include "window.h"
 
-#include <algorithm>
+#include <cairo.h>
+
 #include <atomic>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <future>
 #include <mutex>
@@ -24,6 +26,10 @@
 #include <utility>
 
 namespace fs = std::filesystem;
+
+// Constants for event loop timing and indexing
+constexpr size_t INDEXER_BATCH_SIZE = 10'000;
+constexpr int EVENT_LOOP_SLEEP_MS = 16; // ~60 FPS
 
 int main()
 {
@@ -83,7 +89,7 @@ int main()
     auto index_future = std::async(std::launch::async, [&]() {
         indexer::scan_filesystem_streaming(config.index_root, streaming_index,
                                            config.ignore_dirs,
-                                           config.ignore_dir_names, 10'000);
+                                           config.ignore_dir_names, INDEXER_BATCH_SIZE);
         LOG_INFO("Scan complete - %zu total files",
                streaming_index.get_total_files());
     });
@@ -115,7 +121,7 @@ int main()
         // Small sleep during non-blocking mode to avoid busy looping
         if (events.empty()) {
             std::this_thread::sleep_for(
-                std::chrono::milliseconds(16)); // ~60 FPS
+                std::chrono::milliseconds(EVENT_LOOP_SLEEP_MS));
         }
 
         // Process high-level events
@@ -132,7 +138,7 @@ int main()
                 if (adjusted) {
                     const auto required_item_count =
                         ui::required_item_count(state, max_visible_items);
-                    std::lock_guard lock(query_mutex);
+                    const std::lock_guard lock(query_mutex);
                     if (required_item_count > ranker_request.requested_count) {
                         ranker_request.requested_count = required_item_count;
                         query_changed.store(true, std::memory_order_release);
@@ -182,8 +188,8 @@ int main()
                         global_actions.size());
 
                     state.items.clear();
-                    for (const auto &r : ranked) {
-                        state.items.push_back(global_actions[r.index]);
+                    for (const auto &result : ranked) {
+                        state.items.push_back(global_actions[result.index]);
                     }
                     // App search mode - search desktop applications only
                 } else if (!state.input_buffer.empty() &&
@@ -203,8 +209,8 @@ int main()
                         desktop_apps.size());
 
                     state.items.clear();
-                    for (const auto &r : ranked) {
-                        const auto &app = desktop_apps[r.index];
+                    for (const auto &result : ranked) {
+                        const auto &app = desktop_apps[result.index];
                         state.items.push_back(ui::Item{
                             .title = app.name,
                             .description = app.description,
@@ -219,7 +225,7 @@ int main()
                     state.mode = ui::FileSearch{.query = state.input_buffer};
 
                     {
-                        std::lock_guard lock(query_mutex);
+                        const std::lock_guard lock(query_mutex);
                         ranker_request.query = to_lower(state.input_buffer);
                         ranker_request.requested_count =
                             ui::required_item_count(state, max_visible_items);
@@ -263,13 +269,13 @@ int main()
             const unsigned int new_height = ui::calculate_window_height(
                 config.font_size, state.items.size(), current_max_visible_items);
 
-            if (new_height != static_cast<unsigned int>(window.get_height())) {
-                window.resize(new_height, static_cast<unsigned int>(window.get_width()));
+            if (new_height != window.get_height()) {
+                window.resize(new_height, window.get_width());
             }
             try {
                 // Get context and draw
-                cairo_t *cr = window.get_cairo_context();
-                ui::draw(cr, window.get_width(), window.get_height(), config, state);
+                cairo_t *cairo_ctx = window.get_cairo_context();
+                ui::draw(cairo_ctx, window.get_width(), window.get_height(), config, state);
                 window.commit_surface();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to render UI: %s", e.what());
@@ -284,9 +290,11 @@ int main()
     query_changed.notify_all();
     ranker_mode.store(RankerMode::Inactive, std::memory_order_release);
 
-    if (index_future.valid())
+    if (index_future.valid()) {
         index_future.wait();
-    if (rank_future.valid())
+    }
+    if (rank_future.valid()) {
         rank_future.wait();
+    }
     return 0;
 }
