@@ -38,23 +38,10 @@ int main()
         auto scan_end = std::chrono::steady_clock::now();
         auto scan_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(scan_end - batch_start);
-
-        auto desktop_start = std::chrono::steady_clock::now();
-        const auto desktop_apps = indexer::scan_desktop_files();
-        auto scan_desktop_end = std::chrono::steady_clock::now();
-        auto scan_desktop_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                scan_desktop_end - desktop_start);
-
-        auto batch_total_duration =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                scan_desktop_end - batch_start);
-
+ 
         printf("=================================\n");
         printf("Batch indexing complete!\n");
-        printf("  Filesystem scan (%zu entries): %ldms\n", paths.size(), scan_duration.count());
-        printf("  Desktop files scan: %ldms\n", scan_desktop_duration.count());
-        printf("  Total batch time: %ldms\n", batch_total_duration.count());
+        printf("  Filesystem scan (%zu entries): %ldms\n", paths.size(), scan_duration.count());   
 
         printf("\n================ Streaming Approach =================\n");
         const auto streaming_start = std::chrono::steady_clock::now();
