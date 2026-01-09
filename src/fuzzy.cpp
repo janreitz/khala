@@ -735,51 +735,53 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
         bool is_filename_prefix = true;
         bool all_in_filename = true;
 
-        for (size_t path_idx = start; path_idx < path_len; ++path_idx) {
+        auto next_path_idx = simd_find_first_or(
+            path_data_lower.data(), path_len, query_data[query_idx], start, -1);
+
+        while (next_path_idx > 0) {
+            const auto path_idx = static_cast<size_t>(next_path_idx);
+
             if (path_len - path_idx < query_len - query_idx)
                 return -1000.0F; // impossible
 
-            const auto path_char_lower = path_data_lower[path_idx];
-
-            if (path_char_lower == query_data[query_idx]) {
-                if (last_match + 1 == path_idx) {
-                    score += 1.0F + static_cast<float>(++consecutive + 1);
+            if (last_match + 1 == path_idx) {
+                score += 1.0F + static_cast<float>(++consecutive + 1);
+            } else {
+                if (last_match != SIZE_MAX) {
+                    score +=
+                        1.0F -
+                        (static_cast<float>(path_idx - last_match - 1) * 0.5F);
                 } else {
-                    if (last_match != SIZE_MAX) {
-                        score +=
-                            1.0F -
-                            (static_cast<float>(path_idx - last_match - 1) *
-                             0.5F);
-                    } else {
-                        score += 1.0F;
-                    }
-                    consecutive = 0;
+                    score += 1.0F;
                 }
-
-                if (path_idx == 0 || path_idx == filename_start) {
-                    score += 5.0F;
-                } else {
-                    const auto prev = path_data[path_idx - 1];
-                    if (prev == '/' || prev == '_' || prev == '-' ||
-                        prev == '.' || prev == ' ' ||
-                        (prev >= 'a' && prev <= 'z' &&
-                         path_data[path_idx] >= 'A' &&
-                         path_data[path_idx] <= 'Z')) {
-                        score += 3.0F;
-                    }
-                }
-
-                if (path_idx < filename_start) {
-                    all_in_filename = false;
-                    is_filename_prefix = false;
-                } else if (path_idx != filename_start + query_idx) {
-                    is_filename_prefix = false;
-                }
-
-                last_match = path_idx;
-                if (++query_idx == query_len)
-                    break;
+                consecutive = 0;
             }
+
+            if (path_idx == 0 || path_idx == filename_start) {
+                score += 5.0F;
+            } else {
+                const auto prev = path_data[path_idx - 1];
+                if (prev == '/' || prev == '_' || prev == '-' || prev == '.' ||
+                    prev == ' ' ||
+                    (prev >= 'a' && prev <= 'z' && path_data[path_idx] >= 'A' &&
+                     path_data[path_idx] <= 'Z')) {
+                    score += 3.0F;
+                }
+            }
+
+            if (path_idx < filename_start) {
+                all_in_filename = false;
+                is_filename_prefix = false;
+            } else if (path_idx != filename_start + query_idx) {
+                is_filename_prefix = false;
+            }
+
+            last_match = path_idx;
+            if (++query_idx == query_len)
+                break;
+            next_path_idx =
+                simd_find_first_or(path_data_lower.data(), path_len,
+                                   query_data[query_idx], path_idx + 1, -1);
         }
 
         if (query_idx < query_len)
