@@ -8,6 +8,9 @@
 #include <string_view>
 
 #include <emmintrin.h>
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 namespace fuzzy
 {
@@ -437,6 +440,20 @@ int find_last_or(std::string_view str, char c, int _default)
     }
 }
 
+int count_leading_zeros(unsigned int x)
+{
+#ifdef _MSC_VER
+    unsigned long index;
+    unsigned char success = _BitScanReverse(&index, x);
+    // _BitScanReverse fails for x = 0
+    // If success == 0, return 32 
+    // If success == 1, we want to return 31 - index
+    return 32 - (success * (index + 1));
+#else
+    return __builtin_clz(x);
+#endif
+}
+
 // This requires up to sizeof(__m128i) before str.data();
 int simd_find_last_or(std::string_view str, char c, int _default)
 {
@@ -457,7 +474,7 @@ int simd_find_last_or(std::string_view str, char c, int _default)
         if (match_mask != 0) {
             const int last_match_index_in_chunk =
                 (static_cast<int>(sizeof(int)) * 8 - 1) -
-                __builtin_clz(match_mask);
+                count_leading_zeros(match_mask);
             const int last_match_index = offset + last_match_index_in_chunk;
             return last_match_index >= 0 ? last_match_index : _default;
         }
