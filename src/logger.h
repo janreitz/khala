@@ -26,10 +26,22 @@ public:
     void init(const std::string& log_dir = "");
     
     // Printf-style logging functions
-    void debug(const char* format, ...) __attribute__((format(printf, 2, 3)));
-    void info(const char* format, ...) __attribute__((format(printf, 2, 3)));
-    void warning(const char* format, ...) __attribute__((format(printf, 2, 3)));
-    void error(const char* format, ...) __attribute__((format(printf, 2, 3)));
+#if defined(__GNUC__) || defined(__clang__)
+    void debug(const char *format, ...) __attribute__((format(printf, 2, 3)));
+    void info(const char *format, ...) __attribute__((format(printf, 2, 3)));
+    void warning(const char *format, ...) __attribute__((format(printf, 2, 3)));
+    void error(const char *format, ...) __attribute__((format(printf, 2, 3)));
+#elif defined(_MSC_VER)
+    void debug(const _Printf_format_string_ char *format, ...);
+    void info(const _Printf_format_string_ char *format, ...);
+    void warning(const _Printf_format_string_ char *format, ...);
+    void error(const _Printf_format_string_ char *format, ...);
+#else
+    void debug(const char *format, ...);
+    void info(const char *format, ...);
+    void warning(const char *format, ...);
+    void error(const char *format, ...);
+#endif
 
     // Non-copyable
     Logger(const Logger&) = delete;
