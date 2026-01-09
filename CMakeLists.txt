@@ -134,11 +134,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Compiler specific flags
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # Compiler warnings
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
         -Wall
         -Wextra
@@ -156,6 +157,34 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         -Wnull-dereference
         -Wdouble-promotion
     )
+elseif(MSVC)
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
+    # Compiler warnings
+#    add_compile_options(
+#        /W4           # High warning level (equivalent to -Wall -Wextra)
+#        /WX           # Treat warnings as errors (equivalent to -Werror)
+#        /w14242       # Conversion, possible loss of data
+#        /w14254       # Larger bit field assigned to smaller bit field
+#        /w14263       # Member function does not override any base class virtual member function
+#        /w14265       # Class has virtual functions, but destructor is not virtual
+#        /w14287       # Unsigned/negative constant mismatch
+#        /we4289       # Loop control variable declared in the for-loop is used outside the for-loop scope
+#        /w14296       # Expression is always true/false
+#        /w14311       # Pointer truncation from one type to another
+#        /w14545       # Expression before comma evaluates to a function which is missing an argument list
+#        /w14546       # Function call before comma missing argument list
+#        /w14547       # Operator before comma has no effect
+#        /w14549       # Operator before comma has no effect
+#        /w14555       # Expression has no effect
+#        /w14619       # #pragma warning: there is no warning number 'number'
+#        /w14640       # Thread unsafe static member initialization
+#        /w14826       # Conversion from one type to another is sign-extended
+#        /w14905       # Wide string literal cast to 'LPSTR'
+#        /w14906       # String literal cast to 'LPWSTR'
+#        /w14928       # Illegal copy-initialization
+#        /permissive-  # Standards conformance mode
+#    )
 endif()
 
 add_executable(khala
