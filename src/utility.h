@@ -82,3 +82,7 @@ struct PackedStrings {
     iterator begin() const;
     iterator end() const;
 };
+
+// Platform specific helpers
+
+std::string path_to_string(const std::filesystem::path &path);

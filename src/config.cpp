@@ -1,6 +1,7 @@
 // config.cpp
 #include "config.h"
 #include "logger.h"
+#include "utility.h"
 
 #include <charconv>
 #include <cstdint>
@@ -269,7 +270,7 @@ void load_theme(const std::string &theme_name,
                          config.selection_description_color);
 
         LOG_INFO("Loaded theme '%s' from %s", theme_name.c_str(),
-               theme_file.generic_string().c_str());
+               path_to_string(theme_file).c_str());
         return; // Found and loaded, return immediately
     }
 
@@ -338,7 +339,7 @@ Config Config::load(const fs::path &path)
                     continue;
 
                 actions_by_stem.insert_or_assign(
-                    entry.path().stem(),
+                    path_to_string(entry.path().stem()),
                     CustomActionDef{
                         .title = title,
                         .description = description,
@@ -387,9 +388,9 @@ void Config::save(const fs::path &path) const
     file << "\n";
 
     file << "# Indexing \n";
-    file << "index_root=" << fs::canonical(index_root).generic_string() << "\n";
+    file << "index_root=" << path_to_string(fs::canonical(index_root)) << "\n";
     for (const auto &dir : ignore_dirs) {
-        file << "ignore_dir=" << fs::canonical(dir).generic_string() << "\n";
+        file << "ignore_dir=" << path_to_string(fs::canonical(dir)) << "\n";
     }
     for (const auto &dir_name : ignore_dir_names) {
         file << "ignore_dir_name=" << dir_name << "\n";
@@ -399,5 +400,5 @@ void Config::save(const fs::path &path) const
     file.flush();
 
     LOG_INFO("Written config to %s",
-           fs::canonical(path).generic_string().c_str());
+           path_to_string(fs::canonical(path)).c_str());
 }

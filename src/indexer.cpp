@@ -31,14 +31,15 @@ PackedStrings scan_subtree(const fs::path &root,
             if (it->is_directory()) {
                 // Check both full paths and directory names
                 if (ignore_dirs.contains(it->path()) ||
-                    ignore_dir_names.contains(it->path().filename().string())) {
+                    ignore_dir_names.contains(
+                        path_to_string(it->path().filename()))) {
                     it.disable_recursion_pending();
                     continue;
                 }
             }
 
             if (it->is_regular_file()  || it->is_directory()) {
-                paths.push(it->path().string());
+                paths.push(path_to_string(it->path()));
             }
         }
     } catch (const fs::filesystem_error &) {
@@ -63,7 +64,7 @@ scan_filesystem_parallel(const fs::path &root_path,
                 // Check both full paths and directory names
                 if (!ignore_dirs.contains(entry.path()) &&
                     !ignore_dir_names.contains(
-                        entry.path().filename().string())) {
+                        path_to_string(entry.path().filename()))) {
                     subdirs.push_back(entry.path());
                 }
             } else if (entry.is_regular_file()) {
@@ -104,14 +105,14 @@ void scan_subtree_streaming(const fs::path &root,
             if (it->is_directory()) {
                 // Check both full paths and directory names
                 if (ignore_dirs.contains(it->path()) ||
-                    ignore_dir_names.contains(it->path().filename().string())) {
+                    ignore_dir_names.contains(path_to_string(it->path().filename()))) {
                     it.disable_recursion_pending();
                     continue;
                 }
             }
 
             if (it->is_regular_file() || it->is_directory()) {
-                current_chunk.push(it->path().string());
+                current_chunk.push(path_to_string(it->path()));
 
                 if (current_chunk.size() >= chunk_size) {
                     current_chunk.shrink_to_fit();
@@ -157,13 +158,13 @@ void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
             for (const auto &entry : fs::directory_iterator(path)) {
                 if (entry.is_directory()) {
                     if (ignore_dir_names.contains(
-                            entry.path().filename().string()) ||
+                            path_to_string(entry.path().filename())) ||
                         ignore_dirs.contains(entry.path())) {
                         continue;
                     }
                     to_expand.push_back(entry.path());
                 } else if (entry.is_regular_file()) {
-                    root_files.push(entry.path().string());
+                    root_files.push(path_to_string(entry.path()));
                 }
             }
         } catch (const fs::filesystem_error &) {

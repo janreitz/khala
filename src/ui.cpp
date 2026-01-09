@@ -667,14 +667,14 @@ std::vector<Item> convert_file_results_to_items(
 
             if (fs::is_directory(file_path)) {
                 items.push_back(Item{
-                    .title = "📁 " + file_path.generic_string(),
+                    .title = "📁 " + path_to_string(file_path),
                     .description = serialize_file_info(file_path),
                     .path = file_path,
                     .command = OpenDirectory{.path = file_path},
                 });
             } else {
                 items.push_back(Item{
-                    .title = "📄 " + file_path.generic_string(),
+                    .title = "📄 " + path_to_string(file_path),
                     .description = serialize_file_info(file_path),
                     .path = file_path,
                     .command = OpenFile{.path = file_path},
