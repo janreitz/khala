@@ -1,3 +1,6 @@
+.vs
+CMakeSettings.json
+out
 .vscode
 build
 build-wayland
