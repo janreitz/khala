@@ -183,6 +183,16 @@ class PlatformWindow
 
     std::vector<ui::UserInputEvent> pending_events;
 #elif defined(PLATFORM_WIN32)
+    cairo_surface_t *create_cairo_surface(unsigned int surface_height,
+                                          unsigned int surface_width);
+    cairo_surface_t *get_cairo_surface();
+    bool surface_cache_valid() const;
+
+    cairo_surface_t *cached_surface = nullptr;
+    unsigned int cached_surface_width = 0;
+    unsigned int cached_surface_height = 0;
+    cairo_t *cached_context = nullptr;
+
     HWND hwnd;
     HDC hdc;
 #endif
