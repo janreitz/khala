@@ -57,16 +57,7 @@ class PlatformWindow
 
     // Window operations
     void resize(unsigned int height, unsigned int width);
-    // Returns cairo context for drawing
-    // The context and underlying surface are owned by PlatformWindow
-    // Caller must not destroy the returned context
-    // Context may be invalidated by resize() - always get fresh context before drawing
-    // Throws std::runtime_error if context creation fails
-    cairo_t* get_cairo_context();
-
-
     void draw(const Config &config, const ui::State &state);
-
     // Commits the rendered surface to display
     // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)
     // Throws std::runtime_error if surface/buffer is unavailable
@@ -116,23 +107,25 @@ class PlatformWindow
 #endif
 
   private:
-#ifdef PLATFORM_X11
+    // Cairo members (all platforms)
+#if  defined(PLATFORM_X11) || defined(PLATFORM_WAYLAND)
+    cairo_t* get_cairo_context();
     cairo_surface_t *create_cairo_surface(unsigned int surface_height, unsigned int surface_width);
     cairo_surface_t *get_cairo_surface();
     bool surface_cache_valid() const;
 
     cairo_surface_t *cached_surface = nullptr;
-    unsigned int cached_surface_width = 0;
-    unsigned int cached_surface_height = 0;
     cairo_t *cached_context = nullptr;
+#endif
+
+#ifdef PLATFORM_X11
     Display *display;
     ::Window window;
     Colormap colormap;
-#elif defined(PLATFORM_WAYLAND)
-    cairo_surface_t *create_cairo_surface(unsigned int h, unsigned int w);
-    cairo_surface_t *get_cairo_surface();
-    bool surface_cache_valid() const;
 
+    unsigned int cached_surface_width = 0;
+    unsigned int cached_surface_height = 0;
+#elif defined(PLATFORM_WAYLAND)
     wl_display *display;
     wl_compositor *compositor;
     wl_surface *surface;
@@ -169,8 +162,6 @@ class PlatformWindow
     uint32_t pointer_serial;
 
     // Shared memory buffer for rendering
-    cairo_surface_t *cached_surface = nullptr;
-    cairo_t *cached_context = nullptr;
     wl_shm *shm;
 
     // Buffer pool for proper Wayland buffer lifecycle management
@@ -201,7 +192,6 @@ class PlatformWindow
     HBITMAP hbitmap = nullptr;
     void *bitmap_bits = nullptr;
 #endif
-
     // Common members (all platforms)
     unsigned int width;
     unsigned int height;

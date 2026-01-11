@@ -10,8 +10,6 @@
 #include <string>
 #include <variant>
 
-#include <cairo.h>
-
 namespace ui
 {
 
@@ -30,6 +28,8 @@ std::string create_pagination_text(size_t visible_offset,
                                    size_t max_visible_items,
                                    size_t total_results,
                                    size_t total_available_results);
+std::string create_highlighted_markup(const std::string &text,
+                                      const std::vector<size_t> &match_positions);
 int calculate_abs_input_height(int font_size);
 int calculate_abs_item_height(int font_size);
 size_t calculate_max_visible_items(unsigned int window_height, int font_size);
@@ -112,8 +112,5 @@ size_t required_item_count(const State &state, size_t max_visible_items);
 // Convert FileResults from ranker to UI Items
 std::vector<Item> convert_file_results_to_items(
     const std::vector<FileResult> &file_results);
-
-void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
-          const Config &config, const State &state);
 
 } // namespace ui
