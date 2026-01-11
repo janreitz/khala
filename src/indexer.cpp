@@ -121,7 +121,9 @@ void scan_subtree_streaming(const fs::path &root,
                 }
             }
         }
-    } catch (const fs::filesystem_error &) {
+    } catch (const fs::filesystem_error &e) {
+        LOG_WARNING("Exception while indexing %s: %s",
+                    path_to_string(e.path1()).c_str(), e.what());
     }
 
     // Emit remaining files
@@ -167,8 +169,9 @@ void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
                     root_files.push(path_to_string(entry.path()));
                 }
             }
-        } catch (const fs::filesystem_error &) {
-            // TODO log errors but continue
+        } catch (const fs::filesystem_error &e) {
+            LOG_WARNING("Exception while indexing %s: %s",
+                        path_to_string(e.path1()).c_str(), e.what());
         }
     }
 
