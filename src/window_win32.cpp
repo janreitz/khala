@@ -243,21 +243,12 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     }
 
     g_hwnd = hwnd;
-
-    // Set window to be transparent
-    SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
-
+    
     // Show and focus the window
     ShowWindow(hwnd, SW_SHOW);
     SetForegroundWindow(hwnd);
     SetFocus(hwnd);
     UpdateWindow(hwnd);
-
-    // Get DC for Cairo
-    hdc = GetDC(hwnd);
-    if (!hdc) {
-        throw std::runtime_error("Failed to get device context");
-    }
 }
 
 PlatformWindow::~PlatformWindow()
@@ -270,9 +261,17 @@ PlatformWindow::~PlatformWindow()
         cairo_surface_destroy(cached_surface);
         cached_surface = nullptr;
     }
-    if (hdc && hwnd) {
-        ReleaseDC(hwnd, hdc);
-        hdc = nullptr;
+    if (hbitmap) {
+        DeleteObject(hbitmap);
+    }
+    if (hdc_mem) {
+        DeleteDC(hdc_mem);
+    }
+    if (hdc_screen) {
+        ReleaseDC(nullptr, hdc_screen);
+    }
+    if (hwnd) {
+        DestroyWindow(hwnd);
     }
     if (hwnd) {
         DestroyWindow(hwnd);
@@ -289,84 +288,74 @@ void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
     width = new_width;
 }
 
-cairo_surface_t *PlatformWindow::get_cairo_surface()
+bool PlatformWindow::cairo_cache_valid() const
 {
-    if (surface_cache_valid()) {
-        return cached_surface;
-    }
-
-    if (cached_surface != nullptr) {
-        cairo_surface_destroy(cached_surface);
-        cached_surface = nullptr;
-    }
-
-    cached_surface = create_cairo_surface(height, width);
-    cached_surface_width = width;
-    cached_surface_height = height;
-    return cached_surface;
+    return cached_context && cached_surface_width == width &&
+           cached_surface_height == height &&
+           cairo_surface_status(cached_surface) == CAIRO_STATUS_SUCCESS;
 }
 
 cairo_t *PlatformWindow::get_cairo_context()
 {
-    if (surface_cache_valid() && cached_context) {
+    if (cairo_cache_valid()) {
         return cached_context;
     }
 
+    // Destroy in correct order: context first, then surface, then GDI
     if (cached_context) {
         cairo_destroy(cached_context);
         cached_context = nullptr;
     }
-
-    // Get the current surface
-    cairo_surface_t *surface = get_cairo_surface();
-
-    // Create context if we don't have one
-    cached_context = cairo_create(surface);
-    if (cached_context == nullptr ||
-        cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
-        const int status =
-            cached_context != nullptr ? cairo_status(cached_context) : -1;
-        if (cached_context != nullptr) {
-            cairo_destroy(cached_context);
-            cached_context = nullptr;
-        }
-        throw std::runtime_error("Failed to create Cairo context, status: " +
-                                 std::to_string(status));
+    if (cached_surface) {
+        cairo_surface_destroy(cached_surface);
+        cached_surface = nullptr;
     }
-    LOG_DEBUG("Created new Cairo context");
+    if (hbitmap) {
+        DeleteObject(hbitmap);
+        hbitmap = nullptr;
+    }
+    if (hdc_mem) {
+        DeleteDC(hdc_mem);
+        hdc_mem = nullptr;
+    }
+    if (hdc_screen) {
+        ReleaseDC(nullptr, hdc_screen);
+        hdc_screen = nullptr;
+    }
+
+    // Create GDI resources
+    hdc_screen = GetDC(nullptr);
+    hdc_mem = CreateCompatibleDC(hdc_screen);
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = width;
+    bmi.bmiHeader.biHeight = -static_cast<int>(height);
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    hbitmap = CreateDIBSection(hdc_mem, &bmi, DIB_RGB_COLORS, &bitmap_bits,
+                               nullptr, 0);
+    SelectObject(hdc_mem, hbitmap);
+
+    // Create Cairo surface and context
+    cached_surface = cairo_image_surface_create_for_data(
+        static_cast<unsigned char *>(bitmap_bits), CAIRO_FORMAT_ARGB32, width,
+        height, width * 4);
+    LOG_DEBUG("Backend: %d\n", cairo_surface_get_type(cached_surface));
+
+    cached_context = cairo_create(cached_surface);
+
+    if (cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
+        throw std::runtime_error("Failed to create Cairo context: " +
+                                 std::to_string(cairo_status(cached_context)));
+    }
+
+    cached_surface_width = width;
+    cached_surface_height = height;
 
     return cached_context;
-}
-
-bool PlatformWindow::surface_cache_valid() const
-{
-    if (cached_surface == nullptr) {
-        LOG_DEBUG("Surface cache miss: cached_surface == nullptr");
-        return false;
-    }
-
-    if (cached_surface_width != width || cached_surface_height != height) {
-        LOG_DEBUG("Surface cache miss: dimensions changed (cached: %ux%u "
-                  "window: %ux%u)",
-                  cached_surface_width, cached_surface_height, width, height);
-        return false;
-    }
-
-    const auto surface_status = cairo_surface_status(cached_surface);
-    if (surface_status != CAIRO_STATUS_SUCCESS) {
-        LOG_DEBUG("Surface cache miss: cairo_surface_status %d",
-                  surface_status);
-        return false;
-    }
-    return true;
-}
-
-cairo_surface_t *
-PlatformWindow::create_cairo_surface(unsigned int surface_height,
-                                     unsigned int surface_width)
-{
-    // Create Cairo surface for Win32 window
-    return cairo_win32_surface_create(hdc);
 }
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
@@ -404,17 +393,26 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 
 void PlatformWindow::commit_surface()
 {
-    // Get the cairo surface to flush
-    cairo_surface_t *cairo_surface = get_cairo_surface();
-    if (cairo_surface == nullptr) {
+    if (!cairo_cache_valid()) {
         throw std::runtime_error(
-            "Cannot commit surface: no cairo surface available");
+            "Cannot commit surface: no valid cairo surface available");
     }
 
-    // Flush cairo operations to the underlying buffer
-    cairo_surface_flush(cairo_surface);
-
-    // For Win32, we need to explicitly trigger a redraw
-    // GdiFlush ensures all GDI operations are completed
+    cairo_surface_flush(cached_surface);
     GdiFlush();
+
+    SIZE size = {static_cast<LONG>(width), static_cast<LONG>(height)};
+    POINT pt_src = {0, 0};
+
+    BLENDFUNCTION blend = {};
+    blend.BlendOp = AC_SRC_OVER;
+    blend.SourceConstantAlpha = 255;
+    blend.AlphaFormat = AC_SRC_ALPHA;
+
+    RECT wr;
+    GetWindowRect(hwnd, &wr);
+    POINT pt_dst = {wr.left, wr.top};
+
+    UpdateLayeredWindow(hwnd, hdc_screen, &pt_dst, &size, hdc_mem, &pt_src, 0,
+                        &blend, ULW_ALPHA);
 }
