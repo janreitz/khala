@@ -4,7 +4,6 @@
 #include "window.h"
 #include "logger.h"
 
-#include <cairo-xlib.h>
 #include <cairo.h>
 
 #include "pango/pango-font.h"
