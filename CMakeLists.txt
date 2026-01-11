@@ -158,7 +158,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
         -Wdouble-promotion
     )
 elseif(MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1")
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX")
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
     # Compiler warnings
 #    add_compile_options(
