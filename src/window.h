@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "ui.h"
 
 #include <map>
 #include <vector>
@@ -62,6 +63,10 @@ class PlatformWindow
     // Context may be invalidated by resize() - always get fresh context before drawing
     // Throws std::runtime_error if context creation fails
     cairo_t* get_cairo_context();
+
+
+    void draw(const Config &config, const ui::State &state);
+
     // Commits the rendered surface to display
     // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)
     // Throws std::runtime_error if surface/buffer is unavailable

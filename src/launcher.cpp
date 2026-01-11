@@ -274,8 +274,12 @@ int main()
             }
             try {
                 // Get context and draw
+#ifdef PLATFORM_WIN32
+                window.draw(config, state);
+#else   
                 cairo_t *cairo_ctx = window.get_cairo_context();
                 ui::draw(cairo_ctx, window.get_width(), window.get_height(), config, state);
+#endif
                 window.commit_surface();
             } catch (const std::exception& e) {
                 LOG_ERROR("Failed to render UI: %s", e.what());

@@ -112,7 +112,7 @@ elseif(PLATFORM STREQUAL "wayland")
 
 elseif(PLATFORM STREQUAL "win32")
     set(WINDOW_SOURCE src/window_win32.cpp)
-    set(PLATFORM_LIBS gdi32)
+    set(PLATFORM_LIBS gdi32 d2d1 dwrite)
     set(PLATFORM_INCLUDE_DIRS)
     add_compile_definitions(PLATFORM_WIN32)
 else()
