@@ -43,11 +43,8 @@ struct WaylandBuffer {
     uint64_t last_used_frame;
 };
 #elif defined(PLATFORM_WIN32)
-#include <cairo-win32.h>
 #include <windows.h>
 #endif
-
-#include <cairo.h>
 
 class PlatformWindow
 {
@@ -179,12 +176,8 @@ class PlatformWindow
 
     std::vector<ui::UserInputEvent> pending_events;
 #elif defined(PLATFORM_WIN32)
-    bool cairo_cache_valid() const;
-
-    cairo_surface_t *cached_surface = nullptr;
     unsigned int cached_surface_width = 0;
     unsigned int cached_surface_height = 0;
-    cairo_t *cached_context = nullptr;
 
     HWND hwnd;
     HDC hdc_screen = nullptr;
