@@ -15,7 +15,7 @@ set_property(CACHE PLATFORM PROPERTY STRINGS x11 wayland win32)
 
 # Platform-specific source and libraries
 if(PLATFORM STREQUAL "x11")
-    set(WINDOW_SOURCE src/window_x11.cpp)
+    set(WINDOW_SOURCE src/window_x11.cpp src/window_cairo_impl.cpp)
 
     find_package(X11 REQUIRED)
     if(NOT X11_FOUND)
@@ -105,7 +105,7 @@ elseif(PLATFORM STREQUAL "wayland")
         ${CMAKE_BINARY_DIR}
     )
 
-    set(WINDOW_SOURCE src/window_wayland.cpp)
+    set(WINDOW_SOURCE src/window_wayland.cpp src/window_cairo_impl.cpp)
     set(PLATFORM_LIBS ${WAYLAND_LIBRARIES} wayland-protocols)
     set(PLATFORM_INCLUDE_DIRS ${WAYLAND_INCLUDE_DIRS} ${CMAKE_BINARY_DIR})
     add_compile_definitions(PLATFORM_WAYLAND)

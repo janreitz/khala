@@ -11,8 +11,6 @@
 #include "utility.h"
 #include "window.h"
 
-#include <cairo.h>
-
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
@@ -36,14 +34,14 @@ int main()
     // Initialize logger first
     Logger::getInstance().init();
     LOG_INFO("Khala launcher starting up");
-    
+
     const Config config = Config::load(Config::default_path());
     const defer save_config([config]() noexcept {
         try {
             config.save(config.config_path);
         } catch (const std::exception &e) {
             LOG_ERROR("Could not write config to %s: %s",
-                   config.config_path.c_str(), e.what());
+                      config.config_path.c_str(), e.what());
         }
     });
     const auto global_actions = get_global_actions(config);
@@ -58,8 +56,8 @@ int main()
             .y = config.height_ratio,
         });
 
-    const auto max_window_height =
-        static_cast<unsigned int>(window.get_screen_height() * config.height_ratio);
+    const auto max_window_height = static_cast<unsigned int>(
+        window.get_screen_height() * config.height_ratio);
     const size_t max_visible_items =
         ui::calculate_max_visible_items(max_window_height, config.font_size);
 
@@ -83,15 +81,15 @@ int main()
     std::atomic_bool should_exit{false};
 
     LOG_INFO("Loading index for %s...",
-           fs::canonical(config.index_root).generic_string().c_str());
+             fs::canonical(config.index_root).generic_string().c_str());
 
     // Launch streaming indexer
     auto index_future = std::async(std::launch::async, [&]() {
-        indexer::scan_filesystem_streaming(config.index_root, streaming_index,
-                                           config.ignore_dirs,
-                                           config.ignore_dir_names, INDEXER_BATCH_SIZE);
+        indexer::scan_filesystem_streaming(
+            config.index_root, streaming_index, config.ignore_dirs,
+            config.ignore_dir_names, INDEXER_BATCH_SIZE);
         LOG_INFO("Scan complete - %zu total files",
-               streaming_index.get_total_files());
+                 streaming_index.get_total_files());
     });
 
     // Launch progressive ranking worker
@@ -147,21 +145,24 @@ int main()
                 }
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
                 LOG_DEBUG("Selected: %s",
-                       state.get_selected_item().title.c_str());
-                state.set_error(process_command(state.get_selected_item().command, config));
+                          state.get_selected_item().title.c_str());
+                state.set_error(
+                    process_command(state.get_selected_item().command, config));
                 if (!state.has_error() && config.quit_on_action) {
                     should_exit = true;
                     break;
                 }
             } else if (std::holds_alternative<ui::ContextMenuToggled>(event)) {
-                // Restore file search results when toggling back from context menu
+                // Restore file search results when toggling back from context
+                // menu
                 if (std::holds_alternative<ui::FileSearch>(state.mode) &&
                     state.cached_file_search_update.has_value()) {
 
-                    const auto& cached = *state.cached_file_search_update;
+                    const auto &cached = *state.cached_file_search_update;
 
                     // Restore items (re-process from cached FileResults)
-                    state.items = ui::convert_file_results_to_items(cached.results);
+                    state.items =
+                        ui::convert_file_results_to_items(cached.results);
                     state.selected_item_index = 0;
                     state.visible_range_offset = 0;
                 }
@@ -253,8 +254,10 @@ int main()
 
                 current_file_results = std::move(update.results);
 
-                // Convert results to UI items (keep all ranked results for scrolling)
-                state.items = ui::convert_file_results_to_items(current_file_results);
+                // Convert results to UI items (keep all ranked results for
+                // scrolling)
+                state.items =
+                    ui::convert_file_results_to_items(current_file_results);
                 redraw = true;
             }
         }
@@ -262,26 +265,21 @@ int main()
         // Render UI
         if (redraw) {
             // Calculate and apply window resize before getting context
-            const auto max_height =
-                static_cast<unsigned int>(window.get_screen_height() * config.height_ratio);
+            const auto max_height = static_cast<unsigned int>(
+                window.get_screen_height() * config.height_ratio);
             const size_t current_max_visible_items =
                 ui::calculate_max_visible_items(max_height, config.font_size);
             const unsigned int new_height = ui::calculate_window_height(
-                config.font_size, state.items.size(), current_max_visible_items);
+                config.font_size, state.items.size(),
+                current_max_visible_items);
 
             if (new_height != window.get_height()) {
                 window.resize(new_height, window.get_width());
             }
             try {
-                // Get context and draw
-#ifdef PLATFORM_WIN32
                 window.draw(config, state);
-#else   
-                cairo_t *cairo_ctx = window.get_cairo_context();
-                ui::draw(cairo_ctx, window.get_width(), window.get_height(), config, state);
-#endif
                 window.commit_surface();
-            } catch (const std::exception& e) {
+            } catch (const std::exception &e) {
                 LOG_ERROR("Failed to render UI: %s", e.what());
                 // Continue running - don't crash on render failure
             }
