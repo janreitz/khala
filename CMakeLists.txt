@@ -129,6 +129,10 @@ pkg_check_modules(CAIRO REQUIRED cairo)
 pkg_check_modules(PANGO REQUIRED pango)
 pkg_check_modules(PANGOCAIRO REQUIRED pangocairo)
 
+# Pango requires explicit glib usage 
+# (for example in the cleanup call for PangoLayout*)
+pkg_check_modules(GOBJECT REQUIRED glib-2.0 gobject-2.0)
+
 # Optimization flags
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -214,9 +218,10 @@ target_include_directories(khala PRIVATE
 
 target_link_libraries(khala PRIVATE
     ${PLATFORM_LIBS}
-    ${CAIRO_LIBRARIES}
-    ${PANGO_LIBRARIES}
-    ${PANGOCAIRO_LIBRARIES}
+    ${CAIRO_LIBRARY}
+    ${PANGO_LIBRARY}
+    ${PANGOCAIRO_LIBRARY}
+    ${GOBJECT_LIBRARY}
     TBB::tbb
 )
 
