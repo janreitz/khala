@@ -119,19 +119,28 @@ else()
     message(FATAL_ERROR "Unknown platform: ${PLATFORM}")
 endif()
 
-# Find PkgConfig for Cairo and Pango
-find_package(PkgConfig REQUIRED)
+# Cairo/Pango only needed for Linux platforms (X11/Wayland)
+if(PLATFORM STREQUAL "x11" OR PLATFORM STREQUAL "wayland")
+    find_package(PkgConfig REQUIRED)
 
-# Find Cairo
-pkg_check_modules(CAIRO REQUIRED cairo)
+    pkg_check_modules(CAIRO REQUIRED cairo)
+    pkg_check_modules(PANGO REQUIRED pango)
+    pkg_check_modules(PANGOCAIRO REQUIRED pangocairo)
+    pkg_check_modules(GOBJECT REQUIRED glib-2.0 gobject-2.0)
 
-# Find Pango and PangoCairo
-pkg_check_modules(PANGO REQUIRED pango)
-pkg_check_modules(PANGOCAIRO REQUIRED pangocairo)
+    list(APPEND PLATFORM_INCLUDE_DIRS
+        ${CAIRO_INCLUDE_DIRS}
+        ${PANGO_INCLUDE_DIRS}
+        ${PANGOCAIRO_INCLUDE_DIRS}
+    )
 
-# Pango requires explicit glib usage 
-# (for example in the cleanup call for PangoLayout*)
-pkg_check_modules(GOBJECT REQUIRED glib-2.0 gobject-2.0)
+    list(APPEND PLATFORM_LIBS
+        ${CAIRO_LIBRARIES}
+        ${PANGO_LIBRARIES}
+        ${PANGOCAIRO_LIBRARIES}
+        ${GOBJECT_LIBRARIES}
+    )
+endif()
 
 # Optimization flags
 if(NOT CMAKE_BUILD_TYPE)
@@ -140,10 +149,9 @@ endif()
 
 # Compiler specific flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
-# Compiler warnings
     add_compile_options(
         -Wall
         -Wextra
@@ -164,31 +172,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 elseif(MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX")
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
-    # Compiler warnings
-#    add_compile_options(
-#        /W4           # High warning level (equivalent to -Wall -Wextra)
-#        /WX           # Treat warnings as errors (equivalent to -Werror)
-#        /w14242       # Conversion, possible loss of data
-#        /w14254       # Larger bit field assigned to smaller bit field
-#        /w14263       # Member function does not override any base class virtual member function
-#        /w14265       # Class has virtual functions, but destructor is not virtual
-#        /w14287       # Unsigned/negative constant mismatch
-#        /we4289       # Loop control variable declared in the for-loop is used outside the for-loop scope
-#        /w14296       # Expression is always true/false
-#        /w14311       # Pointer truncation from one type to another
-#        /w14545       # Expression before comma evaluates to a function which is missing an argument list
-#        /w14546       # Function call before comma missing argument list
-#        /w14547       # Operator before comma has no effect
-#        /w14549       # Operator before comma has no effect
-#        /w14555       # Expression has no effect
-#        /w14619       # #pragma warning: there is no warning number 'number'
-#        /w14640       # Thread unsafe static member initialization
-#        /w14826       # Conversion from one type to another is sign-extended
-#        /w14905       # Wide string literal cast to 'LPSTR'
-#        /w14906       # String literal cast to 'LPWSTR'
-#        /w14928       # Illegal copy-initialization
-#        /permissive-  # Standards conformance mode
-#    )
 endif()
 
 add_executable(khala
@@ -211,17 +194,10 @@ target_compile_definitions(khala PRIVATE
 target_include_directories(khala PRIVATE
     ${PLATFORM_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/include
-    ${CAIRO_INCLUDE_DIRS}
-    ${PANGO_INCLUDE_DIRS}
-    ${PANGOCAIRO_INCLUDE_DIRS}
 )
 
 target_link_libraries(khala PRIVATE
     ${PLATFORM_LIBS}
-    ${CAIRO_LIBRARY}
-    ${PANGO_LIBRARY}
-    ${PANGOCAIRO_LIBRARY}
-    ${GOBJECT_LIBRARY}
     TBB::tbb
 )
 
