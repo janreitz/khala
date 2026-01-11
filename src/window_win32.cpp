@@ -5,9 +5,6 @@
 #include "utility.h"
 #include "window.h"
 
-#include <cairo-win32.h>
-#include <cairo.h>
-
 #include <array>
 #include <stdexcept>
 #include <string>
@@ -653,9 +650,6 @@ void PlatformWindow::commit_surface()
 {
     // HwndRenderTarget handles presentation automatically in EndDraw()
     // This function exists for API consistency with other platforms
-
-    // Optionally, we could use D2D1_PRESENT_OPTIONS_RETAIN_CONTENTS
-    // and call ValidateRect here, but it's not necessary
 }
 
 // ============================================================================
@@ -835,20 +829,4 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
     }
 
     return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
-// ============================================================================
-// Legacy Cairo methods - not used but kept for interface compatibility
-// ============================================================================
-
-cairo_t *PlatformWindow::get_cairo_context()
-{
-    // This method is deprecated on Win32 - use draw() instead
-    throw std::runtime_error(
-        "get_cairo_context() is not supported on Win32. Use draw() instead.");
-}
-
-bool PlatformWindow::cairo_cache_valid() const
-{
-    return false; // Not applicable
 }
