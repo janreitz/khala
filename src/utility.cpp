@@ -294,10 +294,10 @@ std::string read_file(const fs::path &path)
 
 std::string path_to_string(const fs::path& path) {
 #ifdef PLATFORM_WIN32
-    const auto u8_filename = path.filename().u8string();
+    const auto u8_filename = path.u8string();
     return std::string(u8_filename.cbegin(), u8_filename.cend());
 #else
-    return path.filename().string();
+    return path.string();
 #endif
 }
 
