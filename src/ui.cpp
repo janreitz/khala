@@ -676,7 +676,7 @@ std::vector<Item> convert_file_results_to_items(
                     .title = "📄 " + path_to_string(file_path),
                     .description = serialize_file_info(file_path),
                     .path = file_path,
-                    .command = OpenFile{.path = file_path},
+                    .command = OpenFileCommand{.path = file_path},
                 });
             }
         } catch (const std::exception &e) {

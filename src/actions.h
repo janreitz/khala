@@ -13,7 +13,7 @@ namespace ui { struct Item; }
 namespace fs = std::filesystem;
 
 // File commands
-struct OpenFile {
+struct OpenFileCommand {
     fs::path path;
 };
 struct OpenDirectory {
@@ -46,7 +46,7 @@ struct CustomCommand {
     bool stdout_to_clipboard = false;
 };
 
-using Command = std::variant<OpenFile, OpenDirectory, RemoveFile, RemoveFileRecursive,
+using Command = std::variant<OpenFileCommand, OpenDirectory, RemoveFile, RemoveFileRecursive,
                              CopyPathToClipboard, CopyContentToClipboard,
                              CopyISOTimestamp, CopyUnixTimestamp, CopyUUID, CustomCommand>;
 

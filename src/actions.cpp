@@ -271,7 +271,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
             ui::Item{.title = "Open File",
                      .description = config.editor,
                      .path = std::nullopt,
-                     .command = OpenFile{path}},
+                     .command = OpenFileCommand{path}},
             ui::Item{.title = "Remove File",
                      .description = "",
                      .path = std::nullopt,
@@ -358,7 +358,7 @@ std::optional<std::string> process_command(const Command &cmd,
     try {
         std::visit(
             overloaded{
-                [&](const OpenFile &open_file) {
+                [&](const OpenFileCommand &open_file) {
                     run_command({config.editor, open_file.path.string()});
                 },
                 [&](const OpenDirectory &open_dir) {
