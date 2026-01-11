@@ -5,11 +5,12 @@
 #include "ranker.h"
 #include "types.h"
 #include "utility.h"
-#include "window.h"
 
 #include <optional>
 #include <string>
 #include <variant>
+
+#include <cairo.h>
 
 namespace ui
 {
@@ -24,6 +25,11 @@ constexpr double DESCRIPTION_SPACING = 10.0;
 constexpr double INPUT_VERTICAL_PADDING = 12.0;  // Vertical padding for input area
 constexpr double ITEM_VERTICAL_PADDING = 8.0;    // Vertical padding for each item
 
+std::string format_file_count(size_t count);
+std::string create_pagination_text(size_t visible_offset,
+                                   size_t max_visible_items,
+                                   size_t total_results,
+                                   size_t total_available_results);
 int calculate_abs_input_height(int font_size);
 int calculate_abs_item_height(int font_size);
 size_t calculate_max_visible_items(unsigned int window_height, int font_size);
