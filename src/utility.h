@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string>
+#include <optional>
 #include <string_view>
 #include <type_traits>
 #include <utility>

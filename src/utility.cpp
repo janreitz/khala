@@ -10,6 +10,7 @@
 #ifdef PLATFORM_WIN32
 #include <Windows.h>
 #else
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
