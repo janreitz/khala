@@ -90,7 +90,7 @@ void Logger::warning(const char* format, ...) {
 void Logger::error(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    log(LogLevel::ERROR, format, args);
+    log(LogLevel::ERR, format, args);
     va_end(args);
 }
 
@@ -139,7 +139,7 @@ std::string Logger::levelToString(LogLevel level) {
         case LogLevel::DEBUG:   return "DEBUG";
         case LogLevel::INFO:    return "INFO";
         case LogLevel::WARNING: return "WARN";
-        case LogLevel::ERROR:   return "ERROR";
+        case LogLevel::ERR:   return "ERROR";
         default:                return "UNKNOWN";
     }
 }
