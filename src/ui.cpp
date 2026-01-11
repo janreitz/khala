@@ -234,12 +234,8 @@ void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
     const size_t max_visible_items = calculate_max_visible_items(window_height, config.font_size);
 
     // Create Pango layout for text rendering
-    const auto tik_tik = std::chrono::steady_clock::now();
     PangoLayout *layout = pango_cairo_create_layout(cr);
     const defer cleanup_layout([layout]() noexcept { g_object_unref(layout); });
-    const auto tok_tok = std::chrono::steady_clock::now();
-    LOG_DEBUG("Pango Layout creation took %lld ms",
-              std::chrono::duration_cast<std::chrono::milliseconds>(tok_tok - tik_tik).count());
 
     // Set font for launcher
     static PangoFontDescription *font_desc = nullptr;
@@ -434,8 +430,6 @@ void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
     LOG_DEBUG("Drawing %ld dropdown items", range_end - state.visible_range_offset);
 
     for (size_t i = state.visible_range_offset; i < range_end; ++i) {
-        auto loop_start = std::chrono::high_resolution_clock::now();
-
         const double y_pos =
             dropdown_start_y + (static_cast<double>(i - state.visible_range_offset) * static_cast<double>(item_height));
 
@@ -457,38 +451,30 @@ void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
 
         // Draw the title text
         pango_layout_set_text(layout, dropdown_items.at(i).title.c_str(), -1);
-        auto after_set_text = std::chrono::high_resolution_clock::now();
         // Draw icon and filename (main text) with highlighting - center
         // vertically within item_height
         const std::string highlighted_title = create_highlighted_markup(
             dropdown_items.at(i).title,
             dropdown_items.at(i).title_match_positions);
-        //pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
+        pango_layout_set_markup(layout, highlighted_title.c_str(), -1);
         int text_width_unused, item_text_height = 0;
         pango_layout_get_size(layout, &text_width_unused, &item_text_height);
-        auto after_get_size = std::chrono::high_resolution_clock::now();
         const double text_y_centered =
             calculate_text_y_centered(y_pos, item_height, item_text_height);
         cairo_move_to(cr, BORDER_WIDTH + TEXT_MARGIN, text_y_centered);
         pango_layout_set_width(layout,
                                static_cast<int>((content_width - 2 * TEXT_MARGIN) * PANGO_SCALE));
-        //pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
+        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
         pango_cairo_show_layout(cr, layout);
-        auto after_show = std::chrono::high_resolution_clock::now();
-        LOG_DEBUG("Item %zu: set_text=%lld ms, get_size=%lld ms, show=%lld ms",
-        i,
-        std::chrono::duration_cast<std::chrono::milliseconds>(after_set_text - loop_start).count(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(after_get_size - after_set_text).count(),
-        std::chrono::duration_cast<std::chrono::milliseconds>(after_show - after_get_size).count());
-        //pango_layout_set_width(layout, -1);
-        //pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
+        pango_layout_set_width(layout, -1);
+        pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
 
         // Draw description to the right of the title in subtle grey
         if (!dropdown_items.at(i).description.empty()) {
             // Get the width of the title text
             int title_width = 0;
             int title_height = 0;
-            //pango_layout_get_size(layout, &title_width, &title_height);
+            pango_layout_get_size(layout, &title_width, &title_height);
 
             // Calculate available width for description
             const int available_width = static_cast<int>(content_width - 2 * TEXT_MARGIN -
@@ -508,10 +494,10 @@ void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
                 create_highlighted_markup(
                     dropdown_items.at(i).description,
                     dropdown_items.at(i).description_match_positions);
-            //pango_layout_set_markup(layout, highlighted_description.c_str(),
-                             //       -1);
-            //pango_layout_set_width(layout, available_width * PANGO_SCALE);
-            //pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
+            pango_layout_set_markup(layout, highlighted_description.c_str(),
+                                   -1);
+            pango_layout_set_width(layout, available_width * PANGO_SCALE);
+            pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
 
             // Draw description with some spacing after the title
             cairo_move_to(cr,
@@ -526,10 +512,10 @@ void draw(cairo_t *cr, unsigned int window_width, unsigned int window_height,
         }
 
         //// Reset font for next iteration
-        //pango_layout_set_font_description(layout, font_desc);
+        pango_layout_set_font_description(layout, font_desc);
     }
     const auto tok = std::chrono::steady_clock::now();
-    LOG_DEBUG("Draw call took %lld ms",
+    LOG_DEBUG("Draw call took %ld ms",
               std::chrono::duration_cast<std::chrono::milliseconds>(tok - tik).count());
 }
 
