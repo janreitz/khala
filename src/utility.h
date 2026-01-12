@@ -32,7 +32,8 @@ std::string to_lower(std::string_view str);
 std::string read_file(const std::filesystem::path &path);
 
 // Platform specific helpers
-
+namespace platform
+{
 std::string path_to_string(const std::filesystem::path &path);
 std::optional<std::filesystem::path> get_home_dir();
 std::filesystem::path get_temp_dir();
@@ -42,3 +43,6 @@ void run_command(const std::vector<std::string> &args);
 void run_custom_command(const std::string &cmd,
                         const std::optional<std::filesystem::path> &path,
                         bool stdout_to_clipboard);
+void open_file(const std::filesystem::path &path);
+void open_directory(const std::filesystem::path &path);
+} // namespace platform

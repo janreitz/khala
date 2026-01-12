@@ -312,14 +312,14 @@ convert_file_results_to_items(const std::vector<FileResult> &file_results)
 
             if (fs::is_directory(file_path)) {
                 items.push_back(Item{
-                    .title = "📁 " + path_to_string(file_path),
+                    .title = "📁 " + platform::path_to_string(file_path),
                     .description = serialize_file_info(file_path),
                     .path = file_path,
                     .command = OpenDirectory{.path = file_path},
                 });
             } else {
                 items.push_back(Item{
-                    .title = "📄 " + path_to_string(file_path),
+                    .title = "📄 " + platform::path_to_string(file_path),
                     .description = serialize_file_info(file_path),
                     .path = file_path,
                     .command = OpenFileCommand{.path = file_path},

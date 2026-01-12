@@ -133,10 +133,10 @@ std::optional<std::string> process_command(const Command &cmd,
         std::visit(
             overloaded{
                 [&](const OpenFileCommand &open_file) {
-                    run_command({config.editor, open_file.path.string()});
+                    platform::run_command({config.editor, open_file.path.string()});
                 },
                 [&](const OpenDirectory &open_dir) {
-                    run_command(
+                    platform::run_command(
                         {config.file_manager, open_dir.path.parent_path().string()});
                 },
                 [](const RemoveFile &rm_file) {
@@ -146,10 +146,10 @@ std::optional<std::string> process_command(const Command &cmd,
                     fs::remove_all(rm_file.path);
                 },
                 [](const CopyPathToClipboard &copy_path) {
-                    copy_to_clipboard(copy_path.path.string());
+                    platform::copy_to_clipboard(copy_path.path.string());
                 },
                 [](const CopyContentToClipboard &copy_content) {
-                    copy_to_clipboard(read_file(copy_content.path));
+                    platform::copy_to_clipboard(read_file(copy_content.path));
                 },
                 [](const CopyISOTimestamp &) {
                     auto now = std::chrono::system_clock::now();
@@ -157,7 +157,7 @@ std::optional<std::string> process_command(const Command &cmd,
                     std::ostringstream oss;
                     oss << std::put_time(std::gmtime(&time_value),
                                          "%Y-%m-%dT%H:%M:%SZ");
-                    copy_to_clipboard(oss.str());
+                    platform::copy_to_clipboard(oss.str());
                 },
                 [](const CopyUnixTimestamp &) {
                     auto now = std::chrono::system_clock::now();
@@ -165,7 +165,7 @@ std::optional<std::string> process_command(const Command &cmd,
                         std::chrono::duration_cast<std::chrono::seconds>(
                             now.time_since_epoch())
                             .count();
-                    copy_to_clipboard(std::to_string(seconds));
+                    platform::copy_to_clipboard(std::to_string(seconds));
                 },
                 [](const CopyUUID &) {
                     std::random_device rd;
@@ -191,9 +191,9 @@ std::optional<std::string> process_command(const Command &cmd,
                     for (int i = 0; i < 12; i++)
                         oss << dis(gen);
 
-                    copy_to_clipboard(oss.str());
+                    platform::copy_to_clipboard(oss.str());
                 },
-                [](const CustomCommand &custom_cmd) { run_custom_command(custom_cmd.shell_cmd, custom_cmd.path, custom_cmd.stdout_to_clipboard); }},
+                [](const CustomCommand &custom_cmd) { platform::run_custom_command(custom_cmd.shell_cmd, custom_cmd.path, custom_cmd.stdout_to_clipboard); }},
             cmd);
         return std::nullopt;
     } catch (const std::exception &e) {

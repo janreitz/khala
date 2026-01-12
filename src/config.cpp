@@ -230,13 +230,13 @@ std::optional<Color> parse_color(const std::string &str)
 
 fs::path Config::default_index_root()
 {
-    const auto home_dir = get_home_dir();
+    const auto home_dir = platform::get_home_dir();
     return home_dir.value_or(".");
 }
 
 fs::path Config::default_path()
 {
-    const auto home_dir = get_home_dir();
+    const auto home_dir = platform::get_home_dir();
     return home_dir.value_or(".") / ".khala" / "config.ini";
 }
 
@@ -274,7 +274,7 @@ void load_theme(const std::string &theme_name,
                          config.selection_description_color);
 
         LOG_INFO("Loaded theme '%s' from %s", theme_name.c_str(),
-               path_to_string(theme_file).c_str());
+               platform::path_to_string(theme_file).c_str());
         return; // Found and loaded, return immediately
     }
 
@@ -343,7 +343,7 @@ Config Config::load(const fs::path &path)
                     continue;
 
                 actions_by_stem.insert_or_assign(
-                    path_to_string(entry.path().stem()),
+                    platform::path_to_string(entry.path().stem()),
                     CustomActionDef{
                         .title = title,
                         .description = description,
@@ -392,9 +392,9 @@ void Config::save(const fs::path &path) const
     file << "\n";
 
     file << "# Indexing \n";
-    file << "index_root=" << path_to_string(fs::canonical(index_root)) << "\n";
+    file << "index_root=" << platform::path_to_string(fs::canonical(index_root)) << "\n";
     for (const auto &dir : ignore_dirs) {
-        file << "ignore_dir=" << path_to_string(fs::canonical(dir)) << "\n";
+        file << "ignore_dir=" << platform::path_to_string(fs::canonical(dir)) << "\n";
     }
     for (const auto &dir_name : ignore_dir_names) {
         file << "ignore_dir_name=" << dir_name << "\n";
@@ -404,5 +404,5 @@ void Config::save(const fs::path &path) const
     file.flush();
 
     LOG_INFO("Written config to %s",
-           path_to_string(fs::canonical(path)).c_str());
+           platform::path_to_string(fs::canonical(path)).c_str());
 }

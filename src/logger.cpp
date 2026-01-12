@@ -25,11 +25,11 @@ void Logger::init(const std::string& log_dir) {
             if (xdg_data) {
                 dir = std::string(xdg_data) + "/khala/logs";
             } else {
-                const auto home = get_home_dir();
+                const auto home = platform::get_home_dir();
                 if (home) {
                     dir = home.value() / ".local/share/khala/logs";
                 } else {
-                    dir = get_temp_dir() / "khala/logs";
+                    dir = platform::get_temp_dir() / "khala/logs";
                 }
             }
         }
