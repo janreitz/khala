@@ -193,6 +193,13 @@ add_executable(khala
     src/utility.cpp
 )
 
+if(PLATFORM STREQUAL "win32")
+    set_target_properties(khala PROPERTIES
+        WIN32_EXECUTABLE TRUE
+    )
+    target_link_options(khala PRIVATE /ENTRY:mainCRTStartup)
+endif()
+
 target_compile_definitions(khala PRIVATE
     KHALA_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
 
