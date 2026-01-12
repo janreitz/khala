@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utility.h"
+#include "packed_strings.h"
 
 #include <atomic>
 #include <condition_variable>

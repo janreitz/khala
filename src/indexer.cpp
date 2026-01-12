@@ -1,6 +1,7 @@
 #include "indexer.h"
 #include "utility.h"
 #include "logger.h"
+#include "packed_strings.h"
 
 #include <atomic>
 #include <cstdio>

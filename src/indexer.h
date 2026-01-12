@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utility.h"
+#include "packed_strings.h"
 #include "streamingindex.h"
 #include "actions.h"
 
