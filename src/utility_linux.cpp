@@ -7,6 +7,8 @@
 namespace platform
 {
 
+namespace fs = std::filesystem;
+
 std::string path_to_string(const fs::path &path) { return path.string(); }
 
 std::optional<std::filesystem::path> get_home_dir()

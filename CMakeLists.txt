@@ -222,6 +222,7 @@ add_executable(indexer_benchmark
     src/ranker.cpp
     src/streamingindex.cpp
     src/utility.cpp
+    ${PLATFORM_UTILITY_SOURCE}
     src/fuzzy.cpp
 )
 
