@@ -133,11 +133,10 @@ std::optional<std::string> process_command(const Command &cmd,
         std::visit(
             overloaded{
                 [&](const OpenFileCommand &open_file) {
-                    platform::run_command({config.editor, open_file.path.string()});
+                    platform::open_file(open_file.path);
                 },
                 [&](const OpenDirectory &open_dir) {
-                    platform::run_command(
-                        {config.file_manager, open_dir.path.parent_path().string()});
+                    platform::open_directory(open_dir.path);
                 },
                 [](const RemoveFile &rm_file) {
                     fs::remove(rm_file.path);

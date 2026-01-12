@@ -235,4 +235,13 @@ void run_custom_command(const std::string &cmd,
                                  std::string(strerror(errno)));
     }
 }
+
+void open_file(const fs::path& path) {
+    run_command({"xdg-open", path.string()});
+}
+
+void open_directory(const fs::path &path) {
+    run_command({"xdg-open", path.string()});
+}
+
 } // namespace platform

@@ -234,4 +234,34 @@ void run_custom_command(const std::string &cmd,
         }
     }
 }
+
+void open_file(const fs::path &path)
+{
+    const std::string path_str = platform::path_to_string(path);
+    HINSTANCE result = ShellExecuteA(nullptr,          // Parent window
+                                     "open",           // Operation
+                                     path_str.c_str(), // File to open
+                                     nullptr,          // Parameters
+                                     nullptr,          // Working directory
+                                     SW_SHOWNORMAL     // Show command
+    );
+
+    if ((INT_PTR)result <= 32) {
+        throw std::runtime_error("Failed to open file: " + path_str);
+    }
+}
+
+void open_directory(const fs::path &path)
+{
+    const std::string path_str = path_to_string(path);
+    HINSTANCE result = ShellExecuteA(
+        nullptr,
+        "explore", // Use "explore" for directories to open in Explorer
+        path_str.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+
+    if ((INT_PTR)result <= 32) {
+        throw std::runtime_error("Failed to open directory: " + path_str);
+    }
+}
+
 } // namespace platform
