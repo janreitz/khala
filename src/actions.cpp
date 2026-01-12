@@ -127,7 +127,7 @@ std::vector<ui::Item> get_global_actions(const Config &config)
 }
 
 std::optional<std::string> process_command(const Command &cmd,
-                                           const Config &config)
+                                           const Config &)
 {
     try {
         std::visit(
