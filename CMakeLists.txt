@@ -181,6 +181,7 @@ add_executable(khala
     src/config.cpp
     src/fuzzy.cpp
     src/indexer.cpp
+    src/packed_strings.cpp
     src/ranker.cpp
     src/streamingindex.cpp
     src/ui.cpp
@@ -206,6 +207,7 @@ add_executable(indexer_benchmark
     src/config.cpp
     src/indexer.cpp
     src/logger.cpp
+    src/packed_strings.cpp
     src/ranker.cpp
     src/streamingindex.cpp
     src/utility.cpp
