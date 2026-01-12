@@ -117,12 +117,12 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     // Set font for launcher
     static PangoFontDescription *font_desc = nullptr;
     if (!font_desc) {
-        font_desc = pango_font_description_from_string("Segoe UI 12");
-        /*(config.font_name + " " + std::to_string(config.font_size))
-            .c_str());*/
+        font_desc = pango_font_description_from_string(
+            (config.font_name + " " + std::to_string(config.font_size))
+                .c_str());
     }
-    /*const defer cleanup_font(
-        []() noexcept { pango_font_description_free(font_desc); });*/
+    // const defer cleanup_font(
+    //    []() noexcept { pango_font_description_free(font_desc); });
 
     pango_layout_set_font_description(layout, font_desc);
 
