@@ -88,6 +88,49 @@ static std::wstring utf8_to_wide(const std::string &utf8)
     return result;
 }
 
+std::vector<size_t>
+utf8_positions_to_utf16(const std::string &utf8_str,
+                        const std::vector<size_t> &utf8_positions)
+{
+    std::vector<size_t> utf16_positions;
+    utf16_positions.reserve(utf8_positions.size());
+
+    size_t utf8_idx = 0;
+    size_t utf16_idx = 0;
+    size_t pos_idx = 0;
+
+    while (utf8_idx < utf8_str.length() && pos_idx < utf8_positions.size()) {
+        if (utf8_idx == utf8_positions[pos_idx]) {
+            utf16_positions.push_back(utf16_idx);
+            pos_idx++;
+        }
+
+        unsigned char c = utf8_str[utf8_idx];
+        if (c < 0x80) {
+            // 1-byte UTF-8 (ASCII) -> 1 UTF-16 code unit
+            utf8_idx += 1;
+            utf16_idx += 1;
+        } else if ((c & 0xE0) == 0xC0) {
+            // 2-byte UTF-8 -> 1 UTF-16 code unit
+            utf8_idx += 2;
+            utf16_idx += 1;
+        } else if ((c & 0xF0) == 0xE0) {
+            // 3-byte UTF-8 -> 1 UTF-16 code unit
+            utf8_idx += 3;
+            utf16_idx += 1;
+        } else if ((c & 0xF8) == 0xF0) {
+            // 4-byte UTF-8 -> 2 UTF-16 code units (surrogate pair)
+            utf8_idx += 4;
+            utf16_idx += 2;
+        } else {
+            // Invalid UTF-8, skip
+            utf8_idx += 1;
+        }
+    }
+
+    return utf16_positions;
+}
+
 static D2D1_COLOR_F to_d2d_color(const Color &c)
 {
     return D2D1::ColorF(c.r, c.g, c.b, c.a);
@@ -560,9 +603,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
         // Apply bold highlighting for fuzzy matches
         if (query_opt.has_value() && !query.empty()) {
-            auto match_positions =
+            const auto match_positions =
                 fuzzy::fuzzy_match_optimal(state.items[i].title, query);
-            for (size_t pos : match_positions) {
+            const auto wide_positions =
+                utf8_positions_to_utf16(state.items[i].title, match_positions);
+            for (size_t pos : wide_positions) {
                 DWRITE_TEXT_RANGE range = {static_cast<UINT32>(pos), 1};
                 titleLayout->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, range);
             }
@@ -597,9 +642,10 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
                 // Apply highlighting for description matches too
                 if (query_opt.has_value() && !query.empty()) {
-                    auto match_positions = fuzzy::fuzzy_match_optimal(
+                    const auto match_positions = fuzzy::fuzzy_match_optimal(
                         state.items[i].description, query);
-                    for (size_t pos : match_positions) {
+                    const auto wide_positions = utf8_positions_to_utf16(state.items[i].description, match_positions);
+                    for (size_t pos : wide_positions) {
                         DWRITE_TEXT_RANGE range = {static_cast<UINT32>(pos), 1};
                         descLayout->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD,
                                                   range);
