@@ -10,6 +10,11 @@ struct RelScreenCoord {
     double y;
 };
 
+struct WindowCoord {
+    int x;
+    int y;
+};
+
 enum class KeyCode {
     Escape,
     Return,
@@ -37,6 +42,35 @@ struct KeyboardEvent {
     std::optional<char> character; // For KeyCode::Character events
 };
 
-using UserInputEvent = std::variant<KeyboardEvent>;
+struct MousePositionEvent {
+    WindowCoord position;
+};
+
+struct MouseButtonEvent {
+    enum class Button {
+        Left,
+        Right,
+        Middle
+    };
+
+    Button button;
+    bool pressed;  // true = press, false = release
+    WindowCoord position;
+};
+
+struct CursorEnterEvent {
+    WindowCoord position;
+};
+
+struct CursorLeaveEvent {
+};
+
+using UserInputEvent = std::variant<
+    KeyboardEvent,
+    MousePositionEvent,
+    MouseButtonEvent,
+    CursorEnterEvent,
+    CursorLeaveEvent
+>;
 
 } // namespace ui
