@@ -140,6 +140,47 @@ unsigned int calculate_window_height(int font_size, size_t item_count,
                                       calculate_abs_item_height(font_size)));
 }
 
+std::optional<size_t> window_pos_to_item_index(const WindowCoord &position,
+                                               const State &state,
+                                               int font_size)
+{
+    // Calculate layout dimensions
+    const int input_height = calculate_abs_input_height(font_size);
+    const int item_height = calculate_abs_item_height(font_size);
+
+    // Calculate where the dropdown area starts
+    const int dropdown_start_y = static_cast<int>(BORDER_WIDTH) + input_height +
+                                 static_cast<int>(ITEMS_SPACING);
+
+    // Check if position is in input area or above
+    if (position.y < dropdown_start_y) {
+        return std::nullopt;
+    }
+
+    // Calculate relative Y position in dropdown area
+    const int relative_y = position.y - dropdown_start_y;
+
+    // Calculate visible item index
+    const size_t visible_item_index =
+        static_cast<size_t>(relative_y / item_height);
+
+    // Convert to absolute index
+    const size_t absolute_index =
+        state.visible_range_offset + visible_item_index;
+
+    // Validate bounds
+    if (absolute_index >= state.items.size()) {
+        return std::nullopt;
+    }
+
+    // Check if we're within the visible range
+    if (visible_item_index >= state.max_visible_items) {
+        return std::nullopt;
+    }
+
+    return absolute_index;
+}
+
 Item State::get_selected_item() const { return items.at(selected_item_index); }
 
 void State::set_error(const std::optional<std::string> &message)
@@ -307,8 +348,61 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
     state.clear_error();
 
     std::visit(overloaded{[&](const KeyboardEvent &ev) {
-                   events = handle_keyboard_input(state, ev, config);
-               }},
+                              events = handle_keyboard_input(state, ev, config);
+                          },
+                          [&](const MousePositionEvent &ev) {
+                              // Perform hit testing
+                              auto item_index = window_pos_to_item_index(
+                                  ev.position, state, config.font_size);
+
+                              if (!item_index.has_value()) {
+                                  return;
+                              }
+                              // Update selection if hovering over a different
+                              // item
+                              if (state.selected_item_index != *item_index) {
+                                  state.selected_item_index = *item_index;
+                                  events.push_back(SelectionChanged{});
+                              }
+                          },
+                          [&](const MouseButtonEvent &ev) {
+                              // Only handle left-click press
+                              if (ev.button == MouseButtonEvent::Button::Left &&
+                                  ev.pressed) {
+                                  // Perform hit testing
+                                  auto item_index = window_pos_to_item_index(
+                                      ev.position, state, config.font_size);
+
+                                  if (item_index.has_value()) {
+                                      // Maybe update selection
+                                      if (state.selected_item_index != *item_index) {
+                                          state.selected_item_index = *item_index;
+                                          events.push_back(SelectionChanged{});
+                                      }
+                                      events.push_back(ActionRequested{});
+                                  }
+                              }
+                          },
+                          [&](const CursorEnterEvent &ev) {
+                              state.mouse_inside_window = true;
+
+                              // Optionally update selection on enter
+                              auto item_index = window_pos_to_item_index(
+                                  ev.position, state, config.font_size);
+
+                              if (!item_index.has_value()) {
+                                  return;
+                              }
+                              // Update selection if hovering over a different
+                              // item
+                              if (state.selected_item_index != *item_index) {
+                                  state.selected_item_index = *item_index;
+                                  events.push_back(SelectionChanged{});
+                              }
+                          },
+                          [&](const CursorLeaveEvent &) {
+                              state.mouse_inside_window = false;
+                          }},
                input);
 
     return events;

@@ -70,6 +70,10 @@ struct State {
     std::vector<Item> items;
     size_t visible_range_offset = 0;
     size_t selected_item_index = 0; // Absolute index in items
+    size_t max_visible_items = 0;
+
+    // Mouse state
+    bool mouse_inside_window = false;
 
     // Error display
     std::optional<std::string> error_message;
@@ -100,6 +104,11 @@ struct ExitRequested {
 using Event =
     std::variant<InputChanged, SelectionChanged, CursorPositionChanged,
                  ActionRequested, ContextMenuToggled, ExitRequested>;
+
+std::optional<size_t> window_pos_to_item_index(
+    const WindowCoord& position,
+    const State& state,
+    int font_size);
 
 // Process keyboard events and update state, returning high-level events
 std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
