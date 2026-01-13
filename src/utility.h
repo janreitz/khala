@@ -31,6 +31,28 @@ std::string to_lower(std::string_view str);
 
 std::string read_file(const std::filesystem::path &path);
 
+
+int find_last_or(std::string_view str, char c, int _default);
+
+int count_leading_zeros(unsigned int x);
+
+// This requires up to sizeof(__m128i) before str.data();
+int simd_find_last_or(std::string_view str, char c, int _default);
+
+// Returns index of first occurrence of c at or after start, or -1 if not found
+int simd_find_first_or(const char *data, size_t len, char c, size_t start,
+                       int _default);
+
+void simd_to_lower(const char *src, size_t len, char *out_buffer);
+
+// Returns positions of all matches (up to max_results)
+size_t find_all(const char *data, size_t len, char target, size_t *positions,
+                size_t max_results);
+
+// Returns positions of all matches (up to max_results)
+size_t simd_find_all(const char *data, size_t len, char target,
+                     size_t *positions, size_t max_results);
+
 // Platform specific helpers
 namespace platform
 {

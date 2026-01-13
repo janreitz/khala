@@ -282,17 +282,17 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     std::vector<DropdownItem> dropdown_items;
 
     const auto query_opt = ui::get_query(state.mode);
-    const std::string query = query_opt.value_or("");
+    const auto query_lower = to_lower(query_opt.value_or(""));
     dropdown_items.reserve(state.items.size());
     for (const auto &item : state.items) {
         dropdown_items.push_back(DropdownItem{
             .title = item.title,
             .description = item.description,
             .title_match_positions =
-                query_opt ? fuzzy::fuzzy_match_optimal(item.title, query)
+                query_opt ? fuzzy::fuzzy_match_optimal(item.title, query_lower)
                           : std::vector<size_t>{},
             .description_match_positions =
-                query_opt ? fuzzy::fuzzy_match_optimal(item.description, query)
+                query_opt ? fuzzy::fuzzy_match_optimal(item.description, query_lower)
                           : std::vector<size_t>{}});
     }
     const auto selection_index = state.selected_item_index;
