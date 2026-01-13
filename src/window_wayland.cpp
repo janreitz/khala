@@ -412,30 +412,66 @@ static const wl_keyboard_listener keyboard_listener = {
     .repeat_info = keyboard_repeat_info_handler};
 
 void pointer_enter_handler(void *data, wl_pointer *, uint32_t serial,
-                           wl_surface *, wl_fixed_t , wl_fixed_t )
+                           wl_surface *, wl_fixed_t surface_x, wl_fixed_t surface_y)
 {
     PlatformWindow *win = static_cast<PlatformWindow *>(data);
     win->pointer_serial = serial;
-    LOG_INFO("Pointer entered surface");
+
+    win->last_pointer_position = ui::WindowCoord{
+        .x = wl_fixed_to_int(surface_x),
+        .y = wl_fixed_to_int(surface_y)
+    };
+
+    win->pending_events.push_back(ui::CursorEnterEvent{
+        .position = win->last_pointer_position
+    });
 }
 
-static void pointer_leave_handler(void *, wl_pointer *, uint32_t, wl_surface *)
+void pointer_leave_handler(void *data, wl_pointer *, uint32_t, wl_surface *)
 {
-    LOG_INFO("Pointer left surface");
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
+    win->pending_events.push_back(ui::CursorLeaveEvent{});
 }
 
-static void pointer_motion_handler(void *, wl_pointer *, uint32_t, wl_fixed_t,
-                                   wl_fixed_t)
+void pointer_motion_handler(void *data, wl_pointer *, uint32_t, wl_fixed_t surface_x,
+                            wl_fixed_t surface_y)
 {
-    // Track mouse position if needed
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
+
+    win->last_pointer_position = ui::WindowCoord{
+        .x = wl_fixed_to_int(surface_x),
+        .y = wl_fixed_to_int(surface_y)
+    };
+
+    win->pending_events.push_back(ui::MousePositionEvent{
+        .position = win->last_pointer_position
+    });
 }
 
-static void pointer_button_handler(void *, wl_pointer *, uint32_t,
-                                   uint32_t, uint32_t button,
-                                   uint32_t state)
+void pointer_button_handler(void *data, wl_pointer *, uint32_t,
+                            uint32_t, uint32_t button,
+                            uint32_t state)
 {
-    LOG_INFO("Pointer button: %u, state: %u", button, state);
-    // Button 272 = left click, state 1 = pressed
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
+
+    // Linux input event codes: BTN_LEFT=272, BTN_RIGHT=273, BTN_MIDDLE=274
+    ui::MouseButtonEvent::Button mapped_button;
+    if (button == 272) {
+        mapped_button = ui::MouseButtonEvent::Button::Left;
+    } else if (button == 273) {
+        mapped_button = ui::MouseButtonEvent::Button::Right;
+    } else if (button == 274) {
+        mapped_button = ui::MouseButtonEvent::Button::Middle;
+    } else {
+        // Ignore other buttons (scroll wheel, etc.)
+        return;
+    }
+
+    win->pending_events.push_back(ui::MouseButtonEvent{
+        .button = mapped_button,
+        .pressed = (state == WL_POINTER_BUTTON_STATE_PRESSED),
+        .position = win->last_pointer_position
+    });
 }
 
 static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t,
@@ -536,8 +572,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord,
       keyboard(nullptr), pointer(nullptr), xdg_shell(nullptr),
       xdg_surface_obj(nullptr), toplevel(nullptr), activation_protocol(nullptr),
       activation_token(nullptr), xkb_ctx(nullptr), keymap(nullptr),
-      kb_state(nullptr), shm(nullptr),
-      current_buffer(nullptr), frame_counter(0),
+      kb_state(nullptr), pointer_serial(0), last_pointer_position({0, 0}),
+      shm(nullptr), current_buffer(nullptr), frame_counter(0),
       width(0), height(0), screen_width(1920), screen_height(1080)
 {
     // Connect to Wayland display
