@@ -251,6 +251,7 @@ int main()
 
             if (new_height != window.get_height()) {
                 window.resize(new_height, window.get_width());
+                state.max_visible_items = ui::calculate_max_visible_items(new_height, config.font_size);
             }
             try {
                 window.draw(config, state);
