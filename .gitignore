@@ -2,5 +2,6 @@
 CMakeSettings.json
 out
 .vscode
+.cache
 build
 build-wayland
