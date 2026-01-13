@@ -233,11 +233,11 @@ PlatformWindow::~PlatformWindow()
     }
 }
 
-void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
+void PlatformWindow::resize(const ui::WindowDimension& dimension)
 {
-    XResizeWindow(display, window, new_width, new_height);
-    height = new_height;
-    width = new_width;
+    XResizeWindow(display, window, dimension.width, dimension.height);
+    height = dimension.height;
+    width = dimension.width;
 }
 
 cairo_surface_t *PlatformWindow::get_cairo_surface()

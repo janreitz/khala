@@ -15,6 +15,11 @@ struct WindowCoord {
     int y;
 };
 
+struct WindowDimension {
+    unsigned int height;
+    unsigned int width;
+};
+
 enum class KeyCode {
     Escape,
     Return,

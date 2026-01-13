@@ -53,7 +53,7 @@ class PlatformWindow
     ~PlatformWindow();
 
     // Window operations
-    void resize(unsigned int height, unsigned int width);
+    void resize(const ui::WindowDimension& dimensions);
     void draw(const Config &config, const ui::State &state);
     // Commits the rendered surface to display
     // Includes cairo_surface_flush() and platform-specific commit (e.g., wl_surface_commit)

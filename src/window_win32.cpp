@@ -373,14 +373,14 @@ PlatformWindow::~PlatformWindow()
 // PlatformWindow - Resize
 // ============================================================================
 
-void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
+void PlatformWindow::resize(const ui::Dimension& dimensions)
 {
-    if (new_width == width && new_height == height) {
+    if (dimension.width == width && dimension.height == height) {
         return;
     }
 
-    width = new_width;
-    height = new_height;
+    width = dimension.width;
+    height = dimension.height;
 
     // Resize the window
     SetWindowPos(hwnd, nullptr, 0, 0, width, height,
