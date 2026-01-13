@@ -163,10 +163,11 @@ int main()
                     state.mode = ui::CommandSearch{.query = query};
 
                     // For command search, rank all (usually small dataset)
+                    const auto query_lower = to_lower(query);
                     auto ranked = rank(
                         global_actions,
-                        [&query](const ui::Item &item) {
-                            return fuzzy::fuzzy_score_5_simd(item.title, to_lower(query));
+                        [&query_lower](const ui::Item &item) {
+                            return fuzzy::fuzzy_score_5_simd(item.title + item.description, query_lower);
                         },
                         global_actions.size());
 
@@ -183,10 +184,11 @@ int main()
                     state.mode = ui::AppSearch{.query = query};
 
                     // For app search, rank all (usually small dataset)
+                    const auto query_lower = to_lower(query);
                     auto ranked = rank(
                         desktop_apps,
-                        [&query](const indexer::DesktopApp &app) {
-                            return fuzzy::fuzzy_score_5_simd(app.name, to_lower(query));
+                        [&query_lower](const indexer::DesktopApp &app) {
+                            return fuzzy::fuzzy_score_5_simd(app.name + app.description, query_lower);
                         },
                         desktop_apps.size());
 
