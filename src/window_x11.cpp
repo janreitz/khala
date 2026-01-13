@@ -191,7 +191,9 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     attrs.background_pixel = 0;
     attrs.border_pixel = 0;
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask |
-                       ButtonPressMask | FocusChangeMask;
+                       ButtonPressMask | ButtonReleaseMask |
+                       PointerMotionMask | EnterWindowMask | LeaveWindowMask |
+                       FocusChangeMask;
 
     window = XCreateWindow(display, RootWindow(display, screen), x, y, width,
                            height, 0, vinfo.depth, InputOutput, vinfo.visual,
@@ -345,6 +347,66 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             // Regain focus when clicked
             XSetInputFocus(display, event.xbutton.window, RevertToParent,
                            CurrentTime);
+
+            // Generate mouse button event
+            ui::MouseButtonEvent::Button button;
+            if (event.xbutton.button == Button1) {
+                button = ui::MouseButtonEvent::Button::Left;
+            } else if (event.xbutton.button == Button2) {
+                button = ui::MouseButtonEvent::Button::Middle;
+            } else if (event.xbutton.button == Button3) {
+                button = ui::MouseButtonEvent::Button::Right;
+            } else {
+                // Ignore other buttons (scroll wheel, etc.)
+                continue;
+            }
+
+            events.push_back(ui::MouseButtonEvent{
+                .button = button,
+                .pressed = true,
+                .position = ui::WindowCoord{
+                    .x = event.xbutton.x,
+                    .y = event.xbutton.y
+                }
+            });
+        } else if (event.type == ButtonRelease) {
+            // Generate mouse button release event
+            ui::MouseButtonEvent::Button button;
+            if (event.xbutton.button == Button1) {
+                button = ui::MouseButtonEvent::Button::Left;
+            } else if (event.xbutton.button == Button2) {
+                button = ui::MouseButtonEvent::Button::Middle;
+            } else if (event.xbutton.button == Button3) {
+                button = ui::MouseButtonEvent::Button::Right;
+            } else {
+                // Ignore other buttons (scroll wheel, etc.)
+                continue;
+            }
+
+            events.push_back(ui::MouseButtonEvent{
+                .button = button,
+                .pressed = false,
+                .position = ui::WindowCoord{
+                    .x = event.xbutton.x,
+                    .y = event.xbutton.y
+                }
+            });
+        } else if (event.type == MotionNotify) {
+            events.push_back(ui::MousePositionEvent{
+                .position = ui::WindowCoord{
+                    .x = event.xmotion.x,
+                    .y = event.xmotion.y
+                }
+            });
+        } else if (event.type == EnterNotify) {
+            events.push_back(ui::CursorEnterEvent{
+                .position = ui::WindowCoord{
+                    .x = event.xcrossing.x,
+                    .y = event.xcrossing.y
+                }
+            });
+        } else if (event.type == LeaveNotify) {
+            events.push_back(ui::CursorLeaveEvent{});
         } else if (event.type == KeyPress) {
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
