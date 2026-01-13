@@ -5,23 +5,14 @@
 #include <execution>
 #include <mutex>
 #include <numeric>
-#include <queue>
 #include <string>
-#include <string_view>
-#include <type_traits>
+#include <thread>
 #include <utility>
 #include <vector>
 
 // Forward declarations
 class StreamingIndex;
 template <typename T> class LastWriterWinsSlot;
-
-// Ranker operation modes
-enum class RankerMode {
-    Inactive,   // Desktop apps mode - ranker sleeps
-    FileSearch, // Active file searching
-    Paused      // Query changing - pause work
-};
 
 // Basic ranking result with index and score
 struct RankResult {
@@ -127,26 +118,35 @@ class StreamingRanker {
 public:
     StreamingRanker(
         StreamingIndex& index,
-        LastWriterWinsSlot<ResultUpdate>& results,
-        std::atomic<RankerMode>& mode,
-        RankerRequest& request,
-        std::mutex& request_mutex,
-        std::atomic_bool& request_changed,
-        std::atomic_bool& exit_flag
+        LastWriterWinsSlot<ResultUpdate>& results
     );
+    ~StreamingRanker();
 
-    // Main worker loop - run in separate thread
-    void run();
+    // Disable copy and move
+    StreamingRanker(const StreamingRanker&) = delete;
+    StreamingRanker& operator=(const StreamingRanker&) = delete;
+    StreamingRanker(StreamingRanker&&) = delete;
+    StreamingRanker& operator=(StreamingRanker&&) = delete;
+
+    // Public API for controlling the ranker
+    void pause();
+    void resume();
+    void update_query(const std::string& query);
+    void update_requested_count(size_t count);
 
 private:
     // References to shared state
     StreamingIndex& streaming_index_;
     LastWriterWinsSlot<ResultUpdate>& result_updates_;
-    std::atomic<RankerMode>& ranker_mode_;
-    RankerRequest& ranker_request_;
-    std::mutex& query_mutex_;
-    std::atomic_bool& query_changed_;
-    std::atomic_bool& should_exit_;
+
+    // Owned synchronization primitives
+    std::mutex query_mutex_;
+    std::atomic_bool query_changed_{true}; // Signal initial processing
+    std::atomic_bool active_{false};
+    std::atomic_bool should_exit_{false};
+
+    // Request state
+    RankerRequest ranker_request_{"", 0};
 
     // Internal state
     size_t processed_chunks_ = 0;
@@ -154,7 +154,11 @@ private:
     RankerRequest current_request_;
     std::vector<RankResult> scored_results_; // Flattened, only score > 0
 
+    // Worker thread
+    std::thread worker_thread_;
+
     // Helper methods
+    void run(); // Main worker loop
     void reset_state();
     void handle_count_increase();
     void process_chunks();

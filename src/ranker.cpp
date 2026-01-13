@@ -35,33 +35,55 @@ merge_top_results(const std::vector<FileResult> &existing,
 }
 
 StreamingRanker::StreamingRanker(StreamingIndex &index,
-                                 LastWriterWinsSlot<ResultUpdate> &results,
-                                 std::atomic<RankerMode> &mode,
-                                 RankerRequest &request,
-                                 std::mutex &request_mutex,
-                                 std::atomic_bool &request_changed,
-                                 std::atomic_bool &exit_flag)
-    : streaming_index_(index), result_updates_(results), ranker_mode_(mode),
-      ranker_request_(request), query_mutex_(request_mutex),
-      query_changed_(request_changed), should_exit_(exit_flag)
+                                 LastWriterWinsSlot<ResultUpdate> &results)
+    : streaming_index_(index), result_updates_(results),
+      worker_thread_([this]() { run(); })
 {
+}
+
+StreamingRanker::~StreamingRanker()
+{
+    should_exit_.store(true, std::memory_order_release);
+    query_changed_.notify_all();
+    if (worker_thread_.joinable()) {
+        worker_thread_.join();
+    }
+}
+
+void StreamingRanker::pause()
+{
+    active_.store(false, std::memory_order_release);
+}
+
+void StreamingRanker::resume()
+{
+    active_.store(true, std::memory_order_release);
+    query_changed_.store(true, std::memory_order_release);
+    query_changed_.notify_one();
+}
+
+void StreamingRanker::update_query(const std::string& query)
+{
+    std::lock_guard lock(query_mutex_);
+    ranker_request_.query = query;
+    query_changed_.store(true, std::memory_order_release);
+    query_changed_.notify_one();
+}
+
+void StreamingRanker::update_requested_count(size_t count)
+{
+    std::lock_guard lock(query_mutex_);
+    ranker_request_.requested_count = count;
+    query_changed_.store(true, std::memory_order_release);
+    query_changed_.notify_one();
 }
 
 void StreamingRanker::run()
 {
     while (!should_exit_.load(std::memory_order_relaxed)) {
-        auto mode = ranker_mode_.load(std::memory_order_acquire);
-
-        if (mode == RankerMode::Inactive) {
-            // Sleep when not in file search mode
+        // Sleep when inactive
+        if (!active_.load(std::memory_order_acquire)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            continue;
-        }
-
-        if (mode == RankerMode::Paused) {
-            // Reset state when query is changing
-            reset_state();
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
         }
 
@@ -108,9 +130,8 @@ void StreamingRanker::run()
 
             send_update(true);
 
-            // Wait for next query or mode change
-            while (ranker_mode_.load(std::memory_order_acquire) ==
-                       RankerMode::FileSearch &&
+            // Wait for next query or state change
+            while (active_.load(std::memory_order_acquire) &&
                    !query_changed_.load(std::memory_order_acquire) &&
                    !should_exit_.load(std::memory_order_acquire)) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
