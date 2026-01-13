@@ -88,11 +88,11 @@ std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
     constexpr auto MinHeapCompare = std::greater<>{};
     for (size_t i = 0; i < data.size(); ++i) {
         const float s = scoring_function(data.at(i));
-        if (top_n.size() < n) {
+        if (top_n.size() < n && 0.0F < s) {
             top_n.push_back({i, s});
             std::push_heap(top_n.begin(), top_n.end(), MinHeapCompare);
         // front() -> "min-heap top" -> Min score
-        } else if (s > top_n.front().score) {
+        } else if (top_n.front().score < s) {
             std::pop_heap(top_n.begin(), top_n.end(), MinHeapCompare);
             top_n.back() = {i, s};
             std::push_heap(top_n.begin(), top_n.end(), MinHeapCompare);
