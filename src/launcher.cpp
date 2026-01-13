@@ -85,7 +85,8 @@ int main()
     // Launch progressive ranking worker
     StreamingRanker ranker(streaming_index, result_updates);
     ranker.update_query("");
-    ranker.update_requested_count(ui::required_item_count(state, max_visible_items));
+    ranker.update_requested_count(
+        ui::required_item_count(state, max_visible_items));
 
     // Current file search state
     std::vector<FileResult> current_file_results;
@@ -167,7 +168,8 @@ int main()
                     auto ranked = rank(
                         global_actions,
                         [&query_lower](const ui::Item &item) {
-                            return fuzzy::fuzzy_score_5_simd(item.title + item.description, query_lower);
+                            return fuzzy::fuzzy_score_5_simd(
+                                item.title + item.description, query_lower);
                         },
                         global_actions.size());
 
@@ -188,7 +190,8 @@ int main()
                     auto ranked = rank(
                         desktop_apps,
                         [&query_lower](const indexer::DesktopApp &app) {
-                            return fuzzy::fuzzy_score_5_simd(app.name + app.description, query_lower);
+                            return fuzzy::fuzzy_score_5_simd(
+                                app.name + app.description, query_lower);
                         },
                         desktop_apps.size());
 
@@ -250,8 +253,10 @@ int main()
                 current_max_visible_items);
 
             if (new_height != window.get_height()) {
-                window.resize(new_height, window.get_width());
-                state.max_visible_items = ui::calculate_max_visible_items(new_height, config.font_size);
+                window.resize(ui::WindowDimension{.height = new_height,
+                                                  .width = window.get_width()});
+                state.max_visible_items = ui::calculate_max_visible_items(
+                    new_height, config.font_size);
             }
             try {
                 window.draw(config, state);

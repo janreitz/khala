@@ -187,8 +187,10 @@ void toplevel_configure_handler(void *data, xdg_toplevel *, int32_t width,
 {
     auto* win = static_cast<PlatformWindow *>(data);
     if (width > 0 && height > 0) {
-        win->resize(static_cast<unsigned int>(height),
-                    static_cast<unsigned int>(width));
+        win->resize(ui::WindowDimension{
+            .height = static_cast<unsigned int>(height),
+            .width = static_cast<unsigned int>(width),
+        });
     }
 }
 
@@ -202,8 +204,10 @@ static void toplevel_configure_bounds_handler(void *data, xdg_toplevel *,
 {
     auto* win = static_cast<PlatformWindow *>(data);
     if (width > 0 && height > 0) {
-        win->resize(static_cast<unsigned int>(width),
-                    static_cast<unsigned int>(height));
+        win->resize(ui::WindowDimension{
+            .height = static_cast<unsigned int>(height),
+            .width = static_cast<unsigned int>(width),
+        });
     }
 }
 
@@ -884,10 +888,10 @@ WaylandBuffer* PlatformWindow::allocate_buffer(unsigned int buf_width, unsigned 
     return allocate_buffer(buf_width, buf_height);  // Retry
 }
 
-void PlatformWindow::resize(unsigned int new_height, unsigned int new_width)
+void PlatformWindow::resize(const ui::WindowDimension& dimensions)
 {
-    height = new_height;
-    width = new_width;
+    height = dimensions.height;
+    width = dimensions.width;
     // Note: Wayland clients don't resize directly - the compositor handles it
     // We just track the size for our buffer allocation
 }
