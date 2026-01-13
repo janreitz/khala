@@ -580,7 +580,7 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
         auto next_path_idx = simd_find_first_or(
             path_data_lower.data(), path_len, query_data[query_idx], start, -1);
 
-        while (next_path_idx > 0) {
+        while (next_path_idx >= 0) {
             const auto path_idx = static_cast<size_t>(next_path_idx);
 
             if (path_len - path_idx < query_len - query_idx)
