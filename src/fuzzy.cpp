@@ -1,4 +1,5 @@
 #include "fuzzy.h"
+#include "utility.h"
 
 #include <algorithm>
 #include <array>
@@ -6,11 +7,6 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-
-#include <emmintrin.h>
-#ifdef _MSC_VER
-#include <intrin.h>
-#endif
 
 namespace fuzzy
 {
@@ -424,177 +420,6 @@ float fuzzy_score_4(std::string_view path, std::string_view query_lower)
     score -= static_cast<float>(path_len) * 0.02f;
 
     return score;
-}
-
-int find_last_or(std::string_view str, char c, int _default)
-{
-    const auto *data = str.data();
-    const auto len = str.length();
-    const char *p = data + len;
-    while (p > data && *--p != c) {
-    }
-    if (*p == c) {
-        return static_cast<int>(p - data);
-    } else {
-        return _default;
-    }
-}
-
-int count_leading_zeros(unsigned int x)
-{
-#ifdef _MSC_VER
-    unsigned long index;
-    unsigned char success = _BitScanReverse(&index, x);
-    // _BitScanReverse fails for x = 0
-    // If success == 0, return 32 
-    // If success == 1, we want to return 31 - index
-    return 32 - (success * (index + 1));
-#else
-    return __builtin_clz(x);
-#endif
-}
-
-// This requires up to sizeof(__m128i) before str.data();
-int simd_find_last_or(std::string_view str, char c, int _default)
-{
-    // Set all lanes equal to '/'
-    const auto compare_against = _mm_set1_epi8(c);
-    int offset = static_cast<int>(str.length());
-    const auto data = str.data();
-    while (offset >= 0) {
-        offset -= static_cast<int>(sizeof(__m128i));
-        const char *p = data + offset;
-        const auto compare_this =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
-        const __m128i cmp_result =
-            _mm_cmpeq_epi8(compare_this, compare_against);
-        // Sets bits for each matched character (only uses the first 16 bits)
-        const auto match_mask =
-            static_cast<unsigned int>(_mm_movemask_epi8(cmp_result));
-        if (match_mask != 0) {
-            const int last_match_index_in_chunk =
-                (static_cast<int>(sizeof(int)) * 8 - 1) -
-                count_leading_zeros(match_mask);
-            const int last_match_index = offset + last_match_index_in_chunk;
-            return last_match_index >= 0 ? last_match_index : _default;
-        }
-    }
-    return _default;
-}
-
-// Returns index of first occurrence of c at or after start, or -1 if not found
-int simd_find_first_or(const char *data, size_t len, char c, size_t start,
-                       int _default)
-{
-    size_t offset = start;
-#if defined(__SSE2__)
-    const __m128i compare_against = _mm_set1_epi8(c);
-    while (offset + 16 <= len) {
-        const __m128i chunk =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(data + offset));
-        const __m128i cmp_result = _mm_cmpeq_epi8(chunk, compare_against);
-        const unsigned int match_mask =
-            static_cast<unsigned int>(_mm_movemask_epi8(cmp_result));
-
-        if (match_mask != 0) {
-            return static_cast<int>(offset) + __builtin_ctz(match_mask);
-        }
-        offset += 16;
-    }
-#endif
-    // Scalar tail
-    while (offset < len) {
-        if (data[offset] == c) {
-            return static_cast<int>(offset);
-        }
-        offset++;
-    }
-
-    return _default;
-}
-
-void simd_to_lower(const char *src, size_t len, char *out_buffer)
-{
-    size_t i = 0;
-
-#if defined(__SSE2__)
-    const __m128i upper_a = _mm_set1_epi8('A' - 1);
-    const __m128i upper_z = _mm_set1_epi8('Z' + 1);
-    const __m128i lower_bit = _mm_set1_epi8(0x20);
-    for (; i + 16 <= len; i += 16) {
-        __m128i chunk =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + i));
-
-        __m128i ge_a = _mm_cmpgt_epi8(chunk, upper_a);
-        __m128i le_z = _mm_cmpgt_epi8(upper_z, chunk);
-        __m128i is_upper = _mm_and_si128(ge_a, le_z);
-
-        __m128i to_add = _mm_and_si128(is_upper, lower_bit);
-        __m128i result = _mm_add_epi8(chunk, to_add);
-
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(out_buffer + i), result);
-    }
-#endif
-
-    // Scalar fallback for remainder
-    for (; i < len; ++i) {
-        const char c = static_cast<char>(src[i]);
-        out_buffer[i] =
-            (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 0x20) : c;
-    }
-}
-
-// Returns positions of all matches (up to max_results)
-size_t find_all(const char *data, size_t len, char target, size_t *positions,
-                size_t max_results)
-{
-    size_t pos_idx = 0;
-    for (size_t data_idx = 0; data_idx < len && pos_idx < max_results;
-         ++data_idx) {
-        if (data[data_idx] == target) {
-            positions[pos_idx++] = data_idx;
-        }
-    }
-    return pos_idx;
-}
-
-// Returns positions of all matches (up to max_results)
-
-size_t simd_find_all(const char *data, size_t len, char target,
-                     size_t *positions, size_t max_results)
-{
-    size_t pos_idx = 0;
-    size_t data_idx = 0;
-
-#if defined(__SSE2__)
-    const __m128i target_vec = _mm_set1_epi8(target);
-
-    // Process 16 bytes at a time
-    while (data_idx + 16 <= len && pos_idx < max_results) {
-        const __m128i chunk =
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(data + data_idx));
-        const __m128i cmp = _mm_cmpeq_epi8(chunk, target_vec);
-        int mask = _mm_movemask_epi8(cmp);
-
-        while (mask != 0 && pos_idx < max_results) {
-            const auto bit_pos = static_cast<size_t>(__builtin_ctz(
-                static_cast<unsigned int>(mask))); // Position of lowest set bit
-            positions[pos_idx++] = data_idx + bit_pos;
-            mask &= mask - 1; // Clear lowest set bit
-        }
-
-        data_idx += 16;
-    }
-#endif
-    // Scalar tail
-    while (data_idx < len && pos_idx < max_results) {
-        if (data[data_idx] == target) {
-            positions[pos_idx++] = data_idx;
-        }
-        data_idx++;
-    }
-
-    return pos_idx;
 }
 
 float fuzzy_score_5(std::string_view path, std::string_view query_lower)

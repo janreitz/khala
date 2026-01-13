@@ -573,7 +573,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         static_cast<float>(ui::calculate_abs_item_height(config.font_size));
 
     const auto query_opt = get_query(state.mode);
-    const std::string query = query_opt.value_or("");
+    const std::string query_lower = to_lower(query_opt.value_or(""));
 
     const size_t range_end = std::min(
         state.visible_range_offset + max_visible_items, state.items.size());
@@ -602,9 +602,10 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             content_width - 2 * ui::TEXT_MARGIN, item_height, &titleLayout);
 
         // Apply bold highlighting for fuzzy matches
-        if (query_opt.has_value() && !query.empty()) {
+        if (query_opt.has_value() && !query_lower.empty()) {
+            
             const auto match_positions =
-                fuzzy::fuzzy_match_optimal(state.items[i].title, query);
+                fuzzy::fuzzy_match_optimal(state.items[i].title, query_lower);
             const auto wide_positions =
                 utf8_positions_to_utf16(state.items[i].title, match_positions);
             for (size_t pos : wide_positions) {
@@ -641,9 +642,9 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                     textFormat, available_width, item_height, &descLayout);
 
                 // Apply highlighting for description matches too
-                if (query_opt.has_value() && !query.empty()) {
+                if (query_opt.has_value() && !query_lower.empty()) {
                     const auto match_positions = fuzzy::fuzzy_match_optimal(
-                        state.items[i].description, query);
+                        state.items[i].description, query_lower);
                     const auto wide_positions = utf8_positions_to_utf16(state.items[i].description, match_positions);
                     for (size_t pos : wide_positions) {
                         DWRITE_TEXT_RANGE range = {static_cast<UINT32>(pos), 1};
