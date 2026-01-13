@@ -88,6 +88,12 @@ class PlatformWindow
                                            uint32_t, uint32_t);
     friend void pointer_enter_handler(void *, wl_pointer *, uint32_t,
                                       wl_surface *, wl_fixed_t, wl_fixed_t);
+    friend void pointer_leave_handler(void *, wl_pointer *, uint32_t,
+                                      wl_surface *);
+    friend void pointer_motion_handler(void *, wl_pointer *, uint32_t,
+                                       wl_fixed_t, wl_fixed_t);
+    friend void pointer_button_handler(void *, wl_pointer *, uint32_t,
+                                       uint32_t, uint32_t, uint32_t);
     friend void seat_capabilities_handler(void *, struct wl_seat *, uint32_t);
     friend void output_geometry_handler(void *, struct wl_output *, int32_t,
                                         int32_t, int32_t, int32_t, int32_t,
@@ -157,6 +163,9 @@ class PlatformWindow
 
     // XKB for mouse handling
     uint32_t pointer_serial;
+    // Wayland doesn't provide position in button events
+    // The position will be updated by motion events
+    ui::WindowCoord last_pointer_position;
 
     // Shared memory buffer for rendering
     wl_shm *shm;
