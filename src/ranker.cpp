@@ -44,7 +44,7 @@ StreamingRanker::StreamingRanker(StreamingIndex &index,
 StreamingRanker::~StreamingRanker()
 {
     should_exit_.store(true, std::memory_order_release);
-    query_changed_.notify_all();
+    state_cv_.notify_all();
     if (worker_thread_.joinable()) {
         worker_thread_.join();
     }
@@ -53,38 +53,46 @@ StreamingRanker::~StreamingRanker()
 void StreamingRanker::pause()
 {
     active_.store(false, std::memory_order_release);
+    state_cv_.notify_one();
 }
 
 void StreamingRanker::resume()
 {
     active_.store(true, std::memory_order_release);
     query_changed_.store(true, std::memory_order_release);
-    query_changed_.notify_one();
+    state_cv_.notify_one();
 }
 
 void StreamingRanker::update_query(const std::string& query)
 {
-    std::lock_guard lock(query_mutex_);
+    std::lock_guard lock(state_mutex_);
     ranker_request_.query = query;
     query_changed_.store(true, std::memory_order_release);
-    query_changed_.notify_one();
+    state_cv_.notify_one();
 }
 
 void StreamingRanker::update_requested_count(size_t count)
 {
-    std::lock_guard lock(query_mutex_);
+    std::lock_guard lock(state_mutex_);
     ranker_request_.requested_count = count;
     query_changed_.store(true, std::memory_order_release);
-    query_changed_.notify_one();
+    state_cv_.notify_one();
 }
 
 void StreamingRanker::run()
 {
     while (!should_exit_.load(std::memory_order_relaxed)) {
-        // Sleep when inactive
-        if (!active_.load(std::memory_order_acquire)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            continue;
+        // Wait when inactive
+        {
+            std::unique_lock lock(state_mutex_);
+            state_cv_.wait(lock, [this]() {
+                return active_.load(std::memory_order_acquire) ||
+                       should_exit_.load(std::memory_order_acquire);
+            });
+        }
+
+        if (should_exit_.load(std::memory_order_acquire)) {
+            break;
         }
 
         // Check for query or request changes
@@ -92,7 +100,7 @@ void StreamingRanker::run()
         if (query_changed_.exchange(false, std::memory_order_acq_rel)) {
             RankerRequest new_request;
             {
-                std::lock_guard lock(query_mutex_);
+                std::lock_guard lock(state_mutex_);
                 new_request = ranker_request_;
             }
 
@@ -131,11 +139,12 @@ void StreamingRanker::run()
             send_update(true);
 
             // Wait for next query or state change
-            while (active_.load(std::memory_order_acquire) &&
-                   !query_changed_.load(std::memory_order_acquire) &&
-                   !should_exit_.load(std::memory_order_acquire)) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
+            std::unique_lock lock(state_mutex_);
+            state_cv_.wait(lock, [this]() {
+                return !active_.load(std::memory_order_acquire) ||
+                       query_changed_.load(std::memory_order_acquire) ||
+                       should_exit_.load(std::memory_order_acquire);
+            });
         }
     }
 }

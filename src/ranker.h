@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <execution>
 #include <mutex>
 #include <numeric>
@@ -140,9 +141,10 @@ private:
     LastWriterWinsSlot<ResultUpdate>& result_updates_;
 
     // Owned synchronization primitives
-    std::mutex query_mutex_;
+    std::mutex state_mutex_;
+    std::condition_variable state_cv_;
     std::atomic_bool query_changed_{true}; // Signal initial processing
-    std::atomic_bool active_{false};
+    std::atomic_bool active_{true};
     std::atomic_bool should_exit_{false};
 
     // Request state
