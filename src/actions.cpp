@@ -62,7 +62,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
         if (path.has_parent_path()) {
             items.push_back(ui::Item{
                 .title = "Open Containing Folder",
-                .description = config.file_manager,
+                .description = "",
                 .path = std::nullopt,
                 .command = OpenDirectory{path.parent_path()},
             });
