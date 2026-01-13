@@ -11,14 +11,12 @@
 #include "utility.h"
 #include "window.h"
 
-#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <filesystem>
 #include <future>
-#include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
@@ -71,14 +69,6 @@ int main()
 
     // Communication channels
     LastWriterWinsSlot<ResultUpdate> result_updates;
-    std::atomic<RankerMode> ranker_mode{RankerMode::FileSearch};
-
-    // Ranker request state - GUI writes, ranker reads
-    RankerRequest ranker_request = {
-        "", ui::required_item_count(state, max_visible_items)};
-    std::mutex query_mutex;
-    std::atomic_bool query_changed{true}; // Signal initial processing
-    std::atomic_bool should_exit{false};
 
     LOG_INFO("Loading index for %s...",
              fs::canonical(config.index_root).generic_string().c_str());
@@ -93,15 +83,13 @@ int main()
     });
 
     // Launch progressive ranking worker
-    StreamingRanker ranker(streaming_index, result_updates, ranker_mode,
-                           ranker_request, query_mutex, query_changed,
-                           should_exit);
-
-    auto rank_future =
-        std::async(std::launch::async, [&ranker]() { ranker.run(); });
+    StreamingRanker ranker(streaming_index, result_updates);
+    ranker.update_query("");
+    ranker.update_requested_count(ui::required_item_count(state, max_visible_items));
 
     // Current file search state
     std::vector<FileResult> current_file_results;
+    bool should_exit = false;
     bool redraw = true;
     while (true) {
         const std::vector<ui::UserInputEvent> input_events =
@@ -136,12 +124,7 @@ int main()
                 if (adjusted) {
                     const auto required_item_count =
                         ui::required_item_count(state, max_visible_items);
-                    const std::lock_guard lock(query_mutex);
-                    if (required_item_count > ranker_request.requested_count) {
-                        ranker_request.requested_count = required_item_count;
-                        query_changed.store(true, std::memory_order_release);
-                        query_changed.notify_one();
-                    }
+                    ranker.update_requested_count(required_item_count);
                 }
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
                 LOG_DEBUG("Selected: %s",
@@ -174,8 +157,7 @@ int main()
                 // Command palette mode - search utility commands
                 if (!state.input_buffer.empty() &&
                     state.input_buffer[0] == '>') {
-                    ranker_mode.store(RankerMode::Inactive,
-                                      std::memory_order_release);
+                    ranker.pause();
 
                     const auto query = state.input_buffer.substr(1);
                     state.mode = ui::CommandSearch{.query = query};
@@ -195,8 +177,7 @@ int main()
                     // App search mode - search desktop applications only
                 } else if (!state.input_buffer.empty() &&
                            state.input_buffer[0] == '!') {
-                    ranker_mode.store(RankerMode::Inactive,
-                                      std::memory_order_release);
+                    ranker.pause();
 
                     const auto query = state.input_buffer.substr(1);
                     state.mode = ui::AppSearch{.query = query};
@@ -225,23 +206,16 @@ int main()
                     // File search mode - activate streaming ranker
                     state.mode = ui::FileSearch{.query = state.input_buffer};
 
-                    {
-                        const std::lock_guard lock(query_mutex);
-                        ranker_request.query = to_lower(state.input_buffer);
-                        ranker_request.requested_count =
-                            ui::required_item_count(state, max_visible_items);
-                    }
-
-                    query_changed.store(true, std::memory_order_release);
-                    query_changed.notify_one();
-                    ranker_mode.store(RankerMode::FileSearch,
-                                      std::memory_order_release);
+                    ranker.update_query(to_lower(state.input_buffer));
+                    ranker.update_requested_count(
+                        ui::required_item_count(state, max_visible_items));
+                    ranker.resume();
                 }
             }
         }
 
         // Exit if requested
-        if (exit_requested) {
+        if (exit_requested || should_exit) {
             break;
         }
 
@@ -288,15 +262,8 @@ int main()
     }
 
     // Cleanup
-    should_exit.store(true, std::memory_order_release);
-    query_changed.notify_all();
-    ranker_mode.store(RankerMode::Inactive, std::memory_order_release);
-
     if (index_future.valid()) {
         index_future.wait();
-    }
-    if (rank_future.valid()) {
-        rank_future.wait();
     }
     return 0;
 }
