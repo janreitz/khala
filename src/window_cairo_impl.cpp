@@ -136,6 +136,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     set_color(cr, config.background_color);
     draw_rounded_rect(cr, 0, 0, width, height, ui::CORNER_RADIUS, Corner::All);
     cairo_fill(cr);
+    // Border
+    set_color(cr, config.input_background_color);
+    cairo_set_line_width(cr, 1.0);
+    draw_rounded_rect(cr, 0.0, 0.0, width - 1.0, height - 1.0, ui::CORNER_RADIUS, Corner::All);
+    cairo_stroke(cr);
 
     // Draw Input Area
     const int input_height = ui::calculate_abs_input_height(config.font_size);
