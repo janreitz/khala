@@ -84,36 +84,31 @@ std::vector<RankResult> rank_parallel(const ContainerT &data,
     return scored;
 }
 
-// Sequential ranking using min-heap for efficiency
+// Sequential ranking using min-heap
 template <typename ContainerT, typename ScoreFn>
 std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
                              size_t n)
 {
-    // Min-heap: smallest score at top, so we can evict it
-    std::priority_queue<RankResult, std::vector<RankResult>,
-                        std::greater<RankResult>>
-        top_n;
+    std::vector<RankResult> top_n;
+    top_n.reserve(n);
 
+    // Manual heap instead of priority_queue to avoid creating a new vector for return.
+    constexpr auto MinHeapCompare = std::greater<>{};
     for (size_t i = 0; i < data.size(); ++i) {
-        float s = scoring_function(data.at(i));
+        const float s = scoring_function(data.at(i));
         if (top_n.size() < n) {
-            top_n.push({i, s});
-        } else if (s > top_n.top().score) {
-            top_n.pop();
-            top_n.push({i, s});
+            top_n.push_back({i, s});
+            std::push_heap(top_n.begin(), top_n.end(), MinHeapCompare);
+        // front() -> "min-heap top" -> Min score
+        } else if (s > top_n.front().score) {
+            std::pop_heap(top_n.begin(), top_n.end(), MinHeapCompare);
+            top_n.back() = {i, s};
+            std::push_heap(top_n.begin(), top_n.end(), MinHeapCompare);
         }
     }
 
-    // Extract in descending order
-    std::vector<RankResult> result;
-    result.reserve(top_n.size());
-    while (!top_n.empty()) {
-        result.push_back(top_n.top());
-        top_n.pop();
-    }
-    std::reverse(result.begin(), result.end());
-
-    return result;
+    std::sort(top_n.begin(), top_n.end(), std::greater<>{}); // descending
+    return top_n;
 }
 
 // Merge two sorted FileResult vectors, keeping top max_results
