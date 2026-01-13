@@ -127,11 +127,15 @@ unsigned int calculate_window_height(int font_size, size_t item_count,
                                      size_t max_visible_items)
 {
     const size_t visible_items = std::min(item_count, max_visible_items);
+    // top border + input area + bottom border
+    const auto input_area_height = static_cast<unsigned int>(
+        2 * BORDER_WIDTH + calculate_abs_input_height(font_size));
+    if (item_count == 0) {
+        return input_area_height;
+    }
 
-    // Account for: top border + input area + spacing + items + bottom border
-    return static_cast<unsigned int>(2 * BORDER_WIDTH +
-                                     calculate_abs_input_height(font_size) +
-                                     ITEMS_SPACING +
+    return input_area_height +
+           static_cast<unsigned int>(ITEMS_SPACING +
                                      (static_cast<double>(visible_items) *
                                       calculate_abs_item_height(font_size)));
 }
