@@ -159,7 +159,7 @@ void StreamingRanker::reset_state()
 void StreamingRanker::handle_count_increase()
 {
     // Just rebuild accumulated results with new count
-    resort_results();
+    report_results();
 }
 
 void StreamingRanker::process_chunks()
@@ -179,23 +179,26 @@ void StreamingRanker::process_chunks()
             break;
         }
 
-        // Score new chunk and add results with score > 0 to flattened results
-        std::vector<size_t> indices(chunk->size());
-        std::iota(indices.begin(), indices.end(), 0);
+        // Skip scoring if query is empty, but still update metadata
+        if (!current_request_.query.empty()) {
+            // Score new chunk and add results with score > 0 to flattened results
+            std::vector<size_t> indices(chunk->size());
+            std::iota(indices.begin(), indices.end(), 0);
 
-        std::vector<RankResult> chunk_scored(chunk->size());
-        std::transform(std::execution::par_unseq, indices.begin(),
-                       indices.end(), chunk_scored.begin(), [&](size_t i) {
-                           return RankResult{
-                               global_offset + i, // Use global index
-                               fuzzy::fuzzy_score_5_simd(chunk->at(i),
-                                                  current_request_.query)};
-                       });
+            std::vector<RankResult> chunk_scored(chunk->size());
+            std::transform(std::execution::par_unseq, indices.begin(),
+                           indices.end(), chunk_scored.begin(), [&](size_t i) {
+                               return RankResult{
+                                   global_offset + i, // Use global index
+                                   fuzzy::fuzzy_score_5_simd(chunk->at(i),
+                                                      current_request_.query)};
+                           });
 
-        // Add only results with score > 0 to flattened results
-        for (const auto& result : chunk_scored) {
-            if (result.score > 0.0F) {
-                scored_results_.push_back(result);
+            // Add only results with score > 0 to flattened results
+            for (const auto& result : chunk_scored) {
+                if (result.score > 0.0F) {
+                    scored_results_.push_back(result);
+                }
             }
         }
 
@@ -203,12 +206,12 @@ void StreamingRanker::process_chunks()
         global_offset += chunk->size();
         ++processed_chunks_;
 
-        // Incrementally rebuild accumulated results
-        resort_results();
+        // Incrementally rebuild accumulated results (or send empty update for empty query)
+        report_results();
     }
 }
 
-void StreamingRanker::resort_results()
+void StreamingRanker::report_results()
 {
     const size_t n = std::min(current_request_.requested_count, scored_results_.size());
     // Sort all scored results to get top requested_count

@@ -164,6 +164,6 @@ private:
     void reset_state();
     void handle_count_increase();
     void process_chunks();
-    void resort_results();
+    void report_results();
     void send_update(bool is_final = false);
 };
