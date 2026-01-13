@@ -389,6 +389,11 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
                     ui::KeyboardEvent{.key = ui::KeyCode::BackSpace,
                                       .modifier = std::nullopt,
                                       .character = std::nullopt});
+            } else if (keysym == XK_Delete) {
+                events.push_back(
+                    ui::KeyboardEvent{.key = ui::KeyCode::Delete,
+                                      .modifier = std::nullopt,
+                                      .character = std::nullopt});
             } else {
                 // Handle regular character input
                 constexpr int BUFFER_SIZE = 32;

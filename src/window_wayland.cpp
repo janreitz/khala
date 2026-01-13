@@ -332,6 +332,10 @@ void keyboard_key_handler(void *data, wl_keyboard *, uint32_t, uint32_t,
         event.key = ui::KeyCode::BackSpace;
         win->pending_events.push_back(event);
         break;
+    case XKB_KEY_Delete:
+        event.key = ui::KeyCode::Delete;
+        win->pending_events.push_back(event);
+        break;
     case XKB_KEY_Tab:
         event.key = ui::KeyCode::Tab;
         win->pending_events.push_back(event);

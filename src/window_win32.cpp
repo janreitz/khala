@@ -791,6 +791,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         case VK_BACK:
             event.key = ui::KeyCode::BackSpace;
             break;
+        case VK_DELETE:
+            event.key = ui::KeyCode::Delete;
+            break;
         case VK_TAB:
             event.key = ui::KeyCode::Tab;
             break;

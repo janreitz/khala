@@ -155,6 +155,33 @@ void State::clear_error() { error_message = std::nullopt; }
 
 bool State::has_error() const { return error_message.has_value(); }
 
+// Try to open context menu for the currently selected file item
+// Returns true if context menu was opened, false otherwise
+static bool try_open_context_menu(State &state, const Config &config)
+{
+    // Only open context menu in FileSearch mode
+    if (!std::holds_alternative<FileSearch>(state.mode)) {
+        return false;
+    }
+
+    // Need items to show context menu for
+    if (state.items.empty()) {
+        return false;
+    }
+
+    const auto &file_item = state.get_selected_item();
+    if (!file_item.path.has_value()) {
+        return false;
+    }
+
+    // Open context menu
+    state.mode = ContextMenu{.title = file_item.title,
+                             .selected_file = file_item.path.value()};
+    state.selected_item_index = 0;
+    state.items = make_file_actions(file_item.path.value(), config);
+    return true;
+}
+
 std::vector<Event> handle_keyboard_input(State &state,
                                          const KeyboardEvent &kbd_event,
                                          const Config &config)
@@ -189,17 +216,10 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Tab:
-        if (!std::holds_alternative<ContextMenu>(state.mode) &&
-            !state.items.empty()) {
-            const auto &file_item = state.get_selected_item();
-            if (!file_item.path.has_value()) {
-                break;
+        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+            if (try_open_context_menu(state, config)) {
+                events.push_back(ContextMenuToggled{});
             }
-            state.mode = ContextMenu{.title = file_item.title,
-                                     .selected_file = file_item.path.value()};
-            state.selected_item_index = 0;
-            state.items = make_file_actions(file_item.path.value(), config);
-            events.push_back(ContextMenuToggled{});
         }
         break;
 
@@ -216,10 +236,17 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Right:
-        if (!std::holds_alternative<ContextMenu>(state.mode) &&
-            state.cursor_position < state.input_buffer.size()) {
-            state.cursor_position++;
-            events.push_back(CursorPositionChanged{});
+        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+            if (state.cursor_position < state.input_buffer.size()) {
+                // Cursor is not at end, just move it right
+                state.cursor_position++;
+                events.push_back(CursorPositionChanged{});
+            } else {
+                // Cursor is at end, try to open context menu
+                if (try_open_context_menu(state, config)) {
+                    events.push_back(ContextMenuToggled{});
+                }
+            }
         }
         break;
 
@@ -246,6 +273,15 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.input_buffer.empty() && state.cursor_position > 0) {
             state.input_buffer.erase(state.cursor_position - 1, 1);
             state.cursor_position--;
+            events.push_back(InputChanged{});
+        }
+        break;
+
+    case KeyCode::Delete:
+        state.clear_error(); // Clear error when user starts typing
+        if (!state.input_buffer.empty() &&
+            state.cursor_position < state.input_buffer.size()) {
+            state.input_buffer.erase(state.cursor_position, 1);
             events.push_back(InputChanged{});
         }
         break;

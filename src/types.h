@@ -14,6 +14,7 @@ enum class KeyCode {
     Escape,
     Return,
     BackSpace,
+    Delete,
     Tab,
     Up,
     Down,
