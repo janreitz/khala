@@ -187,8 +187,8 @@ void toplevel_configure_handler(void *data, xdg_toplevel *, int32_t width,
 {
     auto* win = static_cast<PlatformWindow *>(data);
     if (width > 0 && height > 0) {
-        win->resize(static_cast<unsigned int>(width),
-                    static_cast<unsigned int>(height));
+        win->resize(static_cast<unsigned int>(height),
+                    static_cast<unsigned int>(width));
     }
 }
 
