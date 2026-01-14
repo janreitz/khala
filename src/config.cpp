@@ -406,6 +406,7 @@ Config Config::load(const fs::path &path)
     // Background mode
     cfg.background_mode = get_bool_or(map, "background_mode", cfg.background_mode);
     cfg.hotkey = get_hotkey_or(map, "hotkey", cfg.hotkey);
+    cfg.quit_hotkey = get_hotkey_or(map, "quit_hotkey", cfg.quit_hotkey);
 
     // Indexing
     cfg.index_root = get_dir_or(map, "index_root", cfg.index_root);
@@ -489,6 +490,8 @@ void Config::save(const fs::path &path) const
     file << "background_mode=" << (background_mode ? "true" : "false") << "\n";
     file << "# Hotkey format: modifier keys + key (e.g., Alt+Space, Ctrl+Shift+K)\n";
     file << "hotkey=" << to_string(hotkey) << "\n";
+    file << "# Hotkey to quit the application (In background mode, Esc only hides)\n";
+    file << "quit_hotkey=" << to_string(quit_hotkey) << "\n";
     file << "\n";
 
     file << "# Indexing \n";

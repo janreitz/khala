@@ -229,9 +229,20 @@ std::vector<Event> handle_keyboard_input(State &state,
 {
     std::vector<Event> events;
 
+    // Check for quit hotkey first
+    if (kbd_event.key == config.quit_hotkey.key &&
+        kbd_event.modifiers == config.quit_hotkey.modifiers) {
+        events.push_back(ExitRequested{});
+        return events;
+    }
+
     switch (kbd_event.key) {
     case KeyCode::Escape:
-        events.push_back(ExitRequested{});
+        if (config.background_mode) {
+            events.push_back(VisibilityToggleRequested{});
+        } else {
+            events.push_back(ExitRequested{});
+        }
         break;
 
     case KeyCode::Up:

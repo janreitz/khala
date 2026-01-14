@@ -138,6 +138,18 @@ int main()
                 if (config.background_mode) {
                     if (window.is_visible()) {
                         window.hide();
+                        // Reset UI state for next activation
+                        state.input_buffer.clear();
+                        state.cursor_position = 0;
+                        state.selected_item_index = 0;
+                        state.visible_range_offset = 0;
+                        state.mode = ui::FileSearch{.query = ""};
+                        state.clear_error();
+
+                        // Reset ranker to empty query
+                        ranker.update_query("");
+                        ranker.update_requested_count(
+                            ui::required_item_count(state, max_visible_items));
                         LOG_DEBUG("Window hidden via hotkey");
                     } else {
                         window.show();
@@ -145,27 +157,9 @@ int main()
                     }
                 }
             } else if (std::holds_alternative<ui::ExitRequested>(event)) {
-                if (config.background_mode) {
-                    // In background mode, hide window and reset state for next show
-                    window.hide();
 
-                    // Reset UI state for next activation
-                    state.input_buffer.clear();
-                    state.cursor_position = 0;
-                    state.selected_item_index = 0;
-                    state.visible_range_offset = 0;
-                    state.mode = ui::FileSearch{.query = ""};
-                    state.clear_error();
-
-                    // Reset ranker to empty query
-                    ranker.update_query("");
-                    ranker.update_requested_count(
-                        ui::required_item_count(state, max_visible_items));
-
-                    LOG_DEBUG("Window hidden via Escape, state reset");
-                } else {
-                    exit_requested = true;
-                }
+                exit_requested = true;
+                
                 break;
             } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
                 // Adjust visible range to keep selected item visible
