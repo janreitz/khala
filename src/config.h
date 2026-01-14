@@ -68,6 +68,11 @@ struct Config {
         .key = ui::KeyCode::Space, .modifiers = ui::KeyModifier::Alt,
         .character = std::nullopt,
     };
+    ui::KeyboardEvent quit_hotkey
+    {
+        .key = ui::KeyCode::Q, .modifiers = ui::KeyModifier::Ctrl,
+        .character = std::nullopt,
+    };
 
     // Indexing
     static fs::path default_index_root();

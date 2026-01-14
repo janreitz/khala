@@ -962,9 +962,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         return 0;
 
     case WM_KILLFOCUS:
-        // Window lost focus - send Escape to trigger close
-        // Note: In background mode, this behavior changes to just hiding
-        if (data) {
+        // Window lost focus - send Escape to trigger close/hide
+        // Only do this if window is visible to avoid double-toggle in background mode
+        if (data && IsWindowVisible(hwnd)) {
             ui::KeyboardEvent event{.key = ui::KeyCode::Escape,
                                     .modifiers = ui::KeyModifier::None,
                                     .character = std::nullopt};
@@ -1022,9 +1022,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
             // so handle Ctrl+letter here
             if (ui::has_modifier(event.modifiers, ui::KeyModifier::Ctrl) &&
                 wParam >= 'A' && wParam <= 'Z') {
-                event.key = ui::KeyCode::Character;
-                // Convert to lowercase for consistency
-                event.character = static_cast<char>(wParam - 'A' + 'a');
+                // Set proper KeyCode enum for hotkey matching
+                event.key = static_cast<ui::KeyCode>(
+                    static_cast<int>(ui::KeyCode::A) + (wParam - 'A'));
                 data->pendingEvents.push_back(event);
             }
             return 0;
