@@ -474,10 +474,28 @@ void pointer_button_handler(void *data, wl_pointer *, uint32_t,
     });
 }
 
-static void pointer_axis_handler(void *, wl_pointer *, uint32_t, uint32_t,
-                                 wl_fixed_t)
+static void pointer_axis_handler(void *data, wl_pointer *, uint32_t, uint32_t axis,
+                                 wl_fixed_t value)
 {
-    // Scroll events
+    PlatformWindow *win = static_cast<PlatformWindow *>(data);
+
+    // Only handle vertical scrolling
+    if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL) {
+        return;
+    }
+
+    // Wayland scroll values: positive = down, negative = up
+    ui::MouseScrollEvent::Direction direction;
+    if (wl_fixed_to_double(value) < 0) {
+        direction = ui::MouseScrollEvent::Direction::Up;
+    } else {
+        direction = ui::MouseScrollEvent::Direction::Down;
+    }
+
+    win->pending_events.push_back(ui::MouseScrollEvent{
+        .direction = direction,
+        .position = win->last_pointer_position
+    });
 }
 
 static void pointer_frame_handler(void *, wl_pointer *) {}
