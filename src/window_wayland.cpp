@@ -474,7 +474,7 @@ void pointer_button_handler(void *data, wl_pointer *, uint32_t,
     });
 }
 
-static void pointer_axis_handler(void *data, wl_pointer *, uint32_t, uint32_t axis,
+void pointer_axis_handler(void *data, wl_pointer *, uint32_t, uint32_t axis,
                                  wl_fixed_t value)
 {
     PlatformWindow *win = static_cast<PlatformWindow *>(data);
