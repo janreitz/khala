@@ -199,6 +199,9 @@ struct PlatformWindowData {
     // Track if brushes need recreation (e.g., after config change)
     bool brushesValid = false;
 
+    // Track mouse inside window state
+    bool mouseInside = false;
+
     void createBrushes(ID2D1RenderTarget *rt, const Config &config)
     {
         if (brushesValid)
@@ -373,14 +376,14 @@ PlatformWindow::~PlatformWindow()
 // PlatformWindow - Resize
 // ============================================================================
 
-void PlatformWindow::resize(const ui::Dimension& dimensions)
+void PlatformWindow::resize(const ui::WindowDimension& dimensions)
 {
-    if (dimension.width == width && dimension.height == height) {
+    if (dimensions.width == width && dimensions.height == height) {
         return;
     }
 
-    width = dimension.width;
-    height = dimension.height;
+    width = dimensions.width;
+    height = dimensions.height;
 
     // Resize the window
     SetWindowPos(hwnd, nullptr, 0, 0, width, height,
@@ -857,15 +860,119 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         return 0;
     }
 
+    case WM_MOUSEMOVE: {
+        if (!data)
+            return 0;
+
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
+
+        if (!data->mouseInside) {
+            data->mouseInside = true;
+            data->pendingEvents.push_back(ui::CursorEnterEvent{
+                .position = ui::WindowCoord{.x = x, .y = y}
+            });
+
+            // Track mouse leave events
+            TRACKMOUSEEVENT tme = {};
+            tme.cbSize = sizeof(TRACKMOUSEEVENT);
+            tme.dwFlags = TME_LEAVE;
+            tme.hwndTrack = hwnd;
+            TrackMouseEvent(&tme);
+        }
+
+        data->pendingEvents.push_back(ui::MousePositionEvent{
+            .position = ui::WindowCoord{.x = x, .y = y}
+        });
+        return 0;
+    }
+
+    case WM_MOUSELEAVE: {
+        if (!data)
+            return 0;
+
+        data->mouseInside = false;
+        data->pendingEvents.push_back(ui::CursorLeaveEvent{});
+        return 0;
+    }
+
     case WM_LBUTTONDOWN:
     case WM_RBUTTONDOWN:
-        // Capture focus when clicked, but don't generate events
-        SetFocus(hwnd);
-        return 0;
+    case WM_MBUTTONDOWN: {
+        if (!data)
+            return 0;
 
-    case WM_MOUSEWHEEL:
-        // Ignore scroll for now
+        SetFocus(hwnd);
+
+        ui::MouseButtonEvent::Button button;
+        if (msg == WM_LBUTTONDOWN) {
+            button = ui::MouseButtonEvent::Button::Left;
+        } else if (msg == WM_RBUTTONDOWN) {
+            button = ui::MouseButtonEvent::Button::Right;
+        } else {
+            button = ui::MouseButtonEvent::Button::Middle;
+        }
+
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
+
+        data->pendingEvents.push_back(ui::MouseButtonEvent{
+            .button = button,
+            .pressed = true,
+            .position = ui::WindowCoord{.x = x, .y = y}
+        });
         return 0;
+    }
+
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP: {
+        if (!data)
+            return 0;
+
+        ui::MouseButtonEvent::Button button;
+        if (msg == WM_LBUTTONUP) {
+            button = ui::MouseButtonEvent::Button::Left;
+        } else if (msg == WM_RBUTTONUP) {
+            button = ui::MouseButtonEvent::Button::Right;
+        } else {
+            button = ui::MouseButtonEvent::Button::Middle;
+        }
+
+        int x = GET_X_LPARAM(lParam);
+        int y = GET_Y_LPARAM(lParam);
+
+        data->pendingEvents.push_back(ui::MouseButtonEvent{
+            .button = button,
+            .pressed = false,
+            .position = ui::WindowCoord{.x = x, .y = y}
+        });
+        return 0;
+    }
+
+    case WM_MOUSEWHEEL: {
+        if (!data)
+            return 0;
+
+        int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+
+        POINT pt = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+        ScreenToClient(hwnd, &pt);
+
+        // Positive delta = scroll up, negative = scroll down
+        ui::MouseScrollEvent::Direction direction;
+        if (delta > 0) {
+            direction = ui::MouseScrollEvent::Direction::Up;
+        } else {
+            direction = ui::MouseScrollEvent::Direction::Down;
+        }
+
+        data->pendingEvents.push_back(ui::MouseScrollEvent{
+            .direction = direction,
+            .position = ui::WindowCoord{.x = static_cast<int>(pt.x), .y = static_cast<int>(pt.y)}
+        });
+        return 0;
+    }
 
     case WM_PAINT: {
         // We handle painting ourselves via draw()
