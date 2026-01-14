@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <iostream>
 #include <cstdlib>
+#include <source_location>
+#include <string_view>
 
 namespace fs = std::filesystem;
 
@@ -66,38 +68,16 @@ Logger::~Logger() {
     }
 }
 
-void Logger::debug(const char* format, ...) {
+#ifdef NDEBUG
+void Logger::log(LogLevel level, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    log(LogLevel::DEBUG, format, args);
-    va_end(args);
-}
 
-void Logger::info(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    log(LogLevel::INFO, format, args);
-    va_end(args);
-}
-
-void Logger::warning(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    log(LogLevel::WARNING, format, args);
-    va_end(args);
-}
-
-void Logger::error(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    log(LogLevel::ERR, format, args);
-    va_end(args);
-}
-
-void Logger::log(LogLevel level, const char* format, va_list args) {
     // Format the message
     char buffer[4096];
     vsnprintf(buffer, sizeof(buffer), format, args);
+
+    va_end(args);
 
     std::string formatted_msg = formatMessage(level, std::string(buffer));
 
@@ -113,6 +93,46 @@ void Logger::log(LogLevel level, const char* format, va_list args) {
         log_file_->flush();
     }
 }
+#else 
+void Logger::log(LogLevel level, const std::source_location& loc, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    // Format the message
+    char buffer[4096];
+    vsnprintf(buffer, sizeof(buffer), format, args);
+
+    va_end(args);
+
+    // Extract just the filename from the full path
+    std::string_view file_path = loc.file_name();
+    auto last_slash = file_path.find_last_of("/\\");
+    std::string_view filename = (last_slash != std::string_view::npos) 
+        ? file_path.substr(last_slash + 1) 
+        : file_path;
+
+    // Build the formatted message with source location
+    std::ostringstream oss;
+    oss << getCurrentTimestamp() 
+        << " [" << levelToString(level) << "] "
+        << "[" << filename << ":" << loc.line() << " " << loc.function_name() << "] "
+        << buffer;
+
+    std::string formatted_msg = oss.str();
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Always output to stdout
+    fprintf(stdout, "%s\n", formatted_msg.c_str());
+    fflush(stdout);
+
+    // Write to file if available
+    if (log_file_ && log_file_->is_open()) {
+        *log_file_ << formatted_msg << std::endl;
+        log_file_->flush();
+    }
+}
+#endif
 
 std::string Logger::formatMessage(LogLevel level, const std::string& message) {
     std::stringstream ss;
