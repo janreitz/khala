@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <chrono>
 #include <iomanip>
+#include <source_location>
 #include <sstream>
 
 enum class LogLevel {
@@ -26,21 +27,26 @@ public:
     void init(const std::string& log_dir = "");
     
     // Printf-style logging functions
-#if defined(__GNUC__) || defined(__clang__)
-    void debug(const char *format, ...) __attribute__((format(printf, 2, 3)));
-    void info(const char *format, ...) __attribute__((format(printf, 2, 3)));
-    void warning(const char *format, ...) __attribute__((format(printf, 2, 3)));
-    void error(const char *format, ...) __attribute__((format(printf, 2, 3)));
-#elif defined(_MSC_VER)
-    void debug(const _Printf_format_string_ char *format, ...);
-    void info(const _Printf_format_string_ char *format, ...);
-    void warning(const _Printf_format_string_ char *format, ...);
-    void error(const _Printf_format_string_ char *format, ...);
+
+#ifdef NDEBUG
+    // Release: no source location
+    #if defined(__GNUC__) || defined(__clang__)
+    void log(LogLevel level, const char* format, ...) __attribute__((format(printf, 3, 4)));
+    #elif defined(_MSC_VER)
+    void log(LogLevel level, const _Printf_format_string_ char* format, ...);
+    #else
+    void log(LogLevel level, const std::source_location& loc, const char* format, ...);
+    #endif
 #else
-    void debug(const char *format, ...);
-    void info(const char *format, ...);
-    void warning(const char *format, ...);
-    void error(const char *format, ...);
+    // Debug: with source location
+    #if defined(__GNUC__) || defined(__clang__)
+    void log(LogLevel level, const std::source_location& loc, const char* format, ...) 
+        __attribute__((format(printf, 4, 5)));
+    #elif defined(_MSC_VER)
+    void log(LogLevel level, const std::source_location& loc, const _Printf_format_string_ char* format, ...);
+    #else
+    void log(LogLevel level, const std::source_location& loc, const char* format, ...);
+    #endif
 #endif
 
     // Non-copyable
@@ -61,8 +67,15 @@ private:
     bool initialized_ = false;
 };
 
-// Convenience macros for easy migration from printf
-#define LOG_DEBUG(...) Logger::getInstance().debug(__VA_ARGS__)
-#define LOG_INFO(...) Logger::getInstance().info(__VA_ARGS__)
-#define LOG_WARNING(...) Logger::getInstance().warning(__VA_ARGS__)
-#define LOG_ERROR(...) Logger::getInstance().error(__VA_ARGS__)
+// Macros handle the source_location injection
+#ifdef NDEBUG
+    #define LOG_DEBUG(...)   Logger::getInstance().log(LogLevel::DEBUG, __VA_ARGS__)
+    #define LOG_INFO(...)    Logger::getInstance().log(LogLevel::INFO, __VA_ARGS__)
+    #define LOG_WARNING(...) Logger::getInstance().log(LogLevel::WARNING, __VA_ARGS__)
+    #define LOG_ERROR(...)   Logger::getInstance().log(LogLevel::ERR, __VA_ARGS__)
+#else
+    #define LOG_DEBUG(...)   Logger::getInstance().log(LogLevel::DEBUG, std::source_location::current(), __VA_ARGS__)
+    #define LOG_INFO(...)    Logger::getInstance().log(LogLevel::INFO, std::source_location::current(), __VA_ARGS__)
+    #define LOG_WARNING(...) Logger::getInstance().log(LogLevel::WARNING, std::source_location::current(), __VA_ARGS__)
+    #define LOG_ERROR(...)   Logger::getInstance().log(LogLevel::ERR, std::source_location::current(), __VA_ARGS__)
+#endif
