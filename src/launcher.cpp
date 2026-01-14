@@ -127,6 +127,11 @@ int main()
                         ui::required_item_count(state, max_visible_items);
                     ranker.update_requested_count(required_item_count);
                 }
+            } else if (std::holds_alternative<ui::ViewportChanged>(event)) {
+                // Viewport was scrolled, update required item count
+                const auto required_item_count =
+                    ui::required_item_count(state, max_visible_items);
+                ranker.update_requested_count(required_item_count);
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
                 LOG_DEBUG("Selected: %s",
                           state.get_selected_item().title.c_str());

@@ -402,6 +402,44 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                           },
                           [&](const CursorLeaveEvent &) {
                               state.mouse_inside_window = false;
+                          },
+                          [&](const MouseScrollEvent &ev) {
+                              // Scroll through items by moving the viewport
+                              if (state.items.empty()) {
+                                  return;
+                              }
+
+                              const size_t max_offset = state.items.size() > state.max_visible_items
+                                  ? state.items.size() - state.max_visible_items
+                                  : 0;
+
+                              if (ev.direction == MouseScrollEvent::Direction::Up) {
+                                  // Scroll up - move viewport up
+                                  if (state.visible_range_offset > 0) {
+                                      state.visible_range_offset--;
+                                      events.push_back(ViewportChanged{});
+
+                                      // If selection is now below visible range, move it
+                                      if (state.selected_item_index >=
+                                          state.visible_range_offset + state.max_visible_items) {
+                                          state.selected_item_index =
+                                              state.visible_range_offset + state.max_visible_items - 1;
+                                          events.push_back(SelectionChanged{});
+                                      }
+                                  }
+                              } else {
+                                  // Scroll down - move viewport down
+                                  if (state.visible_range_offset < max_offset) {
+                                      state.visible_range_offset++;
+                                      events.push_back(ViewportChanged{});
+
+                                      // If selection is now above visible range, move it
+                                      if (state.selected_item_index < state.visible_range_offset) {
+                                          state.selected_item_index = state.visible_range_offset;
+                                          events.push_back(SelectionChanged{});
+                                      }
+                                  }
+                              }
                           }},
                input);
 

@@ -348,6 +348,27 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             XSetInputFocus(display, event.xbutton.window, RevertToParent,
                            CurrentTime);
 
+            // Handle scroll wheel events (Button4 = scroll up, Button5 = scroll down)
+            if (event.xbutton.button == Button4) {
+                events.push_back(ui::MouseScrollEvent{
+                    .direction = ui::MouseScrollEvent::Direction::Up,
+                    .position = ui::WindowCoord{
+                        .x = event.xbutton.x,
+                        .y = event.xbutton.y
+                    }
+                });
+                continue;
+            } else if (event.xbutton.button == Button5) {
+                events.push_back(ui::MouseScrollEvent{
+                    .direction = ui::MouseScrollEvent::Direction::Down,
+                    .position = ui::WindowCoord{
+                        .x = event.xbutton.x,
+                        .y = event.xbutton.y
+                    }
+                });
+                continue;
+            }
+
             // Generate mouse button event
             ui::MouseButtonEvent::Button button;
             if (event.xbutton.button == Button1) {
@@ -357,7 +378,7 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             } else if (event.xbutton.button == Button3) {
                 button = ui::MouseButtonEvent::Button::Right;
             } else {
-                // Ignore other buttons (scroll wheel, etc.)
+                // Ignore other buttons
                 continue;
             }
 
