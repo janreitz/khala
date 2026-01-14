@@ -458,6 +458,9 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     draw_rounded_rect(rt, data->backgroundBrush.Get(), 0, 0,
                       static_cast<float>(width), static_cast<float>(height),
                       ui::CORNER_RADIUS, true);
+    draw_rounded_rect(rt, data->inputBackgroundBrush.Get(), 0, 0,
+                      static_cast<float>(width), static_cast<float>(height),
+                      ui::CORNER_RADIUS, false);
 
     // Draw input area
     const float input_height =
