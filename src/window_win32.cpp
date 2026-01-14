@@ -706,6 +706,190 @@ void PlatformWindow::commit_surface()
 }
 
 // ============================================================================
+// PlatformWindow - Visibility Control
+// ============================================================================
+
+void PlatformWindow::show()
+{
+    ShowWindow(hwnd, SW_SHOW);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+}
+
+void PlatformWindow::hide()
+{
+    ShowWindow(hwnd, SW_HIDE);
+}
+
+bool PlatformWindow::is_visible() const
+{
+    return IsWindowVisible(hwnd) != FALSE;
+}
+
+
+// === Global Hotkey Implementation ===
+
+static constexpr int KHALA_HOTKEY_ID = 1;
+
+// Convert ui::KeyCode to Windows Virtual Key code
+static UINT keycode_to_vk(ui::KeyCode key)
+{
+    switch (key) {
+    case ui::KeyCode::Escape:
+        return VK_ESCAPE;
+    case ui::KeyCode::Return:
+        return VK_RETURN;
+    case ui::KeyCode::BackSpace:
+        return VK_BACK;
+    case ui::KeyCode::Delete:
+        return VK_DELETE;
+    case ui::KeyCode::Tab:
+        return VK_TAB;
+    case ui::KeyCode::Space:
+        return VK_SPACE;
+    case ui::KeyCode::Up:
+        return VK_UP;
+    case ui::KeyCode::Down:
+        return VK_DOWN;
+    case ui::KeyCode::Left:
+        return VK_LEFT;
+    case ui::KeyCode::Right:
+        return VK_RIGHT;
+    case ui::KeyCode::Home:
+        return VK_HOME;
+    case ui::KeyCode::End:
+        return VK_END;
+    // Letters A-Z map to 'A'-'Z' (0x41-0x5A)
+    case ui::KeyCode::A:
+        return 'A';
+    case ui::KeyCode::B:
+        return 'B';
+    case ui::KeyCode::C:
+        return 'C';
+    case ui::KeyCode::D:
+        return 'D';
+    case ui::KeyCode::E:
+        return 'E';
+    case ui::KeyCode::F:
+        return 'F';
+    case ui::KeyCode::G:
+        return 'G';
+    case ui::KeyCode::H:
+        return 'H';
+    case ui::KeyCode::I:
+        return 'I';
+    case ui::KeyCode::J:
+        return 'J';
+    case ui::KeyCode::K:
+        return 'K';
+    case ui::KeyCode::L:
+        return 'L';
+    case ui::KeyCode::M:
+        return 'M';
+    case ui::KeyCode::N:
+        return 'N';
+    case ui::KeyCode::O:
+        return 'O';
+    case ui::KeyCode::P:
+        return 'P';
+    case ui::KeyCode::Q:
+        return 'Q';
+    case ui::KeyCode::R:
+        return 'R';
+    case ui::KeyCode::S:
+        return 'S';
+    case ui::KeyCode::T:
+        return 'T';
+    case ui::KeyCode::U:
+        return 'U';
+    case ui::KeyCode::V:
+        return 'V';
+    case ui::KeyCode::W:
+        return 'W';
+    case ui::KeyCode::X:
+        return 'X';
+    case ui::KeyCode::Y:
+        return 'Y';
+    case ui::KeyCode::Z:
+        return 'Z';
+    // Numbers 0-9 map to '0'-'9' (0x30-0x39)
+    case ui::KeyCode::Num0:
+        return '0';
+    case ui::KeyCode::Num1:
+        return '1';
+    case ui::KeyCode::Num2:
+        return '2';
+    case ui::KeyCode::Num3:
+        return '3';
+    case ui::KeyCode::Num4:
+        return '4';
+    case ui::KeyCode::Num5:
+        return '5';
+    case ui::KeyCode::Num6:
+        return '6';
+    case ui::KeyCode::Num7:
+        return '7';
+    case ui::KeyCode::Num8:
+        return '8';
+    case ui::KeyCode::Num9:
+        return '9';
+    // Function keys
+    case ui::KeyCode::F1:
+        return VK_F1;
+    case ui::KeyCode::F2:
+        return VK_F2;
+    case ui::KeyCode::F3:
+        return VK_F3;
+    case ui::KeyCode::F4:
+        return VK_F4;
+    case ui::KeyCode::F5:
+        return VK_F5;
+    case ui::KeyCode::F6:
+        return VK_F6;
+    case ui::KeyCode::F7:
+        return VK_F7;
+    case ui::KeyCode::F8:
+        return VK_F8;
+    case ui::KeyCode::F9:
+        return VK_F9;
+    case ui::KeyCode::F10:
+        return VK_F10;
+    case ui::KeyCode::F11:
+        return VK_F11;
+    case ui::KeyCode::F12:
+        return VK_F12;
+    default:
+        return 0;
+    }
+}
+
+bool PlatformWindow::register_global_hotkey(const ui::KeyboardEvent &hotkey)
+{
+    UINT modifiers = MOD_NOREPEAT;
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Ctrl))
+        modifiers |= MOD_CONTROL;
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Alt))
+        modifiers |= MOD_ALT;
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Shift))
+        modifiers |= MOD_SHIFT;
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Super))
+        modifiers |= MOD_WIN;
+
+    UINT vk = keycode_to_vk(hotkey.key);
+    if (vk == 0) {
+        return false;
+    }
+
+    // RegisterHotKey with HWND delivers WM_HOTKEY to the window
+    return RegisterHotKey(hwnd, KHALA_HOTKEY_ID, modifiers, vk) != FALSE;
+}
+
+void PlatformWindow::unregister_global_hotkey()
+{
+    UnregisterHotKey(hwnd, KHALA_HOTKEY_ID);
+}
+
+// ============================================================================
 // PlatformWindow - Input Events
 // ============================================================================
 
@@ -738,19 +922,22 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 }
 
 
-static std::optional<ui::KeyModifier> get_active_modifier()
+static ui::KeyModifier get_active_modifiers()
 {
-    // Priority: Ctrl > Alt > Shift (return only one)
+    ui::KeyModifier mods = ui::KeyModifier::None;
     if (GetKeyState(VK_CONTROL) & 0x8000) {
-        return ui::KeyModifier::Ctrl;
+        mods |= ui::KeyModifier::Ctrl;
     }
     if (GetKeyState(VK_MENU) & 0x8000) { // Alt
-        return ui::KeyModifier::Alt;
+        mods |= ui::KeyModifier::Alt;
     }
     if (GetKeyState(VK_SHIFT) & 0x8000) {
-        return ui::KeyModifier::Shift;
+        mods |= ui::KeyModifier::Shift;
     }
-    return std::nullopt;
+    if ((GetKeyState(VK_LWIN) | GetKeyState(VK_RWIN)) & 0x8000) {
+        mods |= ui::KeyModifier::Super;
+    }
+    return mods;
 }
 
 // ============================================================================
@@ -767,11 +954,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         PostQuitMessage(0);
         return 0;
 
+    case WM_HOTKEY:
+        // Global hotkey was pressed - generate HotkeyEvent
+        if (data) {
+            data->pendingEvents.push_back(ui::HotkeyEvent{});
+        }
+        return 0;
+
     case WM_KILLFOCUS:
         // Window lost focus - send Escape to trigger close
+        // Note: In background mode, this behavior changes to just hiding
         if (data) {
             ui::KeyboardEvent event{.key = ui::KeyCode::Escape,
-                                    .modifier = std::nullopt,
+                                    .modifiers = ui::KeyModifier::None,
                                     .character = std::nullopt};
             data->pendingEvents.push_back(event);
         }
@@ -783,7 +978,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
         ui::KeyboardEvent event{
             .key = ui::KeyCode::Character, // Default, will be overwritten
-            .modifier = get_active_modifier(),
+            .modifiers = get_active_modifiers(),
             .character = std::nullopt};
 
         // Map virtual key codes
@@ -825,8 +1020,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
             // For regular characters, handle in WM_CHAR
             // But if Ctrl is held, WM_CHAR won't fire for letters,
             // so handle Ctrl+letter here
-            if (event.modifier == ui::KeyModifier::Ctrl && wParam >= 'A' &&
-                wParam <= 'Z') {
+            if (ui::has_modifier(event.modifiers, ui::KeyModifier::Ctrl) &&
+                wParam >= 'A' && wParam <= 'Z') {
                 event.key = ui::KeyCode::Character;
                 // Convert to lowercase for consistency
                 event.character = static_cast<char>(wParam - 'A' + 'a');
@@ -856,7 +1051,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
         ui::KeyboardEvent event{
             .key = ui::KeyCode::Character,
-            .modifier = std::nullopt, // No modifier for typed characters
+            .modifiers = ui::KeyModifier::None, // No modifier for typed characters
             .character = static_cast<char>(wParam)};
 
         data->pendingEvents.push_back(event);

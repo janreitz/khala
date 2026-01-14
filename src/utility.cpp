@@ -14,6 +14,217 @@
 
 namespace fs = std::filesystem;
 
+std::string to_string(const ui::KeyboardEvent &hotkey)
+{
+    std::string result;
+
+    // Add modifiers
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Ctrl)) {
+        result += "Ctrl+";
+    }
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Alt)) {
+        result += "Alt+";
+    }
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Shift)) {
+        result += "Shift+";
+    }
+    if (ui::has_modifier(hotkey.modifiers, ui::KeyModifier::Super)) {
+        result += "Super+";
+    }
+
+    // Add key
+    switch (hotkey.key) {
+    case ui::KeyCode::Escape:
+        result += "Escape";
+        break;
+    case ui::KeyCode::Return:
+        result += "Return";
+        break;
+    case ui::KeyCode::BackSpace:
+        result += "BackSpace";
+        break;
+    case ui::KeyCode::Delete:
+        result += "Delete";
+        break;
+    case ui::KeyCode::Tab:
+        result += "Tab";
+        break;
+    case ui::KeyCode::Space:
+        result += "Space";
+        break;
+    case ui::KeyCode::Up:
+        result += "Up";
+        break;
+    case ui::KeyCode::Down:
+        result += "Down";
+        break;
+    case ui::KeyCode::Left:
+        result += "Left";
+        break;
+    case ui::KeyCode::Right:
+        result += "Right";
+        break;
+    case ui::KeyCode::Home:
+        result += "Home";
+        break;
+    case ui::KeyCode::End:
+        result += "End";
+        break;
+    // Letters A-Z
+    case ui::KeyCode::A:
+        result += "A";
+        break;
+    case ui::KeyCode::B:
+        result += "B";
+        break;
+    case ui::KeyCode::C:
+        result += "C";
+        break;
+    case ui::KeyCode::D:
+        result += "D";
+        break;
+    case ui::KeyCode::E:
+        result += "E";
+        break;
+    case ui::KeyCode::F:
+        result += "F";
+        break;
+    case ui::KeyCode::G:
+        result += "G";
+        break;
+    case ui::KeyCode::H:
+        result += "H";
+        break;
+    case ui::KeyCode::I:
+        result += "I";
+        break;
+    case ui::KeyCode::J:
+        result += "J";
+        break;
+    case ui::KeyCode::K:
+        result += "K";
+        break;
+    case ui::KeyCode::L:
+        result += "L";
+        break;
+    case ui::KeyCode::M:
+        result += "M";
+        break;
+    case ui::KeyCode::N:
+        result += "N";
+        break;
+    case ui::KeyCode::O:
+        result += "O";
+        break;
+    case ui::KeyCode::P:
+        result += "P";
+        break;
+    case ui::KeyCode::Q:
+        result += "Q";
+        break;
+    case ui::KeyCode::R:
+        result += "R";
+        break;
+    case ui::KeyCode::S:
+        result += "S";
+        break;
+    case ui::KeyCode::T:
+        result += "T";
+        break;
+    case ui::KeyCode::U:
+        result += "U";
+        break;
+    case ui::KeyCode::V:
+        result += "V";
+        break;
+    case ui::KeyCode::W:
+        result += "W";
+        break;
+    case ui::KeyCode::X:
+        result += "X";
+        break;
+    case ui::KeyCode::Y:
+        result += "Y";
+        break;
+    case ui::KeyCode::Z:
+        result += "Z";
+        break;
+    // Numbers 0-9
+    case ui::KeyCode::Num0:
+        result += "0";
+        break;
+    case ui::KeyCode::Num1:
+        result += "1";
+        break;
+    case ui::KeyCode::Num2:
+        result += "2";
+        break;
+    case ui::KeyCode::Num3:
+        result += "3";
+        break;
+    case ui::KeyCode::Num4:
+        result += "4";
+        break;
+    case ui::KeyCode::Num5:
+        result += "5";
+        break;
+    case ui::KeyCode::Num6:
+        result += "6";
+        break;
+    case ui::KeyCode::Num7:
+        result += "7";
+        break;
+    case ui::KeyCode::Num8:
+        result += "8";
+        break;
+    case ui::KeyCode::Num9:
+        result += "9";
+        break;
+    // Function keys
+    case ui::KeyCode::F1:
+        result += "F1";
+        break;
+    case ui::KeyCode::F2:
+        result += "F2";
+        break;
+    case ui::KeyCode::F3:
+        result += "F3";
+        break;
+    case ui::KeyCode::F4:
+        result += "F4";
+        break;
+    case ui::KeyCode::F5:
+        result += "F5";
+        break;
+    case ui::KeyCode::F6:
+        result += "F6";
+        break;
+    case ui::KeyCode::F7:
+        result += "F7";
+        break;
+    case ui::KeyCode::F8:
+        result += "F8";
+        break;
+    case ui::KeyCode::F9:
+        result += "F9";
+        break;
+    case ui::KeyCode::F10:
+        result += "F10";
+        break;
+    case ui::KeyCode::F11:
+        result += "F11";
+        break;
+    case ui::KeyCode::F12:
+        result += "F12";
+        break;
+    default:
+        result += "Unknown";
+        break;
+    }
+
+    return result;
+}
+
 std::string serialize_file_info(const fs::path &path)
 {
     std::ostringstream oss;
