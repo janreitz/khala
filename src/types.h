@@ -70,12 +70,23 @@ struct CursorEnterEvent {
 struct CursorLeaveEvent {
 };
 
+struct MouseScrollEvent {
+    enum class Direction {
+        Up,
+        Down
+    };
+
+    Direction direction;
+    WindowCoord position;
+};
+
 using UserInputEvent = std::variant<
     KeyboardEvent,
     MousePositionEvent,
     MouseButtonEvent,
     CursorEnterEvent,
-    CursorLeaveEvent
+    CursorLeaveEvent,
+    MouseScrollEvent
 >;
 
 } // namespace ui
