@@ -320,7 +320,7 @@ void keyboard_key_handler(void *data, wl_keyboard *, uint32_t, uint32_t,
 
     // Map XKB keysyms to our KeyCode enum
     ui::KeyboardEvent event;
-    event.modifier = std::nullopt;
+    event.modifiers = ui::KeyModifier::None;
     event.character = std::nullopt;
 
     switch (keysym) {

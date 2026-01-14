@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.h"
+
 #include <filesystem>
 #include <string>
 #include <optional>
@@ -24,6 +26,8 @@ struct defer {
 
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
+
+std::string to_string(const ui::KeyboardEvent &hotkey);
 
 std::string serialize_file_info(const std::filesystem::path& path);
 
@@ -67,4 +71,10 @@ void run_custom_command(const std::string &cmd,
                         bool stdout_to_clipboard);
 void open_file(const std::filesystem::path &path);
 void open_directory(const std::filesystem::path &path);
+
+// Registers/unregisters app to start on system boot
+// Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Run
+// Linux: ~/.config/autostart/khala.desktop
+bool setup_autostart(bool enable);
+bool is_autostart_enabled();
 } // namespace platform

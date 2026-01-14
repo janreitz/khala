@@ -440,6 +440,9 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                                       }
                                   }
                               }
+                          },
+                          [&](const HotkeyEvent &) {
+                              events.push_back(VisibilityToggleRequested{});
                           }},
                input);
 

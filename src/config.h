@@ -1,5 +1,6 @@
-// config.h
 #pragma once
+
+#include "types.h"
 
 #include <filesystem>
 #include <optional>
@@ -58,6 +59,15 @@ struct Config {
     std::string editor = "xdg-open"; // Use default application
     std::string file_manager = "xdg-open";
     bool quit_on_action = true;
+
+    // Background mode (Windows only currently)
+    // When enabled, app starts hidden, registers global hotkey, and stays running
+    bool background_mode = true;
+    ui::KeyboardEvent hotkey // Global hotkey to show/hide window
+    {
+        .key = ui::KeyCode::Space, .modifiers = ui::KeyModifier::Alt,
+        .character = std::nullopt,
+    };
 
     // Indexing
     static fs::path default_index_root();

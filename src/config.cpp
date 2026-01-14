@@ -228,6 +228,95 @@ std::optional<Color> parse_color(const std::string &str)
     return color;
 }
 
+std::optional<ui::KeyboardEvent>
+parse_hotkey(const std::string &hotkey_str)
+{
+    ui::KeyboardEvent result;
+
+    // Split by '+' and parse each part
+    std::string remaining = hotkey_str;
+    while (!remaining.empty()) {
+        size_t plus_pos = remaining.find('+');
+        std::string part;
+        if (plus_pos != std::string::npos) {
+            part = remaining.substr(0, plus_pos);
+            remaining = remaining.substr(plus_pos + 1);
+        } else {
+            part = remaining;
+            remaining.clear();
+        }
+
+        // Trim whitespace
+        while (!part.empty() && part.front() == ' ')
+            part.erase(part.begin());
+        while (!part.empty() && part.back() == ' ')
+            part.pop_back();
+
+        // Convert to lowercase for comparison
+        std::string lower;
+        for (char c : part) {
+            lower += static_cast<char>(tolower(static_cast<unsigned char>(c)));
+        }
+
+        if (lower == "ctrl" || lower == "control") {
+            result.modifiers |= ui::KeyModifier::Ctrl;
+        } else if (lower == "alt") {
+            result.modifiers |= ui::KeyModifier::Alt;
+        } else if (lower == "shift") {
+            result.modifiers |= ui::KeyModifier::Shift;
+        } else if (lower == "super" || lower == "win" || lower == "meta") {
+            result.modifiers |= ui::KeyModifier::Super;
+        } else if (lower == "space") {
+            result.key = ui::KeyCode::Space;
+        } else if (lower == "return" || lower == "enter") {
+            result.key = ui::KeyCode::Return;
+        } else if (lower == "tab") {
+            result.key = ui::KeyCode::Tab;
+        } else if (lower == "escape" || lower == "esc") {
+            result.key = ui::KeyCode::Escape;
+        } else if (lower.length() == 1 && lower[0] >= 'a' && lower[0] <= 'z') {
+            // Single letter key (A-Z)
+            result.key = static_cast<ui::KeyCode>(
+                static_cast<int>(ui::KeyCode::A) + (lower[0] - 'a'));
+        } else if (lower.length() == 1 && lower[0] >= '0' && lower[0] <= '9') {
+            // Number key
+            result.key = static_cast<ui::KeyCode>(
+                static_cast<int>(ui::KeyCode::Num0) + (lower[0] - '0'));
+        } else if (lower.length() == 2 && lower[0] == 'f' && lower[1] >= '1' &&
+                   lower[1] <= '9') {
+            // F1-F9
+            result.key = static_cast<ui::KeyCode>(
+                static_cast<int>(ui::KeyCode::F1) + (lower[1] - '1'));
+        } else if (lower.length() == 3 && lower[0] == 'f' && lower[1] == '1' &&
+                   lower[2] >= '0' && lower[2] <= '2') {
+            // F10-F12
+            result.key = static_cast<ui::KeyCode>(
+                static_cast<int>(ui::KeyCode::F10) + (lower[2] - '0'));
+        } else {
+            // Unknown key
+            return std::nullopt;
+        }
+    }
+
+    // Must have a valid key
+    if (result.key == ui::KeyCode::None) {
+        return std::nullopt;
+    }
+
+    return result;
+}
+
+ui::KeyboardEvent get_hotkey_or(const std::multimap<std::string, std::string> &map,
+              const std::string &key, ui::KeyboardEvent default_value)
+{
+    auto value = get_last(map, key);
+    if (!value) {
+        return default_value;
+    }
+    auto parsed = parse_hotkey(*value);
+    return parsed ? *parsed : default_value;
+}
+
 fs::path Config::default_index_root()
 {
     const auto home_dir = platform::get_home_dir();
@@ -314,6 +403,10 @@ Config Config::load(const fs::path &path)
     cfg.editor = get_string_or(map, "editor", cfg.editor);
     cfg.file_manager = get_string_or(map, "file_manager", cfg.file_manager);
 
+    // Background mode
+    cfg.background_mode = get_bool_or(map, "background_mode", cfg.background_mode);
+    cfg.hotkey = get_hotkey_or(map, "hotkey", cfg.hotkey);
+
     // Indexing
     cfg.index_root = get_dir_or(map, "index_root", cfg.index_root);
     cfg.ignore_dirs = get_dirs_or(map, "ignore_dir", cfg.ignore_dirs);
@@ -389,6 +482,13 @@ void Config::save(const fs::path &path) const
     file << "quit_on_action=" << (quit_on_action ? "true" : "false") << "\n";
     file << "editor=" << editor << "\n";
     file << "file_manager=" << file_manager << "\n";
+    file << "\n";
+
+    file << "# Background mode (Windows)\n";
+    file << "# When enabled, app starts hidden and registers a global hotkey\n";
+    file << "background_mode=" << (background_mode ? "true" : "false") << "\n";
+    file << "# Hotkey format: modifier keys + key (e.g., Alt+Space, Ctrl+Shift+K)\n";
+    file << "hotkey=" << to_string(hotkey) << "\n";
     file << "\n";
 
     file << "# Indexing \n";

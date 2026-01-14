@@ -54,6 +54,19 @@ int main()
             .y = config.height_ratio,
         });
 
+    // Background mode setup
+    if (config.background_mode) {
+        window.hide();
+        LOG_INFO("Background mode enabled, window hidden");
+
+        if (window.register_global_hotkey(config.hotkey)) {
+            LOG_INFO("Registered global hotkey: %s", to_string(config.hotkey).c_str());
+        } else {
+            LOG_ERROR("Failed to register global hotkey: %s", to_string(config.hotkey).c_str());
+        }
+        
+    }
+
     const auto max_window_height = static_cast<unsigned int>(
         window.get_screen_height() * config.height_ratio);
     const size_t max_visible_items =
@@ -107,16 +120,52 @@ int main()
 
         // Small sleep during non-blocking mode to avoid busy looping
         if (events.empty()) {
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(EVENT_LOOP_SLEEP_MS));
+            // Longer sleep when window is hidden in background mode
+            if (config.background_mode && !window.is_visible()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            } else {
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(EVENT_LOOP_SLEEP_MS));
+            }
         }
 
         // Process high-level events
         bool exit_requested = false;
         for (const auto &event : events) {
             redraw = true;
-            if (std::holds_alternative<ui::ExitRequested>(event)) {
-                exit_requested = true;
+            if (std::holds_alternative<ui::VisibilityToggleRequested>(event)) {
+                // Toggle window visibility in background mode
+                if (config.background_mode) {
+                    if (window.is_visible()) {
+                        window.hide();
+                        LOG_DEBUG("Window hidden via hotkey");
+                    } else {
+                        window.show();
+                        LOG_DEBUG("Window shown via hotkey");
+                    }
+                }
+            } else if (std::holds_alternative<ui::ExitRequested>(event)) {
+                if (config.background_mode) {
+                    // In background mode, hide window and reset state for next show
+                    window.hide();
+
+                    // Reset UI state for next activation
+                    state.input_buffer.clear();
+                    state.cursor_position = 0;
+                    state.selected_item_index = 0;
+                    state.visible_range_offset = 0;
+                    state.mode = ui::FileSearch{.query = ""};
+                    state.clear_error();
+
+                    // Reset ranker to empty query
+                    ranker.update_query("");
+                    ranker.update_requested_count(
+                        ui::required_item_count(state, max_visible_items));
+
+                    LOG_DEBUG("Window hidden via Escape, state reset");
+                } else {
+                    exit_requested = true;
+                }
                 break;
             } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
                 // Adjust visible range to keep selected item visible
@@ -275,6 +324,9 @@ int main()
     }
 
     // Cleanup
+    if (config.background_mode) {
+        window.unregister_global_hotkey();
+    }
     if (index_future.valid()) {
         index_future.wait();
     }

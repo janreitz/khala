@@ -102,10 +102,13 @@ struct ViewportChanged {
 };
 struct ExitRequested {
 };
+struct VisibilityToggleRequested {
+};
 
 using Event =
     std::variant<InputChanged, SelectionChanged, CursorPositionChanged,
-                 ActionRequested, ContextMenuToggled, ViewportChanged, ExitRequested>;
+                 ActionRequested, ContextMenuToggled, ViewportChanged,
+                 ExitRequested, VisibilityToggleRequested>;
 
 std::optional<size_t> window_pos_to_item_index(
     const WindowCoord& position,

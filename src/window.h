@@ -61,6 +61,15 @@ class PlatformWindow
     void commit_surface();
     std::vector<ui::UserInputEvent> get_input_events(bool blocking = true);
 
+    // Visibility control for background mode
+    void show();    // Make window visible, bring to front and focus
+    void hide();    // Hide window completely (not minimize)
+    bool is_visible() const;
+
+    // Registers a system-wide hotkey that works even when app is not focused
+    bool register_global_hotkey(const ui::KeyboardEvent &hotkey);
+    void unregister_global_hotkey();
+
     // Accessors
     unsigned int get_width() const { return width; }
     unsigned int get_height() const { return height; }

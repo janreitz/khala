@@ -264,4 +264,53 @@ void open_directory(const fs::path &path)
     }
 }
 
+// === Autostart Implementation ===
+
+bool setup_autostart(bool enable)
+{
+    HKEY hKey;
+    const char *run_key = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, run_key, 0,
+                      KEY_SET_VALUE | KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS) {
+        return false;
+    }
+
+    bool success = false;
+    if (enable) {
+        // Get current executable path
+        char exe_path[MAX_PATH];
+        GetModuleFileNameA(NULL, exe_path, MAX_PATH);
+
+        success = RegSetValueExA(hKey, "Khala", 0, REG_SZ,
+                                 reinterpret_cast<BYTE *>(exe_path),
+                                 static_cast<DWORD>(strlen(exe_path) + 1)) ==
+                  ERROR_SUCCESS;
+    } else {
+        LONG result = RegDeleteValueA(hKey, "Khala");
+        success = (result == ERROR_SUCCESS || result == ERROR_FILE_NOT_FOUND);
+    }
+
+    RegCloseKey(hKey);
+    return success;
+}
+
+bool is_autostart_enabled()
+{
+    HKEY hKey;
+    const char *run_key = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, run_key, 0, KEY_QUERY_VALUE, &hKey) !=
+        ERROR_SUCCESS) {
+        return false;
+    }
+
+    DWORD type;
+    DWORD size = 0;
+    bool exists =
+        RegQueryValueExA(hKey, "Khala", NULL, &type, NULL, &size) == ERROR_SUCCESS;
+
+    RegCloseKey(hKey);
+    return exists;
+}
 } // namespace platform
