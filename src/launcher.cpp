@@ -62,12 +62,15 @@ int main()
         LOG_INFO("Background mode enabled, window hidden");
 
         if (window.register_global_hotkey(config.hotkey)) {
-            LOG_INFO("Registered global hotkey: %s", to_string(config.hotkey).c_str());
-            state.background_mode_active =  true;
+            LOG_INFO("Registered global hotkey: %s",
+                     to_string(config.hotkey).c_str());
+            state.background_mode_active = true;
         } else {
-            LOG_WARNING("Failed to register global hotkey: %s - disabling background mode",
+            LOG_WARNING("Failed to register global hotkey: %s - disabling "
+                        "background mode",
                         to_string(config.hotkey).c_str());
-            LOG_WARNING("The hotkey may already be in use by another application");
+            LOG_WARNING(
+                "The hotkey may already be in use by another application");
             window.show();
         }
     }
@@ -76,7 +79,6 @@ int main()
         window.get_screen_height() * config.height_ratio);
     const size_t max_visible_items =
         ui::calculate_max_visible_items(max_window_height, config.font_size);
-
 
     // Shared state
     StreamingIndex streaming_index;
@@ -109,7 +111,6 @@ int main()
     std::vector<FileResult> current_file_results;
     bool redraw = true;
 
-
     while (true) {
         const std::vector<ui::UserInputEvent> input_events =
             window.get_input_events(false);
@@ -138,134 +139,160 @@ int main()
         std::vector<Effect> effects;
         for (const auto &event : events) {
             redraw = true;
-            if (std::holds_alternative<ui::VisibilityToggleRequested>(event)) {
-                // Toggle window visibility in background mode
-                if (state.background_mode_active) {
-                    if (window.is_visible()) {
-                        effects.push_back(HideWindow{});
-                    } else {
-                        window.show();
-                        LOG_DEBUG("Window shown via hotkey");
-                    }
-                }
-            } else if (std::holds_alternative<ui::ExitRequested>(event)) {
-                effects.push_back(QuitApplication{});
-            } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
-                // Adjust visible range to keep selected item visible
-                const bool adjusted =
-                    ui::adjust_visible_range(state, max_visible_items);
-                if (adjusted) {
-                    const auto required_item_count =
-                        ui::required_item_count(state, max_visible_items);
-                    ranker.update_requested_count(required_item_count);
-                }
-            } else if (std::holds_alternative<ui::ViewportChanged>(event)) {
-                // Viewport was scrolled, update required item count
-                const auto required_item_count =
-                    ui::required_item_count(state, max_visible_items);
-                ranker.update_requested_count(required_item_count);
-            } else if (std::holds_alternative<ui::ActionRequested>(event)) {
-                LOG_DEBUG("Selected: %s",
-                          state.get_selected_item().title.c_str());
-                const auto cmd_result = process_command(state.get_selected_item().command, config);
-                if (!cmd_result.has_value()) {
-                    state.set_error(cmd_result.error());
-                } else {
-                    state.clear_error();
-                    if (cmd_result->has_value()) {
-                        // Command returned an internal effect - process it, don't quit
-                        effects.push_back(**cmd_result);
-                        redraw = true;
-                    } else if (config.quit_on_action) {
-                        // External action completed - apply quit_on_action behavior
-                        if (state.background_mode_active) {
+            std::visit(
+                overloaded{
+                    [&state, &effects, &window](ui::VisibilityToggleRequested) {
+                        if (!state.background_mode_active) {
+                            return;
+                        }
+                        if (window.is_visible()) {
                             effects.push_back(HideWindow{});
                         } else {
-                            effects.push_back(QuitApplication{});
+                            window.show();
+                            LOG_DEBUG("Window shown via hotkey");
                         }
-                    }
-                }
-            } else if (std::holds_alternative<ui::ContextMenuToggled>(event)) {
-                // Restore file search results when toggling back from context
-                // menu
-                if (std::holds_alternative<ui::FileSearch>(state.mode) &&
-                    state.cached_file_search_update.has_value()) {
+                    },
+                    [&effects](ui::ExitRequested) {
+                        effects.push_back(QuitApplication{});
+                    },
+                    [&state, &ranker, max_visible_items](ui::SelectionChanged) {
+                        // Adjust visible range to keep selected item visible
+                        const bool adjusted =
+                            ui::adjust_visible_range(state, max_visible_items);
+                        if (adjusted) {
+                            const auto required_item_count =
+                                ui::required_item_count(state,
+                                                        max_visible_items);
+                            ranker.update_requested_count(required_item_count);
+                        }
+                    },
+                    [&state, &ranker, max_visible_items](ui::ViewportChanged) {
+                        // Viewport was scrolled, update required item count
+                        const auto required_item_count =
+                            ui::required_item_count(state, max_visible_items);
+                        ranker.update_requested_count(required_item_count);
+                    },
+                    [&state, &config, &effects](ui::ActionRequested) {
+                        LOG_DEBUG("Selected: %s",
+                                  state.get_selected_item().title.c_str());
+                        const auto cmd_result = process_command(
+                            state.get_selected_item().command, config);
+                        if (!cmd_result.has_value()) {
+                            state.set_error(cmd_result.error());
+                            return;
+                        } 
+                        state.clear_error();
+                        const auto maybe_effect = cmd_result.value();
+                        if (maybe_effect.has_value()) {
+                            // Command returned an effect - process
+                            // it, don't quit
+                            effects.push_back(maybe_effect.value());
+                        } else if (config.quit_on_action) {
+                            // External action completed - apply
+                            // quit_on_action behavior
+                            if (state.background_mode_active) {
+                                effects.push_back(HideWindow{});
+                            } else {
+                                effects.push_back(QuitApplication{});
+                            }
+                        }
+                    },
+                    [&state](ui::ContextMenuToggled) {
+                        // Restore file search results when toggling back from
+                        // context menu
+                        if (std::holds_alternative<ui::FileSearch>(
+                                state.mode) &&
+                            state.cached_file_search_update.has_value()) {
 
-                    const auto &cached = *state.cached_file_search_update;
+                            const auto &cached =
+                                *state.cached_file_search_update;
 
-                    // Restore items (re-process from cached FileResults)
-                    state.items =
-                        ui::convert_file_results_to_items(cached.results);
-                    state.selected_item_index = 0;
-                    state.visible_range_offset = 0;
-                }
-            } else if (std::holds_alternative<ui::InputChanged>(event)) {
-                state.selected_item_index =
-                    0; // Reset selection when search changes
-                state.visible_range_offset = 0; // Reset scroll position
+                            // Restore items (re-process from cached
+                            // FileResults)
+                            state.items = ui::convert_file_results_to_items(
+                                cached.results);
+                            state.selected_item_index = 0;
+                            state.visible_range_offset = 0;
+                        }
+                    },
+                    [](ui::CursorPositionChanged) {},
+                    [&state, &ranker, &global_actions, &desktop_apps,
+                     max_visible_items](ui::InputChanged) {
+                        state.selected_item_index =
+                            0; // Reset selection when search changes
+                        state.visible_range_offset = 0; // Reset scroll position
 
-                // Command palette mode - search utility commands
-                if (!state.input_buffer.empty() &&
-                    state.input_buffer[0] == '>') {
-                    ranker.pause();
+                        // Command palette mode - search utility commands
+                        if (!state.input_buffer.empty() &&
+                            state.input_buffer[0] == '>') {
+                            ranker.pause();
 
-                    const auto query = state.input_buffer.substr(1);
-                    state.mode = ui::CommandSearch{.query = query};
+                            const auto query = state.input_buffer.substr(1);
+                            state.mode = ui::CommandSearch{.query = query};
 
-                    // For command search, rank all (usually small dataset)
-                    const auto query_lower = to_lower(query);
-                    auto ranked = rank(
-                        global_actions,
-                        [&query_lower](const ui::Item &item) {
-                            return fuzzy::fuzzy_score_5_simd(
-                                item.title + item.description, query_lower);
-                        },
-                        global_actions.size());
+                            // For command search, rank all (usually small
+                            // dataset)
+                            const auto query_lower = to_lower(query);
+                            auto ranked = rank(
+                                global_actions,
+                                [&query_lower](const ui::Item &item) {
+                                    return fuzzy::fuzzy_score_5_simd(
+                                        item.title + item.description,
+                                        query_lower);
+                                },
+                                global_actions.size());
 
-                    state.items.clear();
-                    for (const auto &result : ranked) {
-                        state.items.push_back(global_actions[result.index]);
-                    }
-                    // App search mode - search desktop applications only
-                } else if (!state.input_buffer.empty() &&
-                           state.input_buffer[0] == '!') {
-                    ranker.pause();
+                            state.items.clear();
+                            for (const auto &result : ranked) {
+                                state.items.push_back(
+                                    global_actions[result.index]);
+                            }
+                            // App search mode - search desktop applications
+                            // only
+                        } else if (!state.input_buffer.empty() &&
+                                   state.input_buffer[0] == '!') {
+                            ranker.pause();
 
-                    const auto query = state.input_buffer.substr(1);
-                    state.mode = ui::AppSearch{.query = query};
+                            const auto query = state.input_buffer.substr(1);
+                            state.mode = ui::AppSearch{.query = query};
 
-                    // For app search, rank all (usually small dataset)
-                    const auto query_lower = to_lower(query);
-                    auto ranked = rank(
-                        desktop_apps,
-                        [&query_lower](const indexer::DesktopApp &app) {
-                            return fuzzy::fuzzy_score_5_simd(
-                                app.name + app.description, query_lower);
-                        },
-                        desktop_apps.size());
+                            // For app search, rank all (usually small dataset)
+                            const auto query_lower = to_lower(query);
+                            auto ranked = rank(
+                                desktop_apps,
+                                [&query_lower](const indexer::DesktopApp &app) {
+                                    return fuzzy::fuzzy_score_5_simd(
+                                        app.name + app.description,
+                                        query_lower);
+                                },
+                                desktop_apps.size());
 
-                    state.items.clear();
-                    for (const auto &result : ranked) {
-                        const auto &app = desktop_apps[result.index];
-                        state.items.push_back(ui::Item{
-                            .title = app.name,
-                            .description = app.description,
-                            .path = std::nullopt,
-                            .command =
-                                CustomCommand{.path = std::nullopt,
-                                              .shell_cmd = app.exec_command},
-                        });
-                    }
-                } else {
-                    // File search mode - activate streaming ranker
-                    state.mode = ui::FileSearch{.query = state.input_buffer};
+                            state.items.clear();
+                            for (const auto &result : ranked) {
+                                const auto &app = desktop_apps[result.index];
+                                state.items.push_back(ui::Item{
+                                    .title = app.name,
+                                    .description = app.description,
+                                    .path = std::nullopt,
+                                    .command =
+                                        CustomCommand{.path = std::nullopt,
+                                                      .shell_cmd =
+                                                          app.exec_command},
+                                });
+                            }
+                        } else {
+                            // File search mode - activate streaming ranker
+                            state.mode =
+                                ui::FileSearch{.query = state.input_buffer};
 
-                    ranker.update_query(to_lower(state.input_buffer));
-                    ranker.update_requested_count(
-                        ui::required_item_count(state, max_visible_items));
-                    ranker.resume();
-                }
-            }
+                            ranker.update_query(to_lower(state.input_buffer));
+                            ranker.update_requested_count(
+                                ui::required_item_count(state,
+                                                        max_visible_items));
+                            ranker.resume();
+                        }
+                    }},
+                event);
         }
 
         // Process effects
