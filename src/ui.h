@@ -41,6 +41,7 @@ struct Item {
     std::string description;
     std::optional<fs::path> path;
     Command command;
+    std::optional<KeyboardEvent> hotkey;
 };
 
 struct FileSearch {
@@ -85,7 +86,7 @@ struct State {
     // Also serves as the source of truth for progress tracking metadata
     std::optional<ResultUpdate> cached_file_search_update;
 
-    Item get_selected_item() const;
+    std::optional<Item> get_selected_item() const;
     void set_error(const std::optional<std::string> &message);
     void clear_error();
     bool has_error() const;
@@ -98,6 +99,7 @@ struct SelectionChanged {
 struct CursorPositionChanged {
 };
 struct ActionRequested {
+    Command command;
 };
 struct ContextMenuToggled {
 };

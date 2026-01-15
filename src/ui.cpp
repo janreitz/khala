@@ -181,7 +181,14 @@ std::optional<size_t> window_pos_to_item_index(const WindowCoord &position,
     return absolute_index;
 }
 
-Item State::get_selected_item() const { return items.at(selected_item_index); }
+std::optional<Item> State::get_selected_item() const
+{
+    if (selected_item_index >= items.size()) {
+        // Covers items.empty() as well as out-of-range index
+        return std::nullopt;
+    }
+    return items[selected_item_index];
+}
 
 void State::set_error(const std::optional<std::string> &message)
 {
@@ -210,38 +217,115 @@ static bool try_open_context_menu(State &state, const Config &config)
         return false;
     }
 
-    const auto &file_item = state.get_selected_item();
-    if (!file_item.path.has_value()) {
+    const auto file_item = state.get_selected_item();
+    if (!file_item) {
+        return false;
+    }
+    if (!file_item->path.has_value()) {
         return false;
     }
 
     // Open context menu
-    state.mode = ContextMenu{.title = file_item.title,
-                             .selected_file = file_item.path.value()};
+    state.mode = ContextMenu{.title = file_item->title,
+                             .selected_file = file_item->path.value()};
     state.selected_item_index = 0;
-    state.items = make_file_actions(file_item.path.value(), config);
+    state.items = make_file_actions(file_item->path.value(), config);
     return true;
+}
+
+// Helper to check if a KeyboardEvent matches a specific key with Ctrl modifier
+static bool is_ctrl_number(const KeyboardEvent &ev, KeyCode num_key)
+{
+    return ev.key == num_key && has_modifier(ev.modifiers, KeyModifier::Ctrl) &&
+           !has_modifier(ev.modifiers, KeyModifier::Alt) &&
+           !has_modifier(ev.modifiers, KeyModifier::Super);
+}
+
+// Map Ctrl+1-9 to item index (0-8), returns nullopt if not a Ctrl+number
+static std::optional<size_t> get_ctrl_number_index(const KeyboardEvent &ev)
+{
+    if (is_ctrl_number(ev, KeyCode::Num1))
+        return 0;
+    if (is_ctrl_number(ev, KeyCode::Num2))
+        return 1;
+    if (is_ctrl_number(ev, KeyCode::Num3))
+        return 2;
+    if (is_ctrl_number(ev, KeyCode::Num4))
+        return 3;
+    if (is_ctrl_number(ev, KeyCode::Num5))
+        return 4;
+    if (is_ctrl_number(ev, KeyCode::Num6))
+        return 5;
+    if (is_ctrl_number(ev, KeyCode::Num7))
+        return 6;
+    if (is_ctrl_number(ev, KeyCode::Num8))
+        return 7;
+    if (is_ctrl_number(ev, KeyCode::Num9))
+        return 8;
+    return std::nullopt;
+}
+
+// Check if keyboard event matches an item's hotkey
+static bool hotkey_matches(const KeyboardEvent &ev, const KeyboardEvent &hotkey)
+{
+    return ev.key == hotkey.key && ev.modifiers == hotkey.modifiers;
 }
 
 std::vector<Event> handle_keyboard_input(State &state,
                                          const KeyboardEvent &kbd_event,
                                          const Config &config)
 {
-    std::vector<Event> events;
-
     // Check for quit hotkey first
     if (kbd_event.key == config.quit_hotkey.key &&
         kbd_event.modifiers == config.quit_hotkey.modifiers) {
-        events.push_back(ExitRequested{});
-        return events;
+        return {ExitRequested{}};
+    }
+
+    // Check for Ctrl+1-9 quick selection (selects visible item by position)
+    if (auto index_opt = get_ctrl_number_index(kbd_event);
+        index_opt.has_value()) {
+        const size_t visible_index = *index_opt;
+        const size_t absolute_index =
+            state.visible_range_offset + visible_index;
+
+        if (absolute_index < state.items.size()) {
+            state.selected_item_index = absolute_index;
+            return {SelectionChanged{},
+                    ActionRequested{state.items[absolute_index].command}};
+        }
+    }
+
+    if (std::holds_alternative<ui::FileSearch>(state.mode)) {
+        // Check for context menu action hotkeys on the selected file
+        // (e.g., Ctrl+Enter for Open Containing Folder while in FileSearch)
+        const auto selected_item = state.get_selected_item();
+        if (selected_item && selected_item->path.has_value()) {
+            const auto &path = selected_item->path.value();
+            const auto file_actions = make_file_actions(path, config);
+
+            for (const auto &action : file_actions) {
+                if (action.hotkey.has_value() &&
+                    hotkey_matches(kbd_event, *action.hotkey)) {
+                    return {ActionRequested{action.command}};
+                }
+            }
+        }
+    } else {
+        // Check for item hotkeys
+        for (const auto &item : state.items) {
+            if (item.hotkey.has_value() &&
+                hotkey_matches(kbd_event, *item.hotkey)) {
+                return {ActionRequested{item.command}};
+            }
+        }
     }
 
     switch (kbd_event.key) {
     case KeyCode::Escape:
         if (state.background_mode_active) {
-            events.push_back(VisibilityToggleRequested{});
+            return {VisibilityToggleRequested{}};
         } else {
-            events.push_back(ExitRequested{});
+            return {ExitRequested{}};
         }
         break;
 
@@ -252,7 +336,7 @@ std::vector<Event> handle_keyboard_input(State &state,
             } else {
                 state.selected_item_index = state.items.size() - 1;
             }
-            events.push_back(SelectionChanged{});
+            return {SelectionChanged{}};
         }
         break;
 
@@ -263,14 +347,14 @@ std::vector<Event> handle_keyboard_input(State &state,
             } else {
                 state.selected_item_index = 0;
             }
-            events.push_back(SelectionChanged{});
+            return {SelectionChanged{}};
         }
         break;
 
     case KeyCode::Tab:
         if (!std::holds_alternative<ContextMenu>(state.mode)) {
             if (try_open_context_menu(state, config)) {
-                events.push_back(ContextMenuToggled{});
+                return {ContextMenuToggled{}};
             }
         }
         break;
@@ -278,11 +362,11 @@ std::vector<Event> handle_keyboard_input(State &state,
     case KeyCode::Left:
         if (std::holds_alternative<ContextMenu>(state.mode)) {
             state.mode = FileSearch{.query = state.input_buffer};
-            events.push_back(ContextMenuToggled{});
+            return {ContextMenuToggled{}};
         } else {
             if (state.cursor_position > 0) {
                 state.cursor_position--;
-                events.push_back(CursorPositionChanged{});
+                return {CursorPositionChanged{}};
             }
         }
         break;
@@ -292,11 +376,11 @@ std::vector<Event> handle_keyboard_input(State &state,
             if (state.cursor_position < state.input_buffer.size()) {
                 // Cursor is not at end, just move it right
                 state.cursor_position++;
-                events.push_back(CursorPositionChanged{});
+                return {CursorPositionChanged{}};
             } else {
                 // Cursor is at end, try to open context menu
                 if (try_open_context_menu(state, config)) {
-                    events.push_back(ContextMenuToggled{});
+                    return {ContextMenuToggled{}};
                 }
             }
         }
@@ -305,19 +389,21 @@ std::vector<Event> handle_keyboard_input(State &state,
     case KeyCode::Home:
         if (!std::holds_alternative<ContextMenu>(state.mode)) {
             state.cursor_position = 0;
-            events.push_back(CursorPositionChanged{});
+            return {CursorPositionChanged{}};
         }
         break;
 
     case KeyCode::End:
         if (!std::holds_alternative<ContextMenu>(state.mode)) {
             state.cursor_position = state.input_buffer.size();
-            events.push_back(CursorPositionChanged{});
+            return {CursorPositionChanged{}};
         }
         break;
 
     case KeyCode::Return:
-        events.push_back(ActionRequested{});
+        if (auto item = state.get_selected_item()) {
+            return {ActionRequested{item->command}};
+        }
         break;
 
     case KeyCode::BackSpace:
@@ -325,7 +411,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.input_buffer.empty() && state.cursor_position > 0) {
             state.input_buffer.erase(state.cursor_position - 1, 1);
             state.cursor_position--;
-            events.push_back(InputChanged{});
+            return {InputChanged{}};
         }
         break;
 
@@ -334,7 +420,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.input_buffer.empty() &&
             state.cursor_position < state.input_buffer.size()) {
             state.input_buffer.erase(state.cursor_position, 1);
-            events.push_back(InputChanged{});
+            return {InputChanged{}};
         }
         break;
 
@@ -344,14 +430,13 @@ std::vector<Event> handle_keyboard_input(State &state,
             state.input_buffer.insert(state.cursor_position, 1,
                                       *kbd_event.character);
             state.cursor_position++;
-            events.push_back(InputChanged{});
+            return {InputChanged{}};
         }
         break;
     default:
         break;
     }
-
-    return events;
+    return {};
 }
 
 std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
@@ -360,104 +445,112 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
     std::vector<Event> events;
     state.clear_error();
 
-    std::visit(overloaded{[&](const KeyboardEvent &ev) {
-                              events = handle_keyboard_input(state, ev, config);
-                          },
-                          [&](const MousePositionEvent &ev) {
-                              // Perform hit testing
-                              auto item_index = window_pos_to_item_index(
-                                  ev.position, state, config.font_size);
+    std::visit(
+        overloaded{
+            [&](const KeyboardEvent &ev) {
+                events = handle_keyboard_input(state, ev, config);
+            },
+            [&](const MousePositionEvent &ev) {
+                // Perform hit testing
+                auto item_index = window_pos_to_item_index(ev.position, state,
+                                                           config.font_size);
 
-                              if (!item_index.has_value()) {
-                                  return;
-                              }
-                              // Update selection if hovering over a different
-                              // item
-                              if (state.selected_item_index != *item_index) {
-                                  state.selected_item_index = *item_index;
-                                  events.push_back(SelectionChanged{});
-                              }
-                          },
-                          [&](const MouseButtonEvent &ev) {
-                              // Only handle left-click press
-                              if (ev.button == MouseButtonEvent::Button::Left &&
-                                  ev.pressed) {
-                                  // Perform hit testing
-                                  auto item_index = window_pos_to_item_index(
-                                      ev.position, state, config.font_size);
+                if (!item_index.has_value()) {
+                    return;
+                }
+                // Update selection if hovering over a different
+                // item
+                if (state.selected_item_index != *item_index) {
+                    state.selected_item_index = *item_index;
+                    events.push_back(SelectionChanged{});
+                }
+            },
+            [&](const MouseButtonEvent &ev) {
+                // Only handle left-click press
+                if (ev.button == MouseButtonEvent::Button::Left && ev.pressed) {
+                    // Perform hit testing
+                    auto item_index = window_pos_to_item_index(
+                        ev.position, state, config.font_size);
 
-                                  if (item_index.has_value()) {
-                                      // Maybe update selection
-                                      if (state.selected_item_index != *item_index) {
-                                          state.selected_item_index = *item_index;
-                                          events.push_back(SelectionChanged{});
-                                      }
-                                      events.push_back(ActionRequested{});
-                                  }
-                              }
-                          },
-                          [&](const CursorEnterEvent &ev) {
-                              state.mouse_inside_window = true;
+                    if (item_index.has_value() &&
+                        *item_index < state.items.size()) {
+                        // Maybe update selection
+                        if (state.selected_item_index != *item_index) {
+                            state.selected_item_index = *item_index;
+                            events.push_back(SelectionChanged{});
+                        }
+                        events.push_back(
+                            ActionRequested{state.items[*item_index].command});
+                    }
+                }
+            },
+            [&](const CursorEnterEvent &ev) {
+                state.mouse_inside_window = true;
 
-                              // Optionally update selection on enter
-                              auto item_index = window_pos_to_item_index(
-                                  ev.position, state, config.font_size);
+                // Optionally update selection on enter
+                auto item_index = window_pos_to_item_index(ev.position, state,
+                                                           config.font_size);
 
-                              if (!item_index.has_value()) {
-                                  return;
-                              }
-                              // Update selection if hovering over a different
-                              // item
-                              if (state.selected_item_index != *item_index) {
-                                  state.selected_item_index = *item_index;
-                                  events.push_back(SelectionChanged{});
-                              }
-                          },
-                          [&](const CursorLeaveEvent &) {
-                              state.mouse_inside_window = false;
-                          },
-                          [&](const MouseScrollEvent &ev) {
-                              // Scroll through items by moving the viewport
-                              if (state.items.empty()) {
-                                  return;
-                              }
+                if (!item_index.has_value()) {
+                    return;
+                }
+                // Update selection if hovering over a different
+                // item
+                if (state.selected_item_index != *item_index) {
+                    state.selected_item_index = *item_index;
+                    events.push_back(SelectionChanged{});
+                }
+            },
+            [&](const CursorLeaveEvent &) {
+                state.mouse_inside_window = false;
+            },
+            [&](const MouseScrollEvent &ev) {
+                // Scroll through items by moving the viewport
+                if (state.items.empty()) {
+                    return;
+                }
 
-                              const size_t max_offset = state.items.size() > state.max_visible_items
-                                  ? state.items.size() - state.max_visible_items
-                                  : 0;
+                const size_t max_offset =
+                    state.items.size() > state.max_visible_items
+                        ? state.items.size() - state.max_visible_items
+                        : 0;
 
-                              if (ev.direction == MouseScrollEvent::Direction::Up) {
-                                  // Scroll up - move viewport up
-                                  if (state.visible_range_offset > 0) {
-                                      state.visible_range_offset--;
-                                      events.push_back(ViewportChanged{});
+                if (ev.direction == MouseScrollEvent::Direction::Up) {
+                    // Scroll up - move viewport up
+                    if (state.visible_range_offset > 0) {
+                        state.visible_range_offset--;
+                        events.push_back(ViewportChanged{});
 
-                                      // If selection is now below visible range, move it
-                                      if (state.selected_item_index >=
-                                          state.visible_range_offset + state.max_visible_items) {
-                                          state.selected_item_index =
-                                              state.visible_range_offset + state.max_visible_items - 1;
-                                          events.push_back(SelectionChanged{});
-                                      }
-                                  }
-                              } else {
-                                  // Scroll down - move viewport down
-                                  if (state.visible_range_offset < max_offset) {
-                                      state.visible_range_offset++;
-                                      events.push_back(ViewportChanged{});
+                        // If selection is now below visible range, move it
+                        if (state.selected_item_index >=
+                            state.visible_range_offset +
+                                state.max_visible_items) {
+                            state.selected_item_index =
+                                state.visible_range_offset +
+                                state.max_visible_items - 1;
+                            events.push_back(SelectionChanged{});
+                        }
+                    }
+                } else {
+                    // Scroll down - move viewport down
+                    if (state.visible_range_offset < max_offset) {
+                        state.visible_range_offset++;
+                        events.push_back(ViewportChanged{});
 
-                                      // If selection is now above visible range, move it
-                                      if (state.selected_item_index < state.visible_range_offset) {
-                                          state.selected_item_index = state.visible_range_offset;
-                                          events.push_back(SelectionChanged{});
-                                      }
-                                  }
-                              }
-                          },
-                          [&](const HotkeyEvent &) {
-                              events.push_back(VisibilityToggleRequested{});
-                          }},
-               input);
+                        // If selection is now above visible range, move it
+                        if (state.selected_item_index <
+                            state.visible_range_offset) {
+                            state.selected_item_index =
+                                state.visible_range_offset;
+                            events.push_back(SelectionChanged{});
+                        }
+                    }
+                }
+            },
+            [&](const HotkeyEvent &) {
+                events.push_back(VisibilityToggleRequested{});
+            }},
+        input);
 
     return events;
 }
@@ -504,6 +597,7 @@ convert_file_results_to_items(const std::vector<FileResult> &file_results)
                     .description = serialize_file_info(file_path),
                     .path = file_path,
                     .command = OpenDirectory{.path = file_path},
+                    .hotkey = std::nullopt,
                 });
             } else {
                 items.push_back(Item{
@@ -511,6 +605,7 @@ convert_file_results_to_items(const std::vector<FileResult> &file_results)
                     .description = serialize_file_info(file_path),
                     .path = file_path,
                     .command = OpenFileCommand{.path = file_path},
+                    .hotkey = std::nullopt,
                 });
             }
         } catch (const std::exception &e) {

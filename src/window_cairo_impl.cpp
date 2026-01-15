@@ -281,7 +281,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         std::string description;
         std::vector<size_t> title_match_positions;
         std::vector<size_t> description_match_positions;
-        // Add style info
+        std::string hotkey_hint;
     };
 
     std::vector<DropdownItem> dropdown_items;
@@ -289,7 +289,21 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     const auto query_opt = ui::get_query(state.mode);
     const auto query_lower = to_lower(query_opt.value_or(""));
     dropdown_items.reserve(state.items.size());
-    for (const auto &item : state.items) {
+    for (size_t idx = 0; idx < state.items.size(); ++idx) {
+        const auto &item = state.items[idx];
+
+        // Determine hotkey hint: use item's hotkey if set, otherwise show
+        // Ctrl+1-9 for visible items at positions 0-8
+        std::string hotkey_hint;
+        if (item.hotkey.has_value()) {
+            hotkey_hint = to_string(*item.hotkey);
+        } else if (idx >= state.visible_range_offset &&
+                   idx < state.visible_range_offset + 9) {
+            // Show Ctrl+1-9 hints for first 9 visible items
+            const size_t visible_pos = idx - state.visible_range_offset;
+            hotkey_hint = "Ctrl+" + std::to_string(visible_pos + 1);
+        }
+
         dropdown_items.push_back(DropdownItem{
             .title = item.title,
             .description = item.description,
@@ -298,7 +312,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                           : std::vector<size_t>{},
             .description_match_positions =
                 query_opt ? fuzzy::fuzzy_match_optimal(item.description, query_lower)
-                          : std::vector<size_t>{}});
+                          : std::vector<size_t>{},
+            .hotkey_hint = hotkey_hint});
     }
     const auto selection_index = state.selected_item_index;
 
@@ -398,6 +413,32 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             // Reset layout settings for next iteration
             pango_layout_set_width(layout, -1);
             pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
+        }
+
+        // Draw hotkey hint on the right side of the item
+        if (!dropdown_items.at(i).hotkey_hint.empty()) {
+            // Set subtle color for hotkey hint
+            if (item_is_selected) {
+                set_color(cr, config.selection_description_color);
+            } else {
+                set_color(cr, config.description_color);
+            }
+
+            pango_layout_set_text(layout, dropdown_items.at(i).hotkey_hint.c_str(), -1);
+
+            // Get hint text dimensions
+            int hint_width = 0;
+            int hint_height = 0;
+            pango_layout_get_size(layout, &hint_width, &hint_height);
+
+            // Position at far right of item area
+            const double hint_x = ui::BORDER_WIDTH + content_width -
+                                  (hint_width / PANGO_SCALE) - ui::TEXT_MARGIN;
+            const double hint_y =
+                calculate_text_y_centered(y_pos, item_height, hint_height);
+
+            cairo_move_to(cr, hint_x, hint_y);
+            pango_cairo_show_layout(cr, layout);
         }
 
         // Reset font for next iteration

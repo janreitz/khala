@@ -20,24 +20,34 @@
 std::vector<ui::Item> make_file_actions(const fs::path &path,
                                         const Config &config)
 {
+    using ui::KeyCode;
+    using ui::KeyModifier;
+    using ui::KeyboardEvent;
+
     if (fs::is_directory(path)) {
         std::vector<ui::Item> items{
             ui::Item{.title = "Open Directory",
                      .description = config.file_manager,
                      .path = std::nullopt,
-                     .command = OpenDirectory{path}},
+                     .command = OpenDirectory{path},
+                     .hotkey = std::nullopt},
             ui::Item{.title = "Remove Directory",
                      .description = "",
                      .path = std::nullopt,
-                     .command = RemoveFile{path}},
+                     .command = RemoveFile{path},
+                     .hotkey = std::nullopt},
             ui::Item{.title = "Remove Directory Recursive",
                      .description = "",
                      .path = std::nullopt,
-                     .command = RemoveFileRecursive{path}},
+                     .command = RemoveFileRecursive{path},
+                     .hotkey = std::nullopt},
             ui::Item{.title = "Copy Path to Clipboard",
                      .description = "",
                      .path = std::nullopt,
-                     .command = CopyPathToClipboard{path}},
+                     .command = CopyPathToClipboard{path},
+                     .hotkey = KeyboardEvent{.key = KeyCode::C,
+                                             .modifiers = KeyModifier::Ctrl,
+                                             .character = std::nullopt}},
         };
         return items;
     } else {
@@ -45,19 +55,27 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
             ui::Item{.title = "Open File",
                      .description = config.editor,
                      .path = std::nullopt,
-                     .command = OpenFileCommand{path}},
+                     .command = OpenFileCommand{path},
+                     .hotkey = std::nullopt},
             ui::Item{.title = "Remove File",
                      .description = "",
                      .path = std::nullopt,
-                     .command = RemoveFile{path}},
+                     .command = RemoveFile{path},
+                     .hotkey = std::nullopt},
             ui::Item{.title = "Copy Path to Clipboard",
                      .description = "",
                      .path = std::nullopt,
-                     .command = CopyPathToClipboard{path}},
+                     .command = CopyPathToClipboard{path},
+                     .hotkey = KeyboardEvent{.key = KeyCode::C,
+                                             .modifiers = KeyModifier::Ctrl,
+                                             .character = std::nullopt}},
             ui::Item{.title = "Copy Content to Clipboard",
                      .description = "",
                      .path = std::nullopt,
-                     .command = CopyContentToClipboard{path}},
+                     .command = CopyContentToClipboard{path},
+                     .hotkey = KeyboardEvent{.key = KeyCode::C,
+                                             .modifiers = KeyModifier::Ctrl | KeyModifier::Shift,
+                                             .character = std::nullopt}},
         };
         if (path.has_parent_path()) {
             items.push_back(ui::Item{
@@ -65,6 +83,9 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                 .description = "",
                 .path = std::nullopt,
                 .command = OpenDirectory{path.parent_path()},
+                .hotkey = KeyboardEvent{.key = KeyCode::Return,
+                                        .modifiers = KeyModifier::Ctrl,
+                                        .character = std::nullopt},
             });
         }
 
@@ -83,6 +104,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                         .shell_cmd = action_def.shell_cmd,
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
+                .hotkey = std::nullopt,
             });
         }
         return items;
@@ -95,20 +117,24 @@ std::vector<ui::Item> get_global_actions(const Config &config)
         ui::Item{.title = "Reload Index",
                  .description = "Start a fresh filesystem scan",
                  .path = std::nullopt,
-                 .command = ReloadIndex{}},
+                 .command = ReloadIndex{},
+                 .hotkey = std::nullopt},
         ui::Item{.title = "Copy ISO Timestamp",
                  .description = "Copy current time in ISO 8601 format",
                  .path = std::nullopt,
-                 .command = CopyISOTimestamp{}},
+                 .command = CopyISOTimestamp{},
+                 .hotkey = std::nullopt},
         ui::Item{.title = "Copy Unix Timestamp",
                  .description =
                      "Copy current Unix timestamp (seconds since epoch)",
-                .path = std::nullopt,
-                 .command = CopyUnixTimestamp{}},
+                 .path = std::nullopt,
+                 .command = CopyUnixTimestamp{},
+                 .hotkey = std::nullopt},
         ui::Item{.title = "Copy UUID",
                  .description = "Generate and copy a new UUID v4",
                  .path = std::nullopt,
-                 .command = CopyUUID{}},
+                 .command = CopyUUID{},
+                 .hotkey = std::nullopt},
     };
 
     for (const auto &action_def : config.custom_actions) {
@@ -125,6 +151,7 @@ std::vector<ui::Item> get_global_actions(const Config &config)
                     .shell_cmd = action_def.shell_cmd,
                     .stdout_to_clipboard = action_def.stdout_to_clipboard,
                 },
+            .hotkey = std::nullopt,
         });
     }
     return items;

@@ -172,24 +172,19 @@ int main()
                             ui::required_item_count(state, max_visible_items);
                         ranker.update_requested_count(required_item_count);
                     },
-                    [&state, &config, &effects](ui::ActionRequested) {
-                        LOG_DEBUG("Selected: %s",
-                                  state.get_selected_item().title.c_str());
-                        const auto cmd_result = process_command(
-                            state.get_selected_item().command, config);
+                    [&state, &config, &effects](const ui::ActionRequested &req) {
+                        const auto cmd_result =
+                            process_command(req.command, config);
                         if (!cmd_result.has_value()) {
                             state.set_error(cmd_result.error());
                             return;
-                        } 
+                        }
                         state.clear_error();
-                        const auto maybe_effect = cmd_result.value();
-                        if (maybe_effect.has_value()) {
-                            // Command returned an effect - process
-                            // it, don't quit
-                            effects.push_back(maybe_effect.value());
+                        if (cmd_result->has_value()) {
+                            // Command returned an effect - process it
+                            effects.push_back(*cmd_result.value());
                         } else if (config.quit_on_action) {
-                            // External action completed - apply
-                            // quit_on_action behavior
+                            // External action completed - apply quit_on_action
                             if (state.background_mode_active) {
                                 effects.push_back(HideWindow{});
                             } else {
@@ -278,6 +273,7 @@ int main()
                                         CustomCommand{.path = std::nullopt,
                                                       .shell_cmd =
                                                           app.exec_command},
+                                    .hotkey = std::nullopt,
                                 });
                             }
                         } else {
