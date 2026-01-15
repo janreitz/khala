@@ -238,7 +238,7 @@ std::vector<Event> handle_keyboard_input(State &state,
 
     switch (kbd_event.key) {
     case KeyCode::Escape:
-        if (config.background_mode) {
+        if (state.background_mode_active) {
             events.push_back(VisibilityToggleRequested{});
         } else {
             events.push_back(ExitRequested{});

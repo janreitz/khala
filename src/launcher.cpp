@@ -54,6 +54,8 @@ int main()
             .y = config.height_ratio,
         });
 
+    ui::State state;
+
     // Background mode setup
     if (config.background_mode) {
         window.hide();
@@ -61,10 +63,13 @@ int main()
 
         if (window.register_global_hotkey(config.hotkey)) {
             LOG_INFO("Registered global hotkey: %s", to_string(config.hotkey).c_str());
+            state.background_mode_active =  true;
         } else {
-            LOG_ERROR("Failed to register global hotkey: %s", to_string(config.hotkey).c_str());
+            LOG_WARNING("Failed to register global hotkey: %s - disabling background mode",
+                        to_string(config.hotkey).c_str());
+            LOG_WARNING("The hotkey may already be in use by another application");
+            window.show();
         }
-        
     }
 
     const auto max_window_height = static_cast<unsigned int>(
@@ -72,7 +77,6 @@ int main()
     const size_t max_visible_items =
         ui::calculate_max_visible_items(max_window_height, config.font_size);
 
-    ui::State state;
 
     // Shared state
     StreamingIndex streaming_index;
@@ -121,7 +125,7 @@ int main()
         // Small sleep during non-blocking mode to avoid busy looping
         if (events.empty()) {
             // Longer sleep when window is hidden in background mode
-            if (config.background_mode && !window.is_visible()) {
+            if (state.background_mode_active && !window.is_visible()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             } else {
                 std::this_thread::sleep_for(
@@ -135,7 +139,7 @@ int main()
             redraw = true;
             if (std::holds_alternative<ui::VisibilityToggleRequested>(event)) {
                 // Toggle window visibility in background mode
-                if (config.background_mode) {
+                if (state.background_mode_active) {
                     if (window.is_visible()) {
                         window.hide();
                         // Reset UI state for next activation
@@ -318,7 +322,7 @@ int main()
     }
 
     // Cleanup
-    if (config.background_mode) {
+    if (state.background_mode_active) {
         window.unregister_global_hotkey();
     }
     if (index_future.valid()) {

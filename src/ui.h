@@ -75,6 +75,9 @@ struct State {
     // Mouse state
     bool mouse_inside_window = false;
 
+    // Runtime state for background mode (may differ from config if hotkey registration failed)
+    bool background_mode_active = false;
+
     // Error display
     std::optional<std::string> error_message;
 
