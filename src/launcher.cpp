@@ -109,6 +109,23 @@ int main()
     std::vector<FileResult> current_file_results;
     bool should_exit = false;
     bool redraw = true;
+
+    auto hide_window_and_reset = [&window, &state, &ranker, max_visible_items]() {
+        window.hide();
+        // Reset UI state for next activation
+        state.input_buffer.clear();
+        state.cursor_position = 0;
+        state.selected_item_index = 0;
+        state.visible_range_offset = 0;
+        state.mode = ui::FileSearch{.query = ""};
+        state.clear_error();
+
+        // Reset ranker to empty query
+        ranker.update_query("");
+        ranker.update_requested_count(
+            ui::required_item_count(state, max_visible_items));
+    };
+
     while (true) {
         const std::vector<ui::UserInputEvent> input_events =
             window.get_input_events(false);
@@ -141,19 +158,7 @@ int main()
                 // Toggle window visibility in background mode
                 if (state.background_mode_active) {
                     if (window.is_visible()) {
-                        window.hide();
-                        // Reset UI state for next activation
-                        state.input_buffer.clear();
-                        state.cursor_position = 0;
-                        state.selected_item_index = 0;
-                        state.visible_range_offset = 0;
-                        state.mode = ui::FileSearch{.query = ""};
-                        state.clear_error();
-
-                        // Reset ranker to empty query
-                        ranker.update_query("");
-                        ranker.update_requested_count(
-                            ui::required_item_count(state, max_visible_items));
+                        hide_window_and_reset();
                         LOG_DEBUG("Window hidden via hotkey");
                     } else {
                         window.show();
@@ -185,7 +190,11 @@ int main()
                 state.set_error(
                     process_command(state.get_selected_item().command, config));
                 if (!state.has_error() && config.quit_on_action) {
-                    should_exit = true;
+                    if (state.background_mode_active) {
+                        hide_window_and_reset();
+                    } else {
+                        should_exit = true;
+                    }
                     break;
                 }
             } else if (std::holds_alternative<ui::ContextMenuToggled>(event)) {
