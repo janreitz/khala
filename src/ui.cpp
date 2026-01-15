@@ -347,6 +347,8 @@ std::vector<Event> handle_keyboard_input(State &state,
             events.push_back(InputChanged{});
         }
         break;
+    default:
+        break;
     }
 
     return events;

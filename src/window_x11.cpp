@@ -433,49 +433,49 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 
             if (keysym == XK_Escape) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Escape,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Up) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Up,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Down) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Down,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Tab) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Tab,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Left) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Left,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Right) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Right,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Home) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Home,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_End) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::End,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_Return) {
                 events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Return,
-                                                   .modifiers = ui::KeyModifier::None,
+                                                   .modifiers = ui::KeyModifier::NoModifier,
                                                    .character = std::nullopt});
             } else if (keysym == XK_BackSpace) {
                 events.push_back(
                     ui::KeyboardEvent{.key = ui::KeyCode::BackSpace,
-                                      .modifiers = ui::KeyModifier::None,
+                                      .modifiers = ui::KeyModifier::NoModifier,
                                       .character = std::nullopt});
             } else if (keysym == XK_Delete) {
                 events.push_back(
                     ui::KeyboardEvent{.key = ui::KeyCode::Delete,
-                                      .modifiers = ui::KeyModifier::None,
+                                      .modifiers = ui::KeyModifier::NoModifier,
                                       .character = std::nullopt});
             } else {
                 // Handle regular character input
@@ -491,7 +491,7 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
                             events.push_back(ui::KeyboardEvent{
                                 .key = ui::KeyCode::Character,
-                                .modifiers = ui::KeyModifier::None,
+                                .modifiers = ui::KeyModifier::NoModifier,
                                 .character = char_buffer[i],
                             });
                         }

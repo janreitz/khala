@@ -299,7 +299,7 @@ parse_hotkey(const std::string &hotkey_str)
     }
 
     // Must have a valid key
-    if (result.key == ui::KeyCode::None) {
+    if (result.key == ui::KeyCode::NoKey) {
         return std::nullopt;
     }
 

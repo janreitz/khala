@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <variant>
 
@@ -21,7 +22,7 @@ struct WindowDimension {
 };
 
 enum class KeyCode {
-    None,
+    NoKey,
     Escape,
     Return,
     BackSpace,
@@ -47,7 +48,7 @@ enum class KeyCode {
 
 // Modifier flags - can be combined with |
 enum class KeyModifier : uint8_t {
-    None  = 0,
+    NoModifier  = 0,
     Ctrl  = 1 << 0,
     Alt   = 1 << 1,
     Shift = 1 << 2,
@@ -74,8 +75,8 @@ inline bool has_modifier(KeyModifier flags, KeyModifier test) {
 }
 
 struct KeyboardEvent {
-    KeyCode key = KeyCode::None;
-    KeyModifier modifiers = KeyModifier::None;
+    KeyCode key = KeyCode::NoKey;
+    KeyModifier modifiers = KeyModifier::NoModifier;
     std::optional<char> character; // For KeyCode::Character events
 };
 

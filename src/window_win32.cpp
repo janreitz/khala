@@ -924,7 +924,7 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 
 static ui::KeyModifier get_active_modifiers()
 {
-    ui::KeyModifier mods = ui::KeyModifier::None;
+    ui::KeyModifier mods = ui::KeyModifier::NoModifier;
     if (GetKeyState(VK_CONTROL) & 0x8000) {
         mods |= ui::KeyModifier::Ctrl;
     }
@@ -966,7 +966,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         // Only do this if window is visible to avoid double-toggle in background mode
         if (data && IsWindowVisible(hwnd)) {
             ui::KeyboardEvent event{.key = ui::KeyCode::Escape,
-                                    .modifiers = ui::KeyModifier::None,
+                                    .modifiers = ui::KeyModifier::NoModifier,
                                     .character = std::nullopt};
             data->pendingEvents.push_back(event);
         }
@@ -1051,7 +1051,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
         ui::KeyboardEvent event{
             .key = ui::KeyCode::Character,
-            .modifiers = ui::KeyModifier::None, // No modifier for typed characters
+            .modifiers = ui::KeyModifier::NoModifier, // No modifier for typed characters
             .character = static_cast<char>(wParam)};
 
         data->pendingEvents.push_back(event);
