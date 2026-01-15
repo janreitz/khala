@@ -105,6 +105,21 @@ std::optional<MonitorInfo> get_primary_monitor_xrandr(Display *display, int scre
     return result;
 }
 
+// Convert X11 modifier state to ui::KeyModifier
+ui::KeyModifier x11_to_modifiers(unsigned int state)
+{
+    ui::KeyModifier mods = ui::KeyModifier::NoModifier;
+    if (state & ControlMask)
+        mods |= ui::KeyModifier::Ctrl;
+    if (state & Mod1Mask)
+        mods |= ui::KeyModifier::Alt;
+    if (state & ShiftMask)
+        mods |= ui::KeyModifier::Shift;
+    if (state & Mod4Mask)
+        mods |= ui::KeyModifier::Super;
+    return mods;
+}
+
 } // anonymous namespace
 
 PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
@@ -441,62 +456,49 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             }
 
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
+            const ui::KeyModifier modifiers = x11_to_modifiers(event.xkey.state);
 
-            if (keysym == XK_Escape) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Escape,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Up) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Up,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Down) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Down,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Tab) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Tab,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Left) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Left,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Right) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Right,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Home) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Home,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_End) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::End,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_Return) {
-                events.push_back(ui::KeyboardEvent{.key = ui::KeyCode::Return,
-                                                   .modifiers = ui::KeyModifier::NoModifier,
-                                                   .character = std::nullopt});
-            } else if (keysym == XK_BackSpace) {
-                events.push_back(
-                    ui::KeyboardEvent{.key = ui::KeyCode::BackSpace,
-                                      .modifiers = ui::KeyModifier::NoModifier,
-                                      .character = std::nullopt});
-            } else if (keysym == XK_Delete) {
-                events.push_back(
-                    ui::KeyboardEvent{.key = ui::KeyCode::Delete,
-                                      .modifiers = ui::KeyModifier::NoModifier,
-                                      .character = std::nullopt});
+            ui::KeyCode key = ui::KeyCode::NoKey;
+
+            // Map special keys
+            switch (keysym) {
+            case XK_Escape: key = ui::KeyCode::Escape; break;
+            case XK_Up: key = ui::KeyCode::Up; break;
+            case XK_Down: key = ui::KeyCode::Down; break;
+            case XK_Tab: key = ui::KeyCode::Tab; break;
+            case XK_Left: key = ui::KeyCode::Left; break;
+            case XK_Right: key = ui::KeyCode::Right; break;
+            case XK_Home: key = ui::KeyCode::Home; break;
+            case XK_End: key = ui::KeyCode::End; break;
+            case XK_Return: key = ui::KeyCode::Return; break;
+            case XK_BackSpace: key = ui::KeyCode::BackSpace; break;
+            case XK_Delete: key = ui::KeyCode::Delete; break;
+            default: break;
+            }
+
+            if (key != ui::KeyCode::NoKey) {
+                events.push_back(ui::KeyboardEvent{
+                    .key = key,
+                    .modifiers = modifiers,
+                    .character = std::nullopt});
+            } else if (keysym >= XK_a && keysym <= XK_z &&
+                       ui::has_modifier(modifiers, ui::KeyModifier::Ctrl)) {
+                // Handle Ctrl+letter combinations (for hotkeys like Ctrl+Q)
+                // XLookupString won't give us the letter when Ctrl is held
+                key = static_cast<ui::KeyCode>(
+                    static_cast<int>(ui::KeyCode::A) + (keysym - XK_a));
+                events.push_back(ui::KeyboardEvent{
+                    .key = key,
+                    .modifiers = modifiers,
+                    .character = std::nullopt});
             } else {
                 // Handle regular character input
                 constexpr int BUFFER_SIZE = 32;
-                std::array<char, BUFFER_SIZE> char_buffer;
+                std::array<char, BUFFER_SIZE> char_buffer{};
                 const auto len =
                     static_cast<size_t>(XLookupString(&event.xkey, char_buffer.data(),
                                   char_buffer.size(), nullptr, nullptr));
                 if (len > 0) {
-                    char_buffer[len] = '\0';
                     // Only add printable characters
                     for (size_t i = 0; i < len; ++i) {
                         if (char_buffer[i] >= 32 && char_buffer[i] < 127) {
