@@ -107,24 +107,8 @@ int main()
 
     // Current file search state
     std::vector<FileResult> current_file_results;
-    bool should_exit = false;
     bool redraw = true;
 
-    auto hide_window_and_reset = [&window, &state, &ranker, max_visible_items]() {
-        window.hide();
-        // Reset UI state for next activation
-        state.input_buffer.clear();
-        state.cursor_position = 0;
-        state.selected_item_index = 0;
-        state.visible_range_offset = 0;
-        state.mode = ui::FileSearch{.query = ""};
-        state.clear_error();
-
-        // Reset ranker to empty query
-        ranker.update_query("");
-        ranker.update_requested_count(
-            ui::required_item_count(state, max_visible_items));
-    };
 
     while (true) {
         const std::vector<ui::UserInputEvent> input_events =
@@ -151,25 +135,21 @@ int main()
         }
 
         // Process high-level events
-        bool exit_requested = false;
+        std::vector<Effect> effects;
         for (const auto &event : events) {
             redraw = true;
             if (std::holds_alternative<ui::VisibilityToggleRequested>(event)) {
                 // Toggle window visibility in background mode
                 if (state.background_mode_active) {
                     if (window.is_visible()) {
-                        hide_window_and_reset();
-                        LOG_DEBUG("Window hidden via hotkey");
+                        effects.push_back(HideWindow{});
                     } else {
                         window.show();
                         LOG_DEBUG("Window shown via hotkey");
                     }
                 }
             } else if (std::holds_alternative<ui::ExitRequested>(event)) {
-
-                exit_requested = true;
-                
-                break;
+                effects.push_back(QuitApplication{});
             } else if (std::holds_alternative<ui::SelectionChanged>(event)) {
                 // Adjust visible range to keep selected item visible
                 const bool adjusted =
@@ -187,15 +167,23 @@ int main()
             } else if (std::holds_alternative<ui::ActionRequested>(event)) {
                 LOG_DEBUG("Selected: %s",
                           state.get_selected_item().title.c_str());
-                state.set_error(
-                    process_command(state.get_selected_item().command, config));
-                if (!state.has_error() && config.quit_on_action) {
-                    if (state.background_mode_active) {
-                        hide_window_and_reset();
-                    } else {
-                        should_exit = true;
+                const auto cmd_result = process_command(state.get_selected_item().command, config);
+                if (!cmd_result.has_value()) {
+                    state.set_error(cmd_result.error());
+                } else {
+                    state.clear_error();
+                    if (cmd_result->has_value()) {
+                        // Command returned an internal effect - process it, don't quit
+                        effects.push_back(**cmd_result);
+                        redraw = true;
+                    } else if (config.quit_on_action) {
+                        // External action completed - apply quit_on_action behavior
+                        if (state.background_mode_active) {
+                            effects.push_back(HideWindow{});
+                        } else {
+                            effects.push_back(QuitApplication{});
+                        }
                     }
-                    break;
                 }
             } else if (std::holds_alternative<ui::ContextMenuToggled>(event)) {
                 // Restore file search results when toggling back from context
@@ -280,8 +268,58 @@ int main()
             }
         }
 
-        // Exit if requested
-        if (exit_requested || should_exit) {
+        // Process effects
+        bool should_quit = false;
+        for (const auto &effect : effects) {
+            std::visit(
+                overloaded{
+                    [&should_quit](const QuitApplication &) {
+                        should_quit = true;
+                    },
+                    [&](const HideWindow &) {
+                        window.hide();
+                        // Reset UI state for next activation
+                        state.input_buffer.clear();
+                        state.cursor_position = 0;
+                        state.selected_item_index = 0;
+                        state.visible_range_offset = 0;
+                        state.mode = ui::FileSearch{.query = ""};
+                        state.clear_error();
+
+                        // Reset ranker to empty query
+                        ranker.update_query("");
+                        ranker.update_requested_count(
+                            ui::required_item_count(state, max_visible_items));
+                        LOG_DEBUG("Window hidden");
+                    },
+                    [&](const ReloadIndexEffect &) {
+                        LOG_INFO("Reloading index...");
+                        // Wait for any existing indexing to complete
+                        if (index_future.valid()) {
+                            index_future.wait();
+                        }
+                        // Clear the index and restart
+                        streaming_index.clear();
+                        state.items.clear();
+                        state.cached_file_search_update.reset();
+                        current_file_results.clear();
+                        // Launch new indexer
+                        index_future = std::async(std::launch::async, [&]() {
+                            indexer::scan_filesystem_streaming(
+                                config.index_root, streaming_index,
+                                config.ignore_dirs, config.ignore_dir_names,
+                                INDEXER_BATCH_SIZE);
+                            LOG_INFO("Scan complete - %zu total files",
+                                     streaming_index.get_total_files());
+                        });
+                        // Re-trigger ranker with current query
+                        ranker.update_query(to_lower(state.input_buffer));
+                        ranker.update_requested_count(
+                            ui::required_item_count(state, max_visible_items));
+                    }},
+                effect);
+        }
+        if (should_quit) {
             break;
         }
 

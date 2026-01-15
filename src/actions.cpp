@@ -92,6 +92,10 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
 std::vector<ui::Item> get_global_actions(const Config &config)
 {
     std::vector<ui::Item> items = {
+        ui::Item{.title = "Reload Index",
+                 .description = "Start a fresh filesystem scan",
+                 .path = std::nullopt,
+                 .command = ReloadIndex{}},
         ui::Item{.title = "Copy ISO Timestamp",
                  .description = "Copy current time in ISO 8601 format",
                  .path = std::nullopt,
@@ -126,16 +130,17 @@ std::vector<ui::Item> get_global_actions(const Config &config)
     return items;
 }
 
-std::optional<std::string> process_command(const Command &cmd,
-                                           const Config &)
+std::expected<std::optional<Effect>, std::string> process_command(const Command &cmd,
+                                                                  const Config &)
 {
+    std::optional<Effect> effect;
     try {
         std::visit(
             overloaded{
-                [&](const OpenFileCommand &open_file) {
+                [](const OpenFileCommand &open_file) {
                     platform::open_file(open_file.path);
                 },
-                [&](const OpenDirectory &open_dir) {
+                [](const OpenDirectory &open_dir) {
                     platform::open_directory(open_dir.path);
                 },
                 [](const RemoveFile &rm_file) {
@@ -149,6 +154,9 @@ std::optional<std::string> process_command(const Command &cmd,
                 },
                 [](const CopyContentToClipboard &copy_content) {
                     platform::copy_to_clipboard(read_file(copy_content.path));
+                },
+                [&effect](const ReloadIndex &) {
+                    effect = ReloadIndexEffect{};
                 },
                 [](const CopyISOTimestamp &) {
                     auto now = std::chrono::system_clock::now();
@@ -194,8 +202,8 @@ std::optional<std::string> process_command(const Command &cmd,
                 },
                 [](const CustomCommand &custom_cmd) { platform::run_custom_command(custom_cmd.shell_cmd, custom_cmd.path, custom_cmd.stdout_to_clipboard); }},
             cmd);
-        return std::nullopt;
+        return effect;
     } catch (const std::exception &e) {
-        return std::string(e.what());
+        return std::unexpected(e.what());
     }
 }

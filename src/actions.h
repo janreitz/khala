@@ -2,15 +2,27 @@
 
 #include "config.h"
 
+#include <expected>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <variant>
-#include <optional>
 #include <vector>
 
-namespace ui { struct Item; }
+namespace ui
+{
+struct Item;
+}
 
 namespace fs = std::filesystem;
+
+// Effects that commands/events can request
+// These are processed after event handling completes
+struct QuitApplication {};
+struct HideWindow {};
+struct ReloadIndexEffect {};
+
+using Effect = std::variant<QuitApplication, HideWindow, ReloadIndexEffect>;
 
 // File commands
 struct OpenFileCommand {
@@ -33,6 +45,8 @@ struct CopyContentToClipboard {
 };
 
 // Utility commands (not file-specific)
+struct ReloadIndex {
+};
 struct CopyISOTimestamp {
 };
 struct CopyUnixTimestamp {
@@ -46,12 +60,15 @@ struct CustomCommand {
     bool stdout_to_clipboard = false;
 };
 
-using Command = std::variant<OpenFileCommand, OpenDirectory, RemoveFile, RemoveFileRecursive,
-                             CopyPathToClipboard, CopyContentToClipboard,
-                             CopyISOTimestamp, CopyUnixTimestamp, CopyUUID, CustomCommand>;
+using Command = std::variant<OpenFileCommand, OpenDirectory, RemoveFile,
+                             RemoveFileRecursive, CopyPathToClipboard,
+                             CopyContentToClipboard, ReloadIndex, CopyISOTimestamp,
+                             CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
-std::vector<ui::Item> make_file_actions(const fs::path &path, const Config& config);
+std::vector<ui::Item> make_file_actions(const fs::path &path,
+                                        const Config &config);
 
-std::vector<ui::Item> get_global_actions(const Config& config);
+std::vector<ui::Item> get_global_actions(const Config &config);
 
-std::optional<std::string> process_command(const Command &command, const Config& config);
+std::expected<std::optional<Effect>, std::string> process_command(const Command &command,
+                                                                  const Config &config);
