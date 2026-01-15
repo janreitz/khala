@@ -466,21 +466,32 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                 }
             },
             [&](const MouseButtonEvent &ev) {
-                // Only handle left-click press
-                if (ev.button == MouseButtonEvent::Button::Left && ev.pressed) {
-                    // Perform hit testing
-                    auto item_index = window_pos_to_item_index(
-                        ev.position, state, config.font_size);
+                if (!ev.pressed) {
+                    return;
+                }
 
-                    if (item_index.has_value() &&
-                        *item_index < state.items.size()) {
-                        // Maybe update selection
-                        if (state.selected_item_index != *item_index) {
-                            state.selected_item_index = *item_index;
-                            events.push_back(SelectionChanged{});
-                        }
-                        events.push_back(
-                            ActionRequested{state.items[*item_index].command});
+                auto item_index = window_pos_to_item_index(
+                    ev.position, state, config.font_size);
+
+                if (!item_index.has_value() ||
+                    *item_index >= state.items.size()) {
+                    return;
+                }
+
+                // Update selection if clicking on a different item
+                if (state.selected_item_index != *item_index) {
+                    state.selected_item_index = *item_index;
+                    events.push_back(SelectionChanged{});
+                }
+
+                if (ev.button == MouseButtonEvent::Button::Left) {
+                    // Left-click: execute the action
+                    events.push_back(
+                        ActionRequested{state.items[*item_index].command});
+                } else if (ev.button == MouseButtonEvent::Button::Right) {
+                    // Right-click: open context menu (only in FileSearch mode)
+                    if (try_open_context_menu(state, config)) {
+                        events.push_back(ContextMenuToggled{});
                     }
                 }
             },
