@@ -1107,4 +1107,39 @@ void PlatformWindow::commit_surface()
               current_buffer->width, current_buffer->height);
 }
 
+// ============================================================================
+// PlatformWindow - Visibility Control (no-op on Wayland, background mode not supported)
+// ============================================================================
+
+void PlatformWindow::show()
+{
+    // No-op: background mode not supported on Wayland
+}
+
+void PlatformWindow::hide()
+{
+    // No-op: background mode not supported on Wayland
+}
+
+bool PlatformWindow::is_visible() const
+{
+    return true; // Always visible on Wayland
+}
+
+// ============================================================================
+// PlatformWindow - Global Hotkey (not supported on Wayland)
+// ============================================================================
+
+bool PlatformWindow::register_global_hotkey(const ui::KeyboardEvent &hotkey)
+{
+    (void)hotkey;
+    // Global hotkeys not supported on Wayland due to protocol security restrictions
+    return false;
+}
+
+void PlatformWindow::unregister_global_hotkey()
+{
+    // No-op: hotkeys not supported on Wayland
+}
+
 #endif // PLATFORM_WAYLAND

@@ -60,8 +60,10 @@ struct Config {
     std::string file_manager = "xdg-open";
     bool quit_on_action = true;
 
-    // Background mode (Windows only currently)
-    // When enabled, app starts hidden, registers global hotkey, and stays running
+    // Background mode (Windows and X11 only - ignored on Wayland)
+    // When enabled, app starts hidden, registers global hotkey, and stays running.
+    // On Wayland, global hotkeys are not supported due to protocol security restrictions,
+    // so background mode is automatically disabled.
     bool background_mode = true;
     ui::KeyboardEvent hotkey // Global hotkey to show/hide window
     {
