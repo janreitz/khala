@@ -429,6 +429,17 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
         } else if (event.type == LeaveNotify) {
             events.push_back(ui::CursorLeaveEvent{});
         } else if (event.type == KeyPress) {
+            // Check if this is our registered global hotkey
+            if (hotkey_registered) {
+                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for comparison
+                auto clean_state = event.xkey.state & ~static_cast<unsigned int>(Mod2Mask | LockMask);
+                if (event.xkey.keycode == hotkey_keycode &&
+                    clean_state == hotkey_modifiers) {
+                    events.push_back(ui::HotkeyEvent{});
+                    continue;
+                }
+            }
+
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
 
             if (keysym == XK_Escape) {
@@ -515,6 +526,222 @@ void PlatformWindow::commit_surface()
     // Flush cairo operations to the underlying buffer
     // For X11, this ensures all drawing operations are completed
     cairo_surface_flush(cairo_surface);
+}
+
+// ============================================================================
+// PlatformWindow - Visibility Control
+// ============================================================================
+
+void PlatformWindow::show()
+{
+    XMapRaised(display, window);
+    XSetInputFocus(display, window, RevertToParent, CurrentTime);
+    XFlush(display);
+}
+
+void PlatformWindow::hide()
+{
+    XUnmapWindow(display, window);
+    XFlush(display);
+}
+
+bool PlatformWindow::is_visible() const
+{
+    XWindowAttributes attrs;
+    if (XGetWindowAttributes(display, window, &attrs)) {
+        return attrs.map_state == IsViewable;
+    }
+    return false;
+}
+
+// ============================================================================
+// PlatformWindow - Global Hotkey
+// ============================================================================
+
+namespace {
+
+// Convert ui::KeyCode to X11 KeySym
+KeySym keycode_to_keysym(ui::KeyCode key)
+{
+    switch (key) {
+    case ui::KeyCode::Escape: return XK_Escape;
+    case ui::KeyCode::Return: return XK_Return;
+    case ui::KeyCode::BackSpace: return XK_BackSpace;
+    case ui::KeyCode::Delete: return XK_Delete;
+    case ui::KeyCode::Tab: return XK_Tab;
+    case ui::KeyCode::Space: return XK_space;
+    case ui::KeyCode::Up: return XK_Up;
+    case ui::KeyCode::Down: return XK_Down;
+    case ui::KeyCode::Left: return XK_Left;
+    case ui::KeyCode::Right: return XK_Right;
+    case ui::KeyCode::Home: return XK_Home;
+    case ui::KeyCode::End: return XK_End;
+    // Letters A-Z
+    case ui::KeyCode::A: return XK_a;
+    case ui::KeyCode::B: return XK_b;
+    case ui::KeyCode::C: return XK_c;
+    case ui::KeyCode::D: return XK_d;
+    case ui::KeyCode::E: return XK_e;
+    case ui::KeyCode::F: return XK_f;
+    case ui::KeyCode::G: return XK_g;
+    case ui::KeyCode::H: return XK_h;
+    case ui::KeyCode::I: return XK_i;
+    case ui::KeyCode::J: return XK_j;
+    case ui::KeyCode::K: return XK_k;
+    case ui::KeyCode::L: return XK_l;
+    case ui::KeyCode::M: return XK_m;
+    case ui::KeyCode::N: return XK_n;
+    case ui::KeyCode::O: return XK_o;
+    case ui::KeyCode::P: return XK_p;
+    case ui::KeyCode::Q: return XK_q;
+    case ui::KeyCode::R: return XK_r;
+    case ui::KeyCode::S: return XK_s;
+    case ui::KeyCode::T: return XK_t;
+    case ui::KeyCode::U: return XK_u;
+    case ui::KeyCode::V: return XK_v;
+    case ui::KeyCode::W: return XK_w;
+    case ui::KeyCode::X: return XK_x;
+    case ui::KeyCode::Y: return XK_y;
+    case ui::KeyCode::Z: return XK_z;
+    // Numbers 0-9
+    case ui::KeyCode::Num0: return XK_0;
+    case ui::KeyCode::Num1: return XK_1;
+    case ui::KeyCode::Num2: return XK_2;
+    case ui::KeyCode::Num3: return XK_3;
+    case ui::KeyCode::Num4: return XK_4;
+    case ui::KeyCode::Num5: return XK_5;
+    case ui::KeyCode::Num6: return XK_6;
+    case ui::KeyCode::Num7: return XK_7;
+    case ui::KeyCode::Num8: return XK_8;
+    case ui::KeyCode::Num9: return XK_9;
+    // Function keys
+    case ui::KeyCode::F1: return XK_F1;
+    case ui::KeyCode::F2: return XK_F2;
+    case ui::KeyCode::F3: return XK_F3;
+    case ui::KeyCode::F4: return XK_F4;
+    case ui::KeyCode::F5: return XK_F5;
+    case ui::KeyCode::F6: return XK_F6;
+    case ui::KeyCode::F7: return XK_F7;
+    case ui::KeyCode::F8: return XK_F8;
+    case ui::KeyCode::F9: return XK_F9;
+    case ui::KeyCode::F10: return XK_F10;
+    case ui::KeyCode::F11: return XK_F11;
+    case ui::KeyCode::F12: return XK_F12;
+    default: return NoSymbol;
+    }
+}
+
+// Convert ui::KeyModifier to X11 modifier mask
+unsigned int modifiers_to_x11(ui::KeyModifier mods)
+{
+    unsigned int x11_mods = 0;
+    if (ui::has_modifier(mods, ui::KeyModifier::Ctrl))
+        x11_mods |= ControlMask;
+    if (ui::has_modifier(mods, ui::KeyModifier::Alt))
+        x11_mods |= Mod1Mask;
+    if (ui::has_modifier(mods, ui::KeyModifier::Shift))
+        x11_mods |= ShiftMask;
+    if (ui::has_modifier(mods, ui::KeyModifier::Super))
+        x11_mods |= Mod4Mask;
+    return x11_mods;
+}
+
+// X11 error handler for catching grab errors
+static bool g_grab_error_occurred = false;
+static int grab_error_handler(Display* /*display*/, XErrorEvent* event)
+{
+    if (event->error_code == BadAccess) {
+        g_grab_error_occurred = true;
+    }
+    return 0;
+}
+
+} // anonymous namespace
+
+bool PlatformWindow::register_global_hotkey(const ui::KeyboardEvent &hotkey)
+{
+    // Unregister any existing hotkey first
+    if (hotkey_registered) {
+        unregister_global_hotkey();
+    }
+
+    KeySym keysym = keycode_to_keysym(hotkey.key);
+    if (keysym == NoSymbol) {
+        LOG_ERROR("Cannot convert key to X11 KeySym");
+        return false;
+    }
+
+    ::KeyCode keycode = XKeysymToKeycode(display, keysym);
+    if (keycode == 0) {
+        LOG_ERROR("Cannot convert KeySym to X11 KeyCode");
+        return false;
+    }
+
+    unsigned int x11_mods = modifiers_to_x11(hotkey.modifiers);
+    ::Window root = DefaultRootWindow(display);
+
+    // Install error handler to catch BadAccess
+    g_grab_error_occurred = false;
+    auto old_handler = XSetErrorHandler(grab_error_handler);
+
+    // Grab the key on the root window
+    XGrabKey(display, keycode, x11_mods, root, True,
+             GrabModeAsync, GrabModeAsync);
+
+    // Sync to catch any errors from the primary grab
+    XSync(display, False);
+
+    if (g_grab_error_occurred) {
+        XSetErrorHandler(old_handler);
+        LOG_ERROR("XGrabKey failed - hotkey may already be in use by another application");
+        return false;
+    }
+
+    // Also try to grab with NumLock (Mod2Mask) and CapsLock (LockMask) to handle those states
+    // These are best-effort - if they fail (e.g., already grabbed), we continue anyway
+    g_grab_error_occurred = false;
+    XGrabKey(display, keycode, x11_mods | Mod2Mask, root, True,
+             GrabModeAsync, GrabModeAsync);
+    XGrabKey(display, keycode, x11_mods | LockMask, root, True,
+             GrabModeAsync, GrabModeAsync);
+    XGrabKey(display, keycode, x11_mods | Mod2Mask | LockMask, root, True,
+             GrabModeAsync, GrabModeAsync);
+
+    // Sync and ignore errors from the extra modifier grabs
+    XSync(display, False);
+
+    // Restore original error handler
+    XSetErrorHandler(old_handler);
+
+    hotkey_registered = true;
+    hotkey_keycode = keycode;
+    hotkey_modifiers = x11_mods;
+
+    LOG_INFO("Registered global hotkey (keycode=%d, mods=0x%x)", keycode, x11_mods);
+    return true;
+}
+
+void PlatformWindow::unregister_global_hotkey()
+{
+    if (!hotkey_registered) {
+        return;
+    }
+
+    ::Window root = DefaultRootWindow(display);
+
+    // Ungrab all the modifier combinations we grabbed
+    XUngrabKey(display, hotkey_keycode, hotkey_modifiers, root);
+    XUngrabKey(display, hotkey_keycode, hotkey_modifiers | Mod2Mask, root);
+    XUngrabKey(display, hotkey_keycode, hotkey_modifiers | LockMask, root);
+    XUngrabKey(display, hotkey_keycode, hotkey_modifiers | Mod2Mask | LockMask, root);
+
+    XFlush(display);
+
+    hotkey_registered = false;
+    hotkey_keycode = 0;
+    hotkey_modifiers = 0;
+
+    LOG_INFO("Unregistered global hotkey");
 }
 
 #endif // PLATFORM_X11

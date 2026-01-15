@@ -139,6 +139,11 @@ class PlatformWindow
 
     unsigned int cached_surface_width = 0;
     unsigned int cached_surface_height = 0;
+
+    // Global hotkey tracking
+    bool hotkey_registered = false;
+    KeyCode hotkey_keycode = 0;  // X11 KeyCode
+    unsigned int hotkey_modifiers = 0;
 #elif defined(PLATFORM_WAYLAND)
     wl_display *display;
     wl_compositor *compositor;
