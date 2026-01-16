@@ -294,16 +294,16 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         const auto &item = state.items[idx];
 
         // Determine hotkey hint: use item's hotkey if set, otherwise show
-        // Ctrl+1-9 for visible items at positions 0-8
+        // Ctrl+1-0 for visible items at positions 0-9
         std::string hotkey_hint;
         if (item.hotkey.has_value()) {
             hotkey_hint = to_string(*item.hotkey);
         } else if (idx >= state.visible_range_offset &&
-                   idx < state.visible_range_offset + 9 &&
+                   idx < state.visible_range_offset + 10 &&
                    !state.has_errors()) {
-            // Show Ctrl+1-9 hints for first 9 visible items
+            // Show Ctrl+1-0 hints for first 10 visible items
             const size_t visible_pos = idx - state.visible_range_offset;
-            hotkey_hint = "Ctrl+" + std::to_string(visible_pos + 1);
+            hotkey_hint = "Ctrl+" + std::to_string((visible_pos + 1) % 10);
         }
 
         dropdown_items.push_back(DropdownItem{

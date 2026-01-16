@@ -256,7 +256,7 @@ static bool is_ctrl_number(const KeyboardEvent &ev, KeyCode num_key)
            !has_modifier(ev.modifiers, KeyModifier::Super);
 }
 
-// Map Ctrl+1-9 to item index (0-8), returns nullopt if not a Ctrl+number
+// Map Ctrl+1-0 to item index (0-9), returns nullopt if not a Ctrl+number
 static std::optional<size_t> get_ctrl_number_index(const KeyboardEvent &ev)
 {
     if (is_ctrl_number(ev, KeyCode::Num1))
@@ -277,6 +277,8 @@ static std::optional<size_t> get_ctrl_number_index(const KeyboardEvent &ev)
         return 7;
     if (is_ctrl_number(ev, KeyCode::Num9))
         return 8;
+    if (is_ctrl_number(ev, KeyCode::Num0))
+        return 9;
     return std::nullopt;
 }
 

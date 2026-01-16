@@ -26,7 +26,8 @@ struct MonitorInfo {
     int y;
 };
 
-std::optional<MonitorInfo> get_primary_monitor_xrandr(Display *display, int screen)
+std::optional<MonitorInfo> get_primary_monitor_xrandr(Display *display,
+                                                      int screen)
 {
     // Check if XRandR extension is available
     int xrandr_event_base, xrandr_error_base;
@@ -88,12 +89,8 @@ std::optional<MonitorInfo> get_primary_monitor_xrandr(Display *display, int scre
             XRRCrtcInfo *crtc_info =
                 XRRGetCrtcInfo(display, screen_resources, output_info->crtc);
             if (crtc_info) {
-                result = MonitorInfo{
-                    crtc_info->width,
-                    crtc_info->height,
-                    crtc_info->x,
-                    crtc_info->y
-                };
+                result = MonitorInfo{crtc_info->width, crtc_info->height,
+                                     crtc_info->x, crtc_info->y};
                 XRRFreeCrtcInfo(crtc_info);
             }
         }
@@ -139,7 +136,7 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     ;
 
     if (const auto primary_monitor =
-        get_primary_monitor_xrandr(display, screen)) {
+            get_primary_monitor_xrandr(display, screen)) {
         // Use XRandR info
         primary_screen_width = primary_monitor->width;
         primary_screen_height = primary_monitor->height;
@@ -149,8 +146,10 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     } else {
         // Fallback to heuristics
         LOG_INFO("Falling back to heuristic monitor detection");
-        const auto total_width = static_cast<unsigned int>(DisplayWidth(display, screen));
-        const auto total_height = static_cast<unsigned int>(DisplayHeight(display, screen));
+        const auto total_width =
+            static_cast<unsigned int>(DisplayWidth(display, screen));
+        const auto total_height =
+            static_cast<unsigned int>(DisplayHeight(display, screen));
 
         // Simple heuristic for multi-monitor detection:
         // If aspect ratio suggests multiple monitors, estimate primary monitor
@@ -206,9 +205,8 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
     attrs.background_pixel = 0;
     attrs.border_pixel = 0;
     attrs.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask |
-                       ButtonPressMask | ButtonReleaseMask |
-                       PointerMotionMask | EnterWindowMask | LeaveWindowMask |
-                       FocusChangeMask;
+                       ButtonPressMask | ButtonReleaseMask | PointerMotionMask |
+                       EnterWindowMask | LeaveWindowMask | FocusChangeMask;
 
     window = XCreateWindow(display, RootWindow(display, screen), x, y, width,
                            height, 0, vinfo.depth, InputOutput, vinfo.visual,
@@ -248,7 +246,7 @@ PlatformWindow::~PlatformWindow()
     }
 }
 
-void PlatformWindow::resize(const ui::WindowDimension& dimension)
+void PlatformWindow::resize(const ui::WindowDimension &dimension)
 {
     XResizeWindow(display, window, dimension.width, dimension.height);
     height = dimension.height;
@@ -277,7 +275,7 @@ cairo_t *PlatformWindow::get_cairo_context()
     if (surface_cache_valid() && cached_context) {
         return cached_context;
     }
-    
+
     if (cached_context) {
         cairo_destroy(cached_context);
         cached_context = nullptr;
@@ -288,13 +286,16 @@ cairo_t *PlatformWindow::get_cairo_context()
 
     // Create context if we don't have one
     cached_context = cairo_create(surface);
-    if (cached_context == nullptr || cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
-        const int status = cached_context != nullptr ? cairo_status(cached_context) : -1;
+    if (cached_context == nullptr ||
+        cairo_status(cached_context) != CAIRO_STATUS_SUCCESS) {
+        const int status =
+            cached_context != nullptr ? cairo_status(cached_context) : -1;
         if (cached_context != nullptr) {
             cairo_destroy(cached_context);
             cached_context = nullptr;
         }
-        throw std::runtime_error("Failed to create Cairo context, status: " + std::to_string(status));
+        throw std::runtime_error("Failed to create Cairo context, status: " +
+                                 std::to_string(status));
     }
     LOG_DEBUG("Created new Cairo context");
 
@@ -324,15 +325,18 @@ bool PlatformWindow::surface_cache_valid() const
     return true;
 }
 
-cairo_surface_t *PlatformWindow::create_cairo_surface(unsigned int surface_height,
-                                                      unsigned int surface_width)
+cairo_surface_t *
+PlatformWindow::create_cairo_surface(unsigned int surface_height,
+                                     unsigned int surface_width)
 {
     XWindowAttributes window_attrs;
     XGetWindowAttributes(display, window, &window_attrs);
     Visual *visual = window_attrs.visual;
 
     // Create Cairo surface for X11 window
-    return cairo_xlib_surface_create(display, window, visual, static_cast<int>(surface_width), static_cast<int>(surface_height));
+    return cairo_xlib_surface_create(display, window, visual,
+                                     static_cast<int>(surface_width),
+                                     static_cast<int>(surface_height));
 }
 
 std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
@@ -363,24 +367,19 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             XSetInputFocus(display, event.xbutton.window, RevertToParent,
                            CurrentTime);
 
-            // Handle scroll wheel events (Button4 = scroll up, Button5 = scroll down)
+            // Handle scroll wheel events (Button4 = scroll up, Button5 = scroll
+            // down)
             if (event.xbutton.button == Button4) {
                 events.push_back(ui::MouseScrollEvent{
                     .direction = ui::MouseScrollEvent::Direction::Up,
-                    .position = ui::WindowCoord{
-                        .x = event.xbutton.x,
-                        .y = event.xbutton.y
-                    }
-                });
+                    .position = ui::WindowCoord{.x = event.xbutton.x,
+                                                .y = event.xbutton.y}});
                 continue;
             } else if (event.xbutton.button == Button5) {
                 events.push_back(ui::MouseScrollEvent{
                     .direction = ui::MouseScrollEvent::Direction::Down,
-                    .position = ui::WindowCoord{
-                        .x = event.xbutton.x,
-                        .y = event.xbutton.y
-                    }
-                });
+                    .position = ui::WindowCoord{.x = event.xbutton.x,
+                                                .y = event.xbutton.y}});
                 continue;
             }
 
@@ -400,11 +399,8 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             events.push_back(ui::MouseButtonEvent{
                 .button = button,
                 .pressed = true,
-                .position = ui::WindowCoord{
-                    .x = event.xbutton.x,
-                    .y = event.xbutton.y
-                }
-            });
+                .position = ui::WindowCoord{.x = event.xbutton.x,
+                                            .y = event.xbutton.y}});
         } else if (event.type == ButtonRelease) {
             // Generate mouse button release event
             ui::MouseButtonEvent::Button button;
@@ -422,32 +418,26 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             events.push_back(ui::MouseButtonEvent{
                 .button = button,
                 .pressed = false,
-                .position = ui::WindowCoord{
-                    .x = event.xbutton.x,
-                    .y = event.xbutton.y
-                }
-            });
+                .position = ui::WindowCoord{.x = event.xbutton.x,
+                                            .y = event.xbutton.y}});
         } else if (event.type == MotionNotify) {
             events.push_back(ui::MousePositionEvent{
-                .position = ui::WindowCoord{
-                    .x = event.xmotion.x,
-                    .y = event.xmotion.y
-                }
-            });
+                .position = ui::WindowCoord{.x = event.xmotion.x,
+                                            .y = event.xmotion.y}});
         } else if (event.type == EnterNotify) {
             events.push_back(ui::CursorEnterEvent{
-                .position = ui::WindowCoord{
-                    .x = event.xcrossing.x,
-                    .y = event.xcrossing.y
-                }
-            });
+                .position = ui::WindowCoord{.x = event.xcrossing.x,
+                                            .y = event.xcrossing.y}});
         } else if (event.type == LeaveNotify) {
             events.push_back(ui::CursorLeaveEvent{});
         } else if (event.type == KeyPress) {
             // Check if this is our registered global hotkey
             if (hotkey_registered) {
-                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for comparison
-                auto clean_state = event.xkey.state & ~static_cast<unsigned int>(Mod2Mask | LockMask);
+                // Mask out NumLock (Mod2Mask) and CapsLock (LockMask) for
+                // comparison
+                auto clean_state =
+                    event.xkey.state &
+                    ~static_cast<unsigned int>(Mod2Mask | LockMask);
                 if (event.xkey.keycode == hotkey_keycode &&
                     clean_state == hotkey_modifiers) {
                     events.push_back(ui::HotkeyEvent{});
@@ -456,47 +446,78 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
             }
 
             const KeySym keysym = XLookupKeysym(&event.xkey, 0);
-            const ui::KeyModifier modifiers = x11_to_modifiers(event.xkey.state);
+            const ui::KeyModifier modifiers =
+                x11_to_modifiers(event.xkey.state);
 
             ui::KeyCode key = ui::KeyCode::NoKey;
 
             // Map special keys
             switch (keysym) {
-            case XK_Escape: key = ui::KeyCode::Escape; break;
-            case XK_Up: key = ui::KeyCode::Up; break;
-            case XK_Down: key = ui::KeyCode::Down; break;
-            case XK_Tab: key = ui::KeyCode::Tab; break;
-            case XK_Left: key = ui::KeyCode::Left; break;
-            case XK_Right: key = ui::KeyCode::Right; break;
-            case XK_Home: key = ui::KeyCode::Home; break;
-            case XK_End: key = ui::KeyCode::End; break;
-            case XK_Return: key = ui::KeyCode::Return; break;
-            case XK_BackSpace: key = ui::KeyCode::BackSpace; break;
-            case XK_Delete: key = ui::KeyCode::Delete; break;
-            default: break;
+            case XK_Escape:
+                key = ui::KeyCode::Escape;
+                break;
+            case XK_Up:
+                key = ui::KeyCode::Up;
+                break;
+            case XK_Down:
+                key = ui::KeyCode::Down;
+                break;
+            case XK_Tab:
+                key = ui::KeyCode::Tab;
+                break;
+            case XK_Left:
+                key = ui::KeyCode::Left;
+                break;
+            case XK_Right:
+                key = ui::KeyCode::Right;
+                break;
+            case XK_Home:
+                key = ui::KeyCode::Home;
+                break;
+            case XK_End:
+                key = ui::KeyCode::End;
+                break;
+            case XK_Return:
+                key = ui::KeyCode::Return;
+                break;
+            case XK_BackSpace:
+                key = ui::KeyCode::BackSpace;
+                break;
+            case XK_Delete:
+                key = ui::KeyCode::Delete;
+                break;
+            default:
+                break;
             }
 
             if (key != ui::KeyCode::NoKey) {
-                events.push_back(ui::KeyboardEvent{
-                    .key = key,
-                    .modifiers = modifiers,
-                    .character = std::nullopt});
+                events.push_back(ui::KeyboardEvent{.key = key,
+                                                   .modifiers = modifiers,
+                                                   .character = std::nullopt});
             } else if (keysym >= XK_a && keysym <= XK_z &&
                        ui::has_modifier(modifiers, ui::KeyModifier::Ctrl)) {
                 // Handle Ctrl+letter combinations (for hotkeys like Ctrl+Q)
                 // XLookupString won't give us the letter when Ctrl is held
                 key = static_cast<ui::KeyCode>(
                     static_cast<int>(ui::KeyCode::A) + (keysym - XK_a));
-                events.push_back(ui::KeyboardEvent{
-                    .key = key,
-                    .modifiers = modifiers,
-                    .character = std::nullopt});
+                events.push_back(ui::KeyboardEvent{.key = key,
+                                                   .modifiers = modifiers,
+                                                   .character = std::nullopt});
+            } else if (keysym >= XK_0 && keysym <= XK_9 &&
+                       ui::has_modifier(modifiers, ui::KeyModifier::Ctrl)) {
+                // Handle Ctrl+number combinations (for hotkeys like Ctrl+1-9)
+                // XLookupString won't give us the number when Ctrl is held
+                key = static_cast<ui::KeyCode>(
+                    static_cast<int>(ui::KeyCode::Num0) + (keysym - XK_0));
+                events.push_back(ui::KeyboardEvent{.key = key,
+                                                   .modifiers = modifiers,
+                                                   .character = std::nullopt});
             } else {
                 // Handle regular character input
                 constexpr int BUFFER_SIZE = 32;
                 std::array<char, BUFFER_SIZE> char_buffer{};
-                const auto len =
-                    static_cast<size_t>(XLookupString(&event.xkey, char_buffer.data(),
+                const auto len = static_cast<size_t>(
+                    XLookupString(&event.xkey, char_buffer.data(),
                                   char_buffer.size(), nullptr, nullptr));
                 if (len > 0) {
                     // Only add printable characters
@@ -520,9 +541,10 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
 void PlatformWindow::commit_surface()
 {
     // Get the cairo surface to flush
-    cairo_surface_t* cairo_surface = get_cairo_surface();
+    cairo_surface_t *cairo_surface = get_cairo_surface();
     if (cairo_surface == nullptr) {
-        throw std::runtime_error("Cannot commit surface: no cairo surface available");
+        throw std::runtime_error(
+            "Cannot commit surface: no cairo surface available");
     }
 
     // Flush cairo operations to the underlying buffer
@@ -560,76 +582,138 @@ bool PlatformWindow::is_visible() const
 // PlatformWindow - Global Hotkey
 // ============================================================================
 
-namespace {
+namespace
+{
 
 // Convert ui::KeyCode to X11 KeySym
 KeySym keycode_to_keysym(ui::KeyCode key)
 {
     switch (key) {
-    case ui::KeyCode::Escape: return XK_Escape;
-    case ui::KeyCode::Return: return XK_Return;
-    case ui::KeyCode::BackSpace: return XK_BackSpace;
-    case ui::KeyCode::Delete: return XK_Delete;
-    case ui::KeyCode::Tab: return XK_Tab;
-    case ui::KeyCode::Space: return XK_space;
-    case ui::KeyCode::Up: return XK_Up;
-    case ui::KeyCode::Down: return XK_Down;
-    case ui::KeyCode::Left: return XK_Left;
-    case ui::KeyCode::Right: return XK_Right;
-    case ui::KeyCode::Home: return XK_Home;
-    case ui::KeyCode::End: return XK_End;
+    case ui::KeyCode::Escape:
+        return XK_Escape;
+    case ui::KeyCode::Return:
+        return XK_Return;
+    case ui::KeyCode::BackSpace:
+        return XK_BackSpace;
+    case ui::KeyCode::Delete:
+        return XK_Delete;
+    case ui::KeyCode::Tab:
+        return XK_Tab;
+    case ui::KeyCode::Space:
+        return XK_space;
+    case ui::KeyCode::Up:
+        return XK_Up;
+    case ui::KeyCode::Down:
+        return XK_Down;
+    case ui::KeyCode::Left:
+        return XK_Left;
+    case ui::KeyCode::Right:
+        return XK_Right;
+    case ui::KeyCode::Home:
+        return XK_Home;
+    case ui::KeyCode::End:
+        return XK_End;
     // Letters A-Z
-    case ui::KeyCode::A: return XK_a;
-    case ui::KeyCode::B: return XK_b;
-    case ui::KeyCode::C: return XK_c;
-    case ui::KeyCode::D: return XK_d;
-    case ui::KeyCode::E: return XK_e;
-    case ui::KeyCode::F: return XK_f;
-    case ui::KeyCode::G: return XK_g;
-    case ui::KeyCode::H: return XK_h;
-    case ui::KeyCode::I: return XK_i;
-    case ui::KeyCode::J: return XK_j;
-    case ui::KeyCode::K: return XK_k;
-    case ui::KeyCode::L: return XK_l;
-    case ui::KeyCode::M: return XK_m;
-    case ui::KeyCode::N: return XK_n;
-    case ui::KeyCode::O: return XK_o;
-    case ui::KeyCode::P: return XK_p;
-    case ui::KeyCode::Q: return XK_q;
-    case ui::KeyCode::R: return XK_r;
-    case ui::KeyCode::S: return XK_s;
-    case ui::KeyCode::T: return XK_t;
-    case ui::KeyCode::U: return XK_u;
-    case ui::KeyCode::V: return XK_v;
-    case ui::KeyCode::W: return XK_w;
-    case ui::KeyCode::X: return XK_x;
-    case ui::KeyCode::Y: return XK_y;
-    case ui::KeyCode::Z: return XK_z;
+    case ui::KeyCode::A:
+        return XK_a;
+    case ui::KeyCode::B:
+        return XK_b;
+    case ui::KeyCode::C:
+        return XK_c;
+    case ui::KeyCode::D:
+        return XK_d;
+    case ui::KeyCode::E:
+        return XK_e;
+    case ui::KeyCode::F:
+        return XK_f;
+    case ui::KeyCode::G:
+        return XK_g;
+    case ui::KeyCode::H:
+        return XK_h;
+    case ui::KeyCode::I:
+        return XK_i;
+    case ui::KeyCode::J:
+        return XK_j;
+    case ui::KeyCode::K:
+        return XK_k;
+    case ui::KeyCode::L:
+        return XK_l;
+    case ui::KeyCode::M:
+        return XK_m;
+    case ui::KeyCode::N:
+        return XK_n;
+    case ui::KeyCode::O:
+        return XK_o;
+    case ui::KeyCode::P:
+        return XK_p;
+    case ui::KeyCode::Q:
+        return XK_q;
+    case ui::KeyCode::R:
+        return XK_r;
+    case ui::KeyCode::S:
+        return XK_s;
+    case ui::KeyCode::T:
+        return XK_t;
+    case ui::KeyCode::U:
+        return XK_u;
+    case ui::KeyCode::V:
+        return XK_v;
+    case ui::KeyCode::W:
+        return XK_w;
+    case ui::KeyCode::X:
+        return XK_x;
+    case ui::KeyCode::Y:
+        return XK_y;
+    case ui::KeyCode::Z:
+        return XK_z;
     // Numbers 0-9
-    case ui::KeyCode::Num0: return XK_0;
-    case ui::KeyCode::Num1: return XK_1;
-    case ui::KeyCode::Num2: return XK_2;
-    case ui::KeyCode::Num3: return XK_3;
-    case ui::KeyCode::Num4: return XK_4;
-    case ui::KeyCode::Num5: return XK_5;
-    case ui::KeyCode::Num6: return XK_6;
-    case ui::KeyCode::Num7: return XK_7;
-    case ui::KeyCode::Num8: return XK_8;
-    case ui::KeyCode::Num9: return XK_9;
+    case ui::KeyCode::Num0:
+        return XK_0;
+    case ui::KeyCode::Num1:
+        return XK_1;
+    case ui::KeyCode::Num2:
+        return XK_2;
+    case ui::KeyCode::Num3:
+        return XK_3;
+    case ui::KeyCode::Num4:
+        return XK_4;
+    case ui::KeyCode::Num5:
+        return XK_5;
+    case ui::KeyCode::Num6:
+        return XK_6;
+    case ui::KeyCode::Num7:
+        return XK_7;
+    case ui::KeyCode::Num8:
+        return XK_8;
+    case ui::KeyCode::Num9:
+        return XK_9;
     // Function keys
-    case ui::KeyCode::F1: return XK_F1;
-    case ui::KeyCode::F2: return XK_F2;
-    case ui::KeyCode::F3: return XK_F3;
-    case ui::KeyCode::F4: return XK_F4;
-    case ui::KeyCode::F5: return XK_F5;
-    case ui::KeyCode::F6: return XK_F6;
-    case ui::KeyCode::F7: return XK_F7;
-    case ui::KeyCode::F8: return XK_F8;
-    case ui::KeyCode::F9: return XK_F9;
-    case ui::KeyCode::F10: return XK_F10;
-    case ui::KeyCode::F11: return XK_F11;
-    case ui::KeyCode::F12: return XK_F12;
-    default: return NoSymbol;
+    case ui::KeyCode::F1:
+        return XK_F1;
+    case ui::KeyCode::F2:
+        return XK_F2;
+    case ui::KeyCode::F3:
+        return XK_F3;
+    case ui::KeyCode::F4:
+        return XK_F4;
+    case ui::KeyCode::F5:
+        return XK_F5;
+    case ui::KeyCode::F6:
+        return XK_F6;
+    case ui::KeyCode::F7:
+        return XK_F7;
+    case ui::KeyCode::F8:
+        return XK_F8;
+    case ui::KeyCode::F9:
+        return XK_F9;
+    case ui::KeyCode::F10:
+        return XK_F10;
+    case ui::KeyCode::F11:
+        return XK_F11;
+    case ui::KeyCode::F12:
+        return XK_F12;
+    default:
+        return NoSymbol;
     }
 }
 
@@ -650,7 +734,7 @@ unsigned int modifiers_to_x11(ui::KeyModifier mods)
 
 // X11 error handler for catching grab errors
 static bool g_grab_error_occurred = false;
-static int grab_error_handler(Display* /*display*/, XErrorEvent* event)
+static int grab_error_handler(Display * /*display*/, XErrorEvent *event)
 {
     if (event->error_code == BadAccess) {
         g_grab_error_occurred = true;
@@ -687,25 +771,27 @@ bool PlatformWindow::register_global_hotkey(const ui::KeyboardEvent &hotkey)
     auto old_handler = XSetErrorHandler(grab_error_handler);
 
     // Grab the key on the root window
-    XGrabKey(display, keycode, x11_mods, root, True,
-             GrabModeAsync, GrabModeAsync);
+    XGrabKey(display, keycode, x11_mods, root, True, GrabModeAsync,
+             GrabModeAsync);
 
     // Sync to catch any errors from the primary grab
     XSync(display, False);
 
     if (g_grab_error_occurred) {
         XSetErrorHandler(old_handler);
-        LOG_ERROR("XGrabKey failed - hotkey may already be in use by another application");
+        LOG_ERROR("XGrabKey failed - hotkey may already be in use by another "
+                  "application");
         return false;
     }
 
-    // Also try to grab with NumLock (Mod2Mask) and CapsLock (LockMask) to handle those states
-    // These are best-effort - if they fail (e.g., already grabbed), we continue anyway
+    // Also try to grab with NumLock (Mod2Mask) and CapsLock (LockMask) to
+    // handle those states These are best-effort - if they fail (e.g., already
+    // grabbed), we continue anyway
     g_grab_error_occurred = false;
-    XGrabKey(display, keycode, x11_mods | Mod2Mask, root, True,
-             GrabModeAsync, GrabModeAsync);
-    XGrabKey(display, keycode, x11_mods | LockMask, root, True,
-             GrabModeAsync, GrabModeAsync);
+    XGrabKey(display, keycode, x11_mods | Mod2Mask, root, True, GrabModeAsync,
+             GrabModeAsync);
+    XGrabKey(display, keycode, x11_mods | LockMask, root, True, GrabModeAsync,
+             GrabModeAsync);
     XGrabKey(display, keycode, x11_mods | Mod2Mask | LockMask, root, True,
              GrabModeAsync, GrabModeAsync);
 
@@ -719,7 +805,8 @@ bool PlatformWindow::register_global_hotkey(const ui::KeyboardEvent &hotkey)
     hotkey_keycode = keycode;
     hotkey_modifiers = x11_mods;
 
-    LOG_INFO("Registered global hotkey (keycode=%d, mods=0x%x)", keycode, x11_mods);
+    LOG_INFO("Registered global hotkey (keycode=%d, mods=0x%x)", keycode,
+             x11_mods);
     return true;
 }
 
@@ -735,7 +822,8 @@ void PlatformWindow::unregister_global_hotkey()
     XUngrabKey(display, hotkey_keycode, hotkey_modifiers, root);
     XUngrabKey(display, hotkey_keycode, hotkey_modifiers | Mod2Mask, root);
     XUngrabKey(display, hotkey_keycode, hotkey_modifiers | LockMask, root);
-    XUngrabKey(display, hotkey_keycode, hotkey_modifiers | Mod2Mask | LockMask, root);
+    XUngrabKey(display, hotkey_keycode, hotkey_modifiers | Mod2Mask | LockMask,
+               root);
 
     XFlush(display);
 

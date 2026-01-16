@@ -1,7 +1,7 @@
 ﻿#include "config.h"
+#include "fuzzy.h"
 #include "logger.h"
 #include "ui.h"
-#include "fuzzy.h"
 #include "utility.h"
 #include "window.h"
 
@@ -10,14 +10,13 @@
 #include <string>
 #include <vector>
 
+#include <d2d1.h>
+#include <dwrite.h>
 #include <windows.h>
 #include <windowsx.h>
 #include <wrl/client.h>
-#include <d2d1.h>
-#include <dwrite.h>
 
 using Microsoft::WRL::ComPtr;
-
 
 class D2DResources
 {
@@ -73,8 +72,6 @@ class D2DResources
     ComPtr<IDWriteTextFormat> m_textFormat;
     float m_fontSize = 14.0f;
 };
-
-
 
 static std::wstring utf8_to_wide(const std::string &utf8)
 {
@@ -162,8 +159,6 @@ static D2D1_SIZE_F measure_text(IDWriteFactory *factory,
     layout->GetMetrics(&metrics);
     return D2D1::SizeF(metrics.width, metrics.height);
 }
-
-
 
 // ============================================================================
 // Window Procedure (static, forward declaration)
@@ -263,7 +258,6 @@ static PlatformWindowData *getWindowData(HWND hwnd)
     return reinterpret_cast<PlatformWindowData *>(
         GetWindowLongPtr(hwnd, GWLP_USERDATA));
 }
-
 
 // ============================================================================
 // PlatformWindow - Constructor / Destructor
@@ -376,7 +370,7 @@ PlatformWindow::~PlatformWindow()
 // PlatformWindow - Resize
 // ============================================================================
 
-void PlatformWindow::resize(const ui::WindowDimension& dimensions)
+void PlatformWindow::resize(const ui::WindowDimension &dimensions)
 {
     if (dimensions.width == width && dimensions.height == height) {
         return;
@@ -470,8 +464,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         state.has_errors() ? data->errorBackgroundBrush.Get()
                            : data->inputBackgroundBrush.Get();
     ID2D1SolidColorBrush *inputStrokeBrush = state.has_errors()
-                                                  ? data->errorBorderBrush.Get()
-                                                  : data->selectionBrush.Get();
+                                                 ? data->errorBorderBrush.Get()
+                                                 : data->selectionBrush.Get();
 
     draw_rounded_rect(rt, inputFillBrush, ui::BORDER_WIDTH, ui::BORDER_WIDTH,
                       content_width, input_height, ui::CORNER_RADIUS, true);
@@ -598,8 +592,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         if (is_selected) {
             draw_rounded_rect(rt, data->selectionBrush.Get(), ui::BORDER_WIDTH,
                               y_pos, content_width, item_height,
-                              ui::CORNER_RADIUS,
-                              true);
+                              ui::CORNER_RADIUS, true);
         }
 
         // Title text
@@ -612,7 +605,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
         // Apply bold highlighting for fuzzy matches
         if (query_opt.has_value() && !query_lower.empty()) {
-            
+
             const auto match_positions =
                 fuzzy::fuzzy_match_optimal(state.items[i].title, query_lower);
             const auto wide_positions =
@@ -638,8 +631,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         if (!state.items[i].description.empty()) {
             std::wstring desc = utf8_to_wide(state.items[i].description);
             float desc_x = ui::BORDER_WIDTH + ui::TEXT_MARGIN +
-                           titleMetrics.width +
-                           ui::DESCRIPTION_SPACING;
+                           titleMetrics.width + ui::DESCRIPTION_SPACING;
             float available_width = content_width - ui::TEXT_MARGIN -
                                     titleMetrics.width -
                                     ui::DESCRIPTION_SPACING - ui::TEXT_MARGIN;
@@ -654,7 +646,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                 if (query_opt.has_value() && !query_lower.empty()) {
                     const auto match_positions = fuzzy::fuzzy_match_optimal(
                         state.items[i].description, query_lower);
-                    const auto wide_positions = utf8_positions_to_utf16(state.items[i].description, match_positions);
+                    const auto wide_positions = utf8_positions_to_utf16(
+                        state.items[i].description, match_positions);
                     for (size_t pos : wide_positions) {
                         DWRITE_TEXT_RANGE range = {static_cast<UINT32>(pos), 1};
                         descLayout->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD,
@@ -680,16 +673,18 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             }
         }
 
-        // Draw hotkey hint on the right side of the item (only for non-error items)
-        // Use item's hotkey if set, otherwise show Ctrl+1-9 for visible items at positions 0-8
+        // Draw hotkey hint on the right side of the item (only for non-error
+        // items) Use item's hotkey if set, otherwise show Ctrl+1-9 for visible
+        // items at positions 0-8
         std::string hotkey_hint;
         if (!state.has_errors() && i < state.items.size() &&
             state.items[i].hotkey.has_value()) {
             hotkey_hint = to_string(*state.items[i].hotkey);
         } else if (!state.has_errors() && i >= state.visible_range_offset &&
-                   i < state.visible_range_offset + 9) {
+                   i < state.visible_range_offset + 10) {
             const size_t visible_pos = i - state.visible_range_offset;
-            hotkey_hint = "Ctrl+" + std::to_string(visible_pos + 1);
+            // Maps to 1,2,3,...,8,9,0
+            hotkey_hint = "Ctrl+" + std::to_string((visible_pos + 1) % 10);
         }
 
         if (!hotkey_hint.empty()) {
@@ -702,10 +697,9 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             float hint_y = y_pos + (item_height - hint_size.height) / 2.0f;
 
             ID2D1Brush *hintBrush =
-                is_selected ? static_cast<ID2D1Brush *>(
-                                  data->selectionDescBrush.Get())
-                            : static_cast<ID2D1Brush *>(
-                                  data->descriptionBrush.Get());
+                is_selected
+                    ? static_cast<ID2D1Brush *>(data->selectionDescBrush.Get())
+                    : static_cast<ID2D1Brush *>(data->descriptionBrush.Get());
 
             rt->DrawText(hint_wide.c_str(),
                          static_cast<UINT32>(hint_wide.length()), textFormat,
@@ -754,16 +748,12 @@ void PlatformWindow::show()
     SetFocus(hwnd);
 }
 
-void PlatformWindow::hide()
-{
-    ShowWindow(hwnd, SW_HIDE);
-}
+void PlatformWindow::hide() { ShowWindow(hwnd, SW_HIDE); }
 
 bool PlatformWindow::is_visible() const
 {
     return IsWindowVisible(hwnd) != FALSE;
 }
-
 
 // === Global Hotkey Implementation ===
 
@@ -959,7 +949,6 @@ std::vector<ui::UserInputEvent> PlatformWindow::get_input_events(bool blocking)
     return events;
 }
 
-
 static ui::KeyModifier get_active_modifiers()
 {
     ui::KeyModifier mods = ui::KeyModifier::NoModifier;
@@ -1001,7 +990,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
     case WM_KILLFOCUS:
         // Window lost focus - send Escape to trigger close/hide
-        // Only do this if window is visible to avoid double-toggle in background mode
+        // Only do this if window is visible to avoid double-toggle in
+        // background mode
         if (data && IsWindowVisible(hwnd)) {
             ui::KeyboardEvent event{.key = ui::KeyCode::Escape,
                                     .modifiers = ui::KeyModifier::NoModifier,
@@ -1064,6 +1054,13 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
                 event.key = static_cast<ui::KeyCode>(
                     static_cast<int>(ui::KeyCode::A) + (wParam - 'A'));
                 data->pendingEvents.push_back(event);
+            } else if (ui::has_modifier(event.modifiers,
+                                        ui::KeyModifier::Ctrl) &&
+                       wParam >= '0' && wParam <= '9') {
+                // Set proper KeyCode enum for hotkey matching
+                event.key = static_cast<ui::KeyCode>(
+                    static_cast<int>(ui::KeyCode::Num0) + (wParam - '0'));
+                data->pendingEvents.push_back(event);
             }
             return 0;
         }
@@ -1089,7 +1086,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
         ui::KeyboardEvent event{
             .key = ui::KeyCode::Character,
-            .modifiers = ui::KeyModifier::NoModifier, // No modifier for typed characters
+            .modifiers =
+                ui::KeyModifier::NoModifier, // No modifier for typed characters
             .character = static_cast<char>(wParam)};
 
         data->pendingEvents.push_back(event);
@@ -1106,8 +1104,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         if (!data->mouseInside) {
             data->mouseInside = true;
             data->pendingEvents.push_back(ui::CursorEnterEvent{
-                .position = ui::WindowCoord{.x = x, .y = y}
-            });
+                .position = ui::WindowCoord{.x = x, .y = y}});
 
             // Track mouse leave events
             TRACKMOUSEEVENT tme = {};
@@ -1118,8 +1115,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         }
 
         data->pendingEvents.push_back(ui::MousePositionEvent{
-            .position = ui::WindowCoord{.x = x, .y = y}
-        });
+            .position = ui::WindowCoord{.x = x, .y = y}});
         return 0;
     }
 
@@ -1152,11 +1148,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         int x = GET_X_LPARAM(lParam);
         int y = GET_Y_LPARAM(lParam);
 
-        data->pendingEvents.push_back(ui::MouseButtonEvent{
-            .button = button,
-            .pressed = true,
-            .position = ui::WindowCoord{.x = x, .y = y}
-        });
+        data->pendingEvents.push_back(
+            ui::MouseButtonEvent{.button = button,
+                                 .pressed = true,
+                                 .position = ui::WindowCoord{.x = x, .y = y}});
         return 0;
     }
 
@@ -1178,11 +1173,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
         int x = GET_X_LPARAM(lParam);
         int y = GET_Y_LPARAM(lParam);
 
-        data->pendingEvents.push_back(ui::MouseButtonEvent{
-            .button = button,
-            .pressed = false,
-            .position = ui::WindowCoord{.x = x, .y = y}
-        });
+        data->pendingEvents.push_back(
+            ui::MouseButtonEvent{.button = button,
+                                 .pressed = false,
+                                 .position = ui::WindowCoord{.x = x, .y = y}});
         return 0;
     }
 
@@ -1205,8 +1199,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam,
 
         data->pendingEvents.push_back(ui::MouseScrollEvent{
             .direction = direction,
-            .position = ui::WindowCoord{.x = static_cast<int>(pt.x), .y = static_cast<int>(pt.y)}
-        });
+            .position = ui::WindowCoord{.x = static_cast<int>(pt.x),
+                                        .y = static_cast<int>(pt.y)}});
         return 0;
     }
 
