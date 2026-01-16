@@ -676,6 +676,40 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                                    descLayout.Get(), descDrawBrush);
             }
         }
+
+        // Draw hotkey hint on the right side of the item
+        // Use item's hotkey if set, otherwise show Ctrl+1-9 for visible items at positions 0-8
+        std::string hotkey_hint;
+        if (state.items[i].hotkey.has_value()) {
+            hotkey_hint = to_string(*state.items[i].hotkey);
+        } else if (i >= state.visible_range_offset &&
+                   i < state.visible_range_offset + 9) {
+            const size_t visible_pos = i - state.visible_range_offset;
+            hotkey_hint = "Ctrl+" + std::to_string(visible_pos + 1);
+        }
+
+        if (!hotkey_hint.empty()) {
+            std::wstring hint_wide = utf8_to_wide(hotkey_hint);
+            auto hint_size = measure_text(dwFactory, textFormat, hint_wide);
+
+            // Position at far right of item area
+            float hint_x = ui::BORDER_WIDTH + content_width - hint_size.width -
+                           ui::TEXT_MARGIN;
+            float hint_y = y_pos + (item_height - hint_size.height) / 2.0f;
+
+            ID2D1Brush *hintBrush =
+                is_selected ? static_cast<ID2D1Brush *>(
+                                  data->selectionDescBrush.Get())
+                            : static_cast<ID2D1Brush *>(
+                                  data->descriptionBrush.Get());
+
+            rt->DrawText(hint_wide.c_str(),
+                         static_cast<UINT32>(hint_wide.length()), textFormat,
+                         D2D1::RectF(hint_x, hint_y,
+                                     hint_x + hint_size.width + 10,
+                                     hint_y + hint_size.height + 10),
+                         hintBrush);
+        }
     }
 
     HRESULT hr = rt->EndDraw();
