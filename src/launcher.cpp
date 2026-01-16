@@ -33,8 +33,9 @@ int main()
     Logger::getInstance().init();
     LOG_INFO("Khala launcher starting up");
 
-    const Config config = Config::load(Config::default_path());
-    const defer save_config([config]() noexcept {
+    ui::State state;
+    auto [config, config_warnings] = load_config(Config::default_path());
+    const defer save_config([&config]() noexcept {
         try {
             config.save(config.config_path);
         } catch (const std::exception &e) {
@@ -42,6 +43,9 @@ int main()
                       config.config_path.c_str(), e.what());
         }
     });
+    for (const auto &warning : config_warnings) {
+        state.push_error(warning);
+    }
     const auto global_actions = get_global_actions(config);
 
     PlatformWindow window(
@@ -54,7 +58,6 @@ int main()
             .y = config.height_ratio,
         });
 
-    ui::State state;
 
     // Background mode setup
     if (config.background_mode) {
@@ -175,10 +178,9 @@ int main()
                         const auto cmd_result =
                             process_command(req.command, config);
                         if (!cmd_result.has_value()) {
-                            state.set_error(cmd_result.error());
+                            state.push_error(cmd_result.error());
                             return;
                         }
-                        state.clear_error();
                         if (cmd_result->has_value()) {
                             // Command returned an effect - process it
                             effects.push_back(*cmd_result.value());
@@ -306,7 +308,6 @@ int main()
                         state.selected_item_index = 0;
                         state.visible_range_offset = 0;
                         state.mode = ui::FileSearch{.query = ""};
-                        state.clear_error();
 
                         // Reset ranker to empty query
                         ranker.update_query("");

@@ -139,7 +139,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     // Border
     set_color(cr, config.input_background_color);
     cairo_set_line_width(cr, 1.0);
-    draw_rounded_rect(cr, 0.0, 0.0, width - 1.0, height - 1.0, ui::CORNER_RADIUS, Corner::All);
+    draw_rounded_rect(cr, 0.0, 0.0, width - 1.0, height - 1.0,
+                      ui::CORNER_RADIUS, Corner::All);
     cairo_stroke(cr);
 
     // Draw Input Area
@@ -147,15 +148,15 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     draw_rounded_rect(cr, ui::BORDER_WIDTH, ui::BORDER_WIDTH, content_width,
                       input_height, ui::CORNER_RADIUS, Corner::All);
 
-    // Use error styling if there's an error, otherwise normal styling
-    if (state.has_error()) {
+    // Use error styling if there are errors, otherwise normal styling
+    if (state.has_errors()) {
         cairo_set_source_rgba(cr, 1.0, 0.8, 0.8, 1.0); // Light red background
     } else {
         set_color(cr, config.input_background_color);
     }
     cairo_fill_preserve(cr);
 
-    if (state.has_error()) {
+    if (state.has_errors()) {
         cairo_set_source_rgba(cr, 0.8, 0.0, 0.0, 1.0); // Dark red border
     } else {
         set_color(cr, config.selection_color);
@@ -164,13 +165,13 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
     // Draw search prompt and buffer
     std::string display_text;
-    if (state.has_error()) {
-        // Show error message when there's an error
-        display_text = *state.error_message;
-    } else if (std::holds_alternative<ui::ContextMenu>(state.mode)) {
+    if (std::holds_alternative<ui::ErrorMode>(state.mode)) {
+        display_text = "Encountered " + std::to_string(state.items.size()) +
+                       " error(s). Press any key to dismiss.";
+    } else if (const auto *context_menu =
+                   std::get_if<ui::ContextMenu>(&state.mode)) {
         // Show selected item title when in context menu
-        display_text =
-            std::get<ui::ContextMenu>(state.mode).title + " › Actions";
+        display_text = context_menu->title + " › Actions";
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
@@ -198,7 +199,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         calculate_text_y_centered(input_area_y, input_height, text_height);
 
     // Use dark red text for errors, normal text color otherwise
-    if (state.has_error()) {
+    if (state.has_errors()) {
         cairo_set_source_rgba(cr, 0.7, 0.0, 0.0, 1.0); // Dark red text
     } else {
         set_color(cr, config.text_color);
@@ -253,9 +254,9 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         set_color(cr, config.text_color);
     }
 
-    // Draw cursor at cursor position when not in context menu and no error
+    // Draw cursor at cursor position when not in context menu or error mode
     if (!std::holds_alternative<ui::ContextMenu>(state.mode) &&
-        !state.has_error()) {
+        !std::holds_alternative<ui::ErrorMode>(state.mode)) {
         // Get width of text up to cursor position
         const std::string text_before_cursor =
             state.input_buffer.substr(0, state.cursor_position);
@@ -298,7 +299,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         if (item.hotkey.has_value()) {
             hotkey_hint = to_string(*item.hotkey);
         } else if (idx >= state.visible_range_offset &&
-                   idx < state.visible_range_offset + 9) {
+                   idx < state.visible_range_offset + 9 &&
+                   !state.has_errors()) {
             // Show Ctrl+1-9 hints for first 9 visible items
             const size_t visible_pos = idx - state.visible_range_offset;
             hotkey_hint = "Ctrl+" + std::to_string(visible_pos + 1);
@@ -311,8 +313,9 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                 query_opt ? fuzzy::fuzzy_match_optimal(item.title, query_lower)
                           : std::vector<size_t>{},
             .description_match_positions =
-                query_opt ? fuzzy::fuzzy_match_optimal(item.description, query_lower)
-                          : std::vector<size_t>{},
+                query_opt
+                    ? fuzzy::fuzzy_match_optimal(item.description, query_lower)
+                    : std::vector<size_t>{},
             .hotkey_hint = hotkey_hint});
     }
     const auto selection_index = state.selected_item_index;
@@ -424,7 +427,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                 set_color(cr, config.description_color);
             }
 
-            pango_layout_set_text(layout, dropdown_items.at(i).hotkey_hint.c_str(), -1);
+            pango_layout_set_text(layout,
+                                  dropdown_items.at(i).hotkey_hint.c_str(), -1);
 
             // Get hint text dimensions
             int hint_width = 0;

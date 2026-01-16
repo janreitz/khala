@@ -97,10 +97,15 @@ struct Config {
     static fs::path default_path();
     fs::path config_path;
 
-    static Config load(const fs::path &path);
     void save(const fs::path &path) const;
-
 };
+
+struct ConfigLoadResult {
+    Config config;
+    std::vector<std::string> warnings;
+};
+
+ConfigLoadResult load_config(const fs::path &path);
 
 void load_theme(const std::string &theme_name,
                 const std::vector<fs::path> &theme_dirs, Config &config);

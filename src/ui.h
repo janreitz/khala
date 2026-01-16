@@ -58,7 +58,10 @@ struct CommandSearch {
     std::string query;
 };
 
-using AppMode = std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch>;
+struct ErrorMode {
+};
+
+using AppMode = std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch, ErrorMode>;
 
 std::optional<std::string> get_query(const AppMode &mode);
 
@@ -79,17 +82,16 @@ struct State {
     // Runtime state for background mode (may differ from config if hotkey registration failed)
     bool background_mode_active = false;
 
-    // Error display
-    std::optional<std::string> error_message;
-
     // Cache of last file search update for restoration when leaving ContextMenu
     // Also serves as the source of truth for progress tracking metadata
     std::optional<ResultUpdate> cached_file_search_update;
 
     std::optional<Item> get_selected_item() const;
-    void set_error(const std::optional<std::string> &message);
-    void clear_error();
-    bool has_error() const;
+
+    // Error mode management - switches to ErrorMode if not already there
+    void push_error(const std::string &error);
+    bool has_errors() const;
+    void clear_errors();
 };
 
 struct InputChanged {

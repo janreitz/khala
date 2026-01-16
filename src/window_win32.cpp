@@ -467,11 +467,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         static_cast<float>(ui::calculate_abs_input_height(config.font_size));
 
     ID2D1SolidColorBrush *inputFillBrush =
-        state.has_error() ? data->errorBackgroundBrush.Get()
-                          : data->inputBackgroundBrush.Get();
-    ID2D1SolidColorBrush *inputStrokeBrush = state.has_error()
-                                                 ? data->errorBorderBrush.Get()
-                                                 : data->selectionBrush.Get();
+        state.has_errors() ? data->errorBackgroundBrush.Get()
+                           : data->inputBackgroundBrush.Get();
+    ID2D1SolidColorBrush *inputStrokeBrush = state.has_errors()
+                                                  ? data->errorBorderBrush.Get()
+                                                  : data->selectionBrush.Get();
 
     draw_rounded_rect(rt, inputFillBrush, ui::BORDER_WIDTH, ui::BORDER_WIDTH,
                       content_width, input_height, ui::CORNER_RADIUS, true);
@@ -480,8 +480,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
     // Determine display text
     std::wstring display_text;
-    if (state.has_error()) {
-        display_text = utf8_to_wide(*state.error_message);
+    if (state.has_errors()) {
+        const auto *errors = state.get_errors();
+        const size_t count = errors ? errors->size() : 0;
+        display_text = utf8_to_wide("Encountered " + std::to_string(count) +
+                                    " error(s). Press any key to dismiss.");
     } else if (std::holds_alternative<ui::ContextMenu>(state.mode)) {
         display_text = utf8_to_wide(
             std::get<ui::ContextMenu>(state.mode).title + " › Actions");
@@ -511,15 +514,15 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         ui::BORDER_WIDTH + (input_height - inputMetrics.height) / 2.0f;
 
     ID2D1Brush *inputTextBrush =
-        state.has_error() ? data->errorTextBrush.Get() : data->textBrush.Get();
+        state.has_errors() ? data->errorTextBrush.Get() : data->textBrush.Get();
 
     rt->DrawTextLayout(
         D2D1::Point2F(ui::BORDER_WIDTH + ui::INPUT_TEXT_MARGIN, input_text_y),
         inputLayout.Get(), inputTextBrush);
 
-    // Draw cursor (when not in context menu and no error)
+    // Draw cursor (when not in context menu or error mode)
     if (!std::holds_alternative<ui::ContextMenu>(state.mode) &&
-        !state.has_error()) {
+        !state.has_errors()) {
         std::wstring text_before_cursor =
             utf8_to_wide(state.input_buffer.substr(0, state.cursor_position));
 
@@ -677,12 +680,13 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             }
         }
 
-        // Draw hotkey hint on the right side of the item
+        // Draw hotkey hint on the right side of the item (only for non-error items)
         // Use item's hotkey if set, otherwise show Ctrl+1-9 for visible items at positions 0-8
         std::string hotkey_hint;
-        if (state.items[i].hotkey.has_value()) {
+        if (!state.has_errors() && i < state.items.size() &&
+            state.items[i].hotkey.has_value()) {
             hotkey_hint = to_string(*state.items[i].hotkey);
-        } else if (i >= state.visible_range_offset &&
+        } else if (!state.has_errors() && i >= state.visible_range_offset &&
                    i < state.visible_range_offset + 9) {
             const size_t visible_pos = i - state.visible_range_offset;
             hotkey_hint = "Ctrl+" + std::to_string(visible_pos + 1);

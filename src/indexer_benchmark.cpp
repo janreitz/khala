@@ -28,7 +28,7 @@ const std::map<std::string, std::function<float(std::string_view, std::string_vi
 int main()
 {
     // Get root path from args or use home directory
-    const Config config = Config::load(Config::default_path());
+    const auto [config, warnings] = load_config(Config::default_path());
     printf("================ Indexing Benchmarks =================\n");
     try {
         printf("  Roots: %zu\n", config.index_roots.size());

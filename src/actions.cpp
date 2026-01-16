@@ -164,6 +164,8 @@ std::expected<std::optional<Effect>, std::string> process_command(const Command 
     try {
         std::visit(
             overloaded{
+                [](const Noop &) {
+                },
                 [](const OpenFileCommand &open_file) {
                     platform::open_file(open_file.path);
                 },

@@ -110,7 +110,8 @@ double get_double_or(const std::multimap<std::string, std::string> &map,
 
 std::set<fs::path>
 get_dirs_or(const std::multimap<std::string, std::string> &map,
-            const std::string &key, std::set<fs::path> default_value)
+            const std::string &key, std::set<fs::path> default_value,
+            std::vector<std::string> &warnings)
 {
     auto values = get_all(map, key);
     if (values.empty()) {
@@ -120,9 +121,16 @@ get_dirs_or(const std::multimap<std::string, std::string> &map,
     std::set<fs::path> result;
     for (const auto &value : values) {
         fs::path dir_path(value);
-        if (fs::exists(dir_path) && fs::is_directory(dir_path)) {
-            result.insert(fs::canonical(dir_path));
-        }
+        if (!fs::exists(dir_path)){
+            warnings.push_back("Config: " + key + " path does not exist: " +value);
+            continue;
+        } 
+        if (!fs::is_directory(dir_path)) {
+            warnings.push_back("Config: " + key + " path is not a directory: " +
+                                value);
+                                continue;
+        } 
+        result.insert(fs::canonical(dir_path));
     }
 
     return result.empty() ? default_value : result;
@@ -359,15 +367,16 @@ void load_theme(const std::string &theme_name,
            theme_name.c_str());
 }
 
-Config Config::load(const fs::path &path)
+ConfigLoadResult load_config(const fs::path &path)
 {
     Config cfg;
+    std::vector<std::string> warnings;
     cfg.config_path = path;
 
     if (!fs::exists(path)) {
         fs::create_directories(path.parent_path());
         cfg.save(path);
-        return cfg;
+        return {.config = cfg, .warnings = {}};
     }
 
     auto map = parse_ini(path);
@@ -397,8 +406,8 @@ Config Config::load(const fs::path &path)
     cfg.quit_hotkey = get_hotkey_or(map, "quit_hotkey", cfg.quit_hotkey);
 
     // Indexing
-    cfg.index_roots = get_dirs_or(map, "index_root", cfg.index_roots);
-    cfg.ignore_dirs = get_dirs_or(map, "ignore_dir", cfg.ignore_dirs);
+    cfg.index_roots = get_dirs_or(map, "index_root", cfg.index_roots, warnings);
+    cfg.ignore_dirs = get_dirs_or(map, "ignore_dir", cfg.ignore_dirs, warnings);
     cfg.ignore_dir_names =
         get_strings_or(map, "ignore_dir_name", cfg.ignore_dir_names);
 
@@ -439,7 +448,7 @@ Config Config::load(const fs::path &path)
 
     auto values = actions_by_stem | std::views::values;
     cfg.custom_actions.assign(values.begin(), values.end());
-    return cfg;
+    return {.config = cfg, .warnings = std::move(warnings)};
 }
 
 void Config::save(const fs::path &path) const

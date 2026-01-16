@@ -190,18 +190,33 @@ std::optional<Item> State::get_selected_item() const
     return items[selected_item_index];
 }
 
-void State::set_error(const std::optional<std::string> &message)
+void State::push_error(const std::string &error)
 {
-    if (message) {
-        error_message = *message + " (Esc to clear)";
-    } else {
-        error_message = std::nullopt;
+    if (!std::holds_alternative<ErrorMode>(mode)) {
+        mode = ErrorMode{};
+        items.clear();
     }
+    selected_item_index = std::numeric_limits<size_t>::max();
+    items.push_back(ui::Item{
+        .title = "⚠ " + error,
+        .description = "",
+        .path = std::nullopt,
+        .command = Noop{},
+        .hotkey = std::nullopt,
+    });
 }
 
-void State::clear_error() { error_message = std::nullopt; }
+bool State::has_errors() const
+{
+    return std::holds_alternative<ErrorMode>(mode);
+}
 
-bool State::has_error() const { return error_message.has_value(); }
+void State::clear_errors()
+{
+    mode = ui::FileSearch{
+        .query = input_buffer,
+    };
+}
 
 // Try to open context menu for the currently selected file item
 // Returns true if context menu was opened, false otherwise
@@ -275,6 +290,12 @@ std::vector<Event> handle_keyboard_input(State &state,
                                          const KeyboardEvent &kbd_event,
                                          const Config &config)
 {
+    // If in ErrorMode, any input dismisses the errors and returns to FileSearch
+    if (state.has_errors()) {
+        state.clear_errors();
+        return {InputChanged{}}; // For redraw
+    }
+
     // Check for quit hotkey first
     if (kbd_event.key == config.quit_hotkey.key &&
         kbd_event.modifiers == config.quit_hotkey.modifiers) {
@@ -407,7 +428,6 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::BackSpace:
-        state.clear_error(); // Clear error when user starts typing
         if (!state.input_buffer.empty() && state.cursor_position > 0) {
             state.input_buffer.erase(state.cursor_position - 1, 1);
             state.cursor_position--;
@@ -416,7 +436,6 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Delete:
-        state.clear_error(); // Clear error when user starts typing
         if (!state.input_buffer.empty() &&
             state.cursor_position < state.input_buffer.size()) {
             state.input_buffer.erase(state.cursor_position, 1);
@@ -425,7 +444,6 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Character:
-        state.clear_error(); // Clear error when user starts typing
         if (kbd_event.character >= 32 && kbd_event.character < 127) {
             state.input_buffer.insert(state.cursor_position, 1,
                                       *kbd_event.character);
@@ -443,7 +461,6 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                                      const Config &config)
 {
     std::vector<Event> events;
-    state.clear_error();
 
     std::visit(
         overloaded{
@@ -470,8 +487,8 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                     return;
                 }
 
-                auto item_index = window_pos_to_item_index(
-                    ev.position, state, config.font_size);
+                auto item_index = window_pos_to_item_index(ev.position, state,
+                                                           config.font_size);
 
                 if (!item_index.has_value() ||
                     *item_index >= state.items.size()) {

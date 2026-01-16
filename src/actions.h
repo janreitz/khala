@@ -24,6 +24,9 @@ struct ReloadIndexEffect {};
 
 using Effect = std::variant<QuitApplication, HideWindow, ReloadIndexEffect>;
 
+struct Noop {
+};
+
 // File commands
 struct OpenFileCommand {
     fs::path path;
@@ -60,7 +63,7 @@ struct CustomCommand {
     bool stdout_to_clipboard = false;
 };
 
-using Command = std::variant<OpenFileCommand, OpenDirectory, RemoveFile,
+using Command = std::variant<Noop, OpenFileCommand, OpenDirectory, RemoveFile,
                              RemoveFileRecursive, CopyPathToClipboard,
                              CopyContentToClipboard, ReloadIndex, CopyISOTimestamp,
                              CopyUnixTimestamp, CopyUUID, CustomCommand>;
