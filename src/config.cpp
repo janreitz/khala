@@ -87,21 +87,6 @@ bool get_bool_or(const std::multimap<std::string, std::string> &map,
     return *value == "true" || *value == "1";
 }
 
-fs::path get_dir_or(const std::multimap<std::string, std::string> &map,
-                    const std::string &key, fs::path default_value)
-{
-    auto value = get_last(map, key);
-    if (!value)
-        return default_value;
-
-    const fs::path path(*value);
-    if (!fs::exists(path) || !fs::is_directory(path)) {
-        return default_value;
-    }
-
-    return fs::canonical(path);
-}
-
 std::string get_string_or(const std::multimap<std::string, std::string> &map,
                           const std::string &key, std::string default_value)
 {
@@ -127,9 +112,12 @@ std::set<fs::path>
 get_dirs_or(const std::multimap<std::string, std::string> &map,
             const std::string &key, std::set<fs::path> default_value)
 {
-    std::set<fs::path> result = default_value;
     auto values = get_all(map, key);
+    if (values.empty()) {
+        return default_value;
+    }
 
+    std::set<fs::path> result;
     for (const auto &value : values) {
         fs::path dir_path(value);
         if (fs::exists(dir_path) && fs::is_directory(dir_path)) {
@@ -137,7 +125,7 @@ get_dirs_or(const std::multimap<std::string, std::string> &map,
         }
     }
 
-    return result;
+    return result.empty() ? default_value : result;
 }
 
 std::set<std::string>
@@ -317,10 +305,10 @@ ui::KeyboardEvent get_hotkey_or(const std::multimap<std::string, std::string> &m
     return parsed ? *parsed : default_value;
 }
 
-fs::path Config::default_index_root()
+std::set<fs::path> Config::default_index_roots()
 {
     const auto home_dir = platform::get_home_dir();
-    return home_dir.value_or(".");
+    return {home_dir.value_or(".")};
 }
 
 fs::path Config::default_path()
@@ -409,7 +397,7 @@ Config Config::load(const fs::path &path)
     cfg.quit_hotkey = get_hotkey_or(map, "quit_hotkey", cfg.quit_hotkey);
 
     // Indexing
-    cfg.index_root = get_dir_or(map, "index_root", cfg.index_root);
+    cfg.index_roots = get_dirs_or(map, "index_root", cfg.index_roots);
     cfg.ignore_dirs = get_dirs_or(map, "ignore_dir", cfg.ignore_dirs);
     cfg.ignore_dir_names =
         get_strings_or(map, "ignore_dir_name", cfg.ignore_dir_names);
@@ -495,7 +483,10 @@ void Config::save(const fs::path &path) const
     file << "\n";
 
     file << "# Indexing \n";
-    file << "index_root=" << platform::path_to_string(fs::canonical(index_root)) << "\n";
+    file << "# Multiple index_root entries can be specified for indexing multiple locations\n";
+    for (const auto &root : index_roots) {
+        file << "index_root=" << platform::path_to_string(fs::canonical(root)) << "\n";
+    }
     for (const auto &dir : ignore_dirs) {
         file << "ignore_dir=" << platform::path_to_string(fs::canonical(dir)) << "\n";
     }

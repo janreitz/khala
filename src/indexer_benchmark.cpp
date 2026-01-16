@@ -31,10 +31,10 @@ int main()
     const Config config = Config::load(Config::default_path());
     printf("================ Indexing Benchmarks =================\n");
     try {
-        printf("  Root: %s\n", config.index_root.string().c_str());
+        printf("  Roots: %zu\n", config.index_roots.size());
         printf("================ Batch Approach =================\n");
         auto batch_start = std::chrono::steady_clock::now();
-        auto paths = indexer::scan_filesystem_parallel(config.index_root, config.ignore_dirs, config.ignore_dir_names);
+        auto paths = indexer::scan_filesystem_parallel(config.index_roots, config.ignore_dirs, config.ignore_dir_names);
         auto scan_end = std::chrono::steady_clock::now();
         auto scan_duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(scan_end - batch_start);
@@ -47,7 +47,7 @@ int main()
         const auto streaming_start = std::chrono::steady_clock::now();
 
         StreamingIndex stream_index;
-        indexer::scan_filesystem_streaming(config.index_root, stream_index, config.ignore_dirs, config.ignore_dir_names,
+        indexer::scan_filesystem_streaming(config.index_roots, stream_index, config.ignore_dirs, config.ignore_dir_names,
                                            1000);
         while (!stream_index.is_scan_complete()) {
             std::this_thread::sleep_for(10ms);

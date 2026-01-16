@@ -77,8 +77,8 @@ struct Config {
     };
 
     // Indexing
-    static fs::path default_index_root();
-    fs::path index_root = default_index_root();
+    static std::set<fs::path> default_index_roots();
+    std::set<fs::path> index_roots = default_index_roots();
 #ifdef PLATFORM_WIN32
     std::set<fs::path> ignore_dirs{"C:\\Windows", 
                                    "C:\\$Recycle.Bin"};

@@ -89,13 +89,12 @@ int main()
     // Communication channels
     LastWriterWinsSlot<ResultUpdate> result_updates;
 
-    LOG_INFO("Loading index for %s...",
-             fs::canonical(config.index_root).generic_string().c_str());
+    LOG_INFO("Loading index for %zu root(s)...", config.index_roots.size());
 
     // Launch streaming indexer
     auto index_future = std::async(std::launch::async, [&]() {
         indexer::scan_filesystem_streaming(
-            config.index_root, streaming_index, config.ignore_dirs,
+            config.index_roots, streaming_index, config.ignore_dirs,
             config.ignore_dir_names, INDEXER_BATCH_SIZE);
         LOG_INFO("Scan complete - %zu total files",
                  streaming_index.get_total_files());
@@ -329,7 +328,7 @@ int main()
                         // Launch new indexer
                         index_future = std::async(std::launch::async, [&]() {
                             indexer::scan_filesystem_streaming(
-                                config.index_root, streaming_index,
+                                config.index_roots, streaming_index,
                                 config.ignore_dirs, config.ignore_dir_names,
                                 INDEXER_BATCH_SIZE);
                             LOG_INFO("Scan complete - %zu total files",

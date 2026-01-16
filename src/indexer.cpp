@@ -50,31 +50,33 @@ PackedStrings scan_subtree(const fs::path &root,
 }
 
 PackedStrings
-scan_filesystem_parallel(const fs::path &root_path,
+scan_filesystem_parallel(const std::set<fs::path> &root_paths,
                          const std::set<fs::path> &ignore_dirs,
                          const std::set<std::string> &ignore_dir_names)
 {
     PackedStrings result;
     std::vector<fs::path> subdirs;
 
-    // Collect top-level entries
-    try {
-        const auto canon_root = fs::canonical(root_path);
-        for (const auto &entry : fs::directory_iterator(canon_root)) {
-            if (entry.is_directory()) {
-                // Check both full paths and directory names
-                if (!ignore_dirs.contains(entry.path()) &&
-                    !ignore_dir_names.contains(
-                        platform::path_to_string(entry.path().filename()))) {
-                    subdirs.push_back(entry.path());
+    // Collect top-level entries from all roots
+    for (const auto &root_path : root_paths) {
+        try {
+            const auto canon_root = fs::canonical(root_path);
+            for (const auto &entry : fs::directory_iterator(canon_root)) {
+                if (entry.is_directory()) {
+                    // Check both full paths and directory names
+                    if (!ignore_dirs.contains(entry.path()) &&
+                        !ignore_dir_names.contains(
+                            platform::path_to_string(entry.path().filename()))) {
+                        subdirs.push_back(entry.path());
+                    }
+                } else if (entry.is_regular_file()) {
+                    result.push(entry.path().string());
                 }
-            } else if (entry.is_regular_file()) {
-                result.push(entry.path().string());
             }
+        } catch (const fs::filesystem_error &e) {
+            LOG_ERROR("Error reading root %s: %s",
+                      platform::path_to_string(root_path).c_str(), e.what());
         }
-    } catch (const fs::filesystem_error &e) {
-        LOG_ERROR("Error reading root: %s", e.what());
-        return result;
     }
 
     std::vector<std::future<PackedStrings>> futures;
@@ -134,7 +136,8 @@ void scan_subtree_streaming(const fs::path &root,
     }
 }
 
-void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
+void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
+                               StreamingIndex &index,
                                const std::set<fs::path> &ignore_dirs,
                                const std::set<std::string> &ignore_dir_names,
                                size_t chunk_size)
@@ -146,10 +149,19 @@ void scan_filesystem_streaming(const fs::path &root_path, StreamingIndex &index,
 
     const auto min_work_units = std::thread::hardware_concurrency() * 4;
     std::deque<fs::path> to_expand;
-    try {
-        to_expand.push_back(fs::canonical(root_path));
-    } catch (const fs::filesystem_error &e) {
-        LOG_ERROR("Error reading root: %s", e.what());
+
+    // Initialize with all root paths
+    for (const auto &root_path : root_paths) {
+        try {
+            to_expand.push_back(fs::canonical(root_path));
+        } catch (const fs::filesystem_error &e) {
+            LOG_ERROR("Error reading root %s: %s",
+                      platform::path_to_string(root_path).c_str(), e.what());
+        }
+    }
+
+    if (to_expand.empty()) {
+        LOG_ERROR("No valid index roots available");
         return;
     }
 
