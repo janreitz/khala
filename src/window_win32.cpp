@@ -475,9 +475,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     // Determine display text
     std::wstring display_text;
     if (state.has_errors()) {
-        const auto *errors = state.get_errors();
-        const size_t count = errors ? errors->size() : 0;
-        display_text = utf8_to_wide("Encountered " + std::to_string(count) +
+        display_text = utf8_to_wide("Encountered " + std::to_string(state.items.size()) +
                                     " error(s). Press any key to dismiss.");
     } else if (std::holds_alternative<ui::ContextMenu>(state.mode)) {
         display_text = utf8_to_wide(
