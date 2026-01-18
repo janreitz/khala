@@ -130,7 +130,7 @@ utf8_positions_to_utf16(const std::string &utf8_str,
 
 static D2D1_COLOR_F to_d2d_color(const Color &c)
 {
-    return D2D1::ColorF(c.r, c.g, c.b, c.a);
+    return D2D1::ColorF(static_cast<float>(c.r), static_cast<float>(c.g), static_cast<float>(c.b), static_cast<float>(c.a));
 }
 
 static void draw_rounded_rect(ID2D1RenderTarget *rt, ID2D1Brush *brush, float x,
@@ -436,7 +436,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     // TODO: Track config.font_size changes and call resources.setFont()
 
     const float content_width =
-        static_cast<float>(width) - 2.0f * ui::BORDER_WIDTH;
+        static_cast<float>(width - 2.0f * ui::BORDER_WIDTH);
     const size_t max_visible_items =
         ui::calculate_max_visible_items(height, config.font_size);
 
@@ -496,14 +496,14 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     ComPtr<IDWriteTextLayout> inputLayout;
     dwFactory->CreateTextLayout(
         display_text.c_str(), static_cast<UINT32>(display_text.length()),
-        textFormat, content_width - 2 * ui::INPUT_TEXT_MARGIN, input_height,
+        textFormat, content_width - static_cast<float>(2.0 * ui::INPUT_TEXT_MARGIN), input_height,
         &inputLayout);
 
     DWRITE_TEXT_METRICS inputMetrics;
     inputLayout->GetMetrics(&inputMetrics);
 
     const float input_text_y =
-        ui::BORDER_WIDTH + (input_height - inputMetrics.height) / 2.0f;
+        static_cast<float>(ui::BORDER_WIDTH) + (input_height - inputMetrics.height) / 2.0f;
 
     ID2D1Brush *inputTextBrush =
         state.has_errors() ? data->errorTextBrush.Get() : data->textBrush.Get();
@@ -518,10 +518,10 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         std::wstring text_before_cursor =
             utf8_to_wide(state.input_buffer.substr(0, state.cursor_position));
 
-        auto cursor_size =
+        const auto cursor_size =
             measure_text(dwFactory, textFormat, text_before_cursor);
-        float cursor_x =
-            ui::BORDER_WIDTH + ui::INPUT_TEXT_MARGIN + cursor_size.width;
+        const float cursor_x =
+            static_cast<float>(ui::BORDER_WIDTH + ui::INPUT_TEXT_MARGIN) + cursor_size.width;
 
         rt->DrawLine(
             D2D1::Point2F(cursor_x, input_text_y),
@@ -547,17 +547,17 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                 state.items.size(), update.total_available_results));
         }
 
-        auto indicator_size =
+        const auto indicator_size =
             measure_text(dwFactory, textFormat, indicator_text);
 
         ID2D1SolidColorBrush *indicatorBrush =
             update.scan_complete ? data->indicatorGreenBrush.Get()
                                  : data->indicatorYellowBrush.Get();
 
-        float indicator_x = ui::BORDER_WIDTH + content_width -
-                            indicator_size.width - ui::INPUT_TEXT_MARGIN;
-        float indicator_y =
-            ui::BORDER_WIDTH + (input_height - indicator_size.height) / 2.0f;
+        const float indicator_x = static_cast<float>(ui::BORDER_WIDTH - ui::INPUT_TEXT_MARGIN) +
+                                  content_width - indicator_size.width;
+        const float indicator_y =
+            static_cast<float>(ui::BORDER_WIDTH) + (input_height - indicator_size.height) / 2.0f;
 
         rt->DrawText(indicator_text.c_str(),
                      static_cast<UINT32>(indicator_text.length()), textFormat,
@@ -569,7 +569,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
     // Draw dropdown items
     const float dropdown_start_y =
-        ui::BORDER_WIDTH + input_height + ui::ITEMS_SPACING;
+        static_cast<float>(ui::BORDER_WIDTH + ui::ITEMS_SPACING) + input_height;
     const float item_height =
         static_cast<float>(ui::calculate_abs_item_height(config.font_size));
 
@@ -599,7 +599,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         ComPtr<IDWriteTextLayout> titleLayout;
         dwFactory->CreateTextLayout(
             title.c_str(), static_cast<UINT32>(title.length()), textFormat,
-            content_width - 2 * ui::TEXT_MARGIN, item_height, &titleLayout);
+            content_width - static_cast<float>(2.0 * ui::TEXT_MARGIN), item_height, &titleLayout);
 
         // Apply bold highlighting for fuzzy matches
         if (query_opt.has_value() && !query_lower.empty()) {
@@ -628,11 +628,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         // Description (to the right of title)
         if (!state.items[i].description.empty()) {
             std::wstring desc = utf8_to_wide(state.items[i].description);
-            float desc_x = ui::BORDER_WIDTH + ui::TEXT_MARGIN +
-                           titleMetrics.width + ui::DESCRIPTION_SPACING;
-            float available_width = content_width - ui::TEXT_MARGIN -
+            const float desc_x = static_cast<float>(ui::BORDER_WIDTH + ui::TEXT_MARGIN +
+                                 ui::DESCRIPTION_SPACING) + titleMetrics.width;
+            const float available_width = content_width - static_cast<float>(ui::TEXT_MARGIN) -
                                     titleMetrics.width -
-                                    ui::DESCRIPTION_SPACING - ui::TEXT_MARGIN;
+                                    static_cast<float>(ui::DESCRIPTION_SPACING) - static_cast<float>(ui::TEXT_MARGIN);
 
             if (available_width > 50) {
                 ComPtr<IDWriteTextLayout> descLayout;
@@ -687,12 +687,12 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
         if (!hotkey_hint.empty()) {
             std::wstring hint_wide = utf8_to_wide(hotkey_hint);
-            auto hint_size = measure_text(dwFactory, textFormat, hint_wide);
+            const auto hint_size = measure_text(dwFactory, textFormat, hint_wide);
 
             // Position at far right of item area
-            float hint_x = ui::BORDER_WIDTH + content_width - hint_size.width -
-                           ui::TEXT_MARGIN;
-            float hint_y = y_pos + (item_height - hint_size.height) / 2.0f;
+            const float hint_x = static_cast<float>(ui::BORDER_WIDTH) + content_width - hint_size.width -
+                           static_cast<float>(ui::TEXT_MARGIN);
+            const float hint_y = y_pos + (item_height - hint_size.height) / 2.0f;
 
             ID2D1Brush *hintBrush =
                 is_selected

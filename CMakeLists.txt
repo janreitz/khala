@@ -173,8 +173,35 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         -Wdouble-promotion
     )
 elseif(MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DNOMINMAX")
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS")
+
+    add_compile_options(
+        /W4          # High warning level (similar to -Wall -Wextra)
+        /WX          # Treat warnings as errors (equivalent to -Werror)
+        /permissive- # Strict conformance mode
+        /w14640      # Thread-unsafe static member initialization
+        /w14826      # Conversion is sign-extended
+        /w14905      # Wide string literal cast to LPSTR
+        /w14906      # String literal cast to LPWSTR
+        /w14928      # Illegal copy-initialization
+        /w14254      # Operator conversion, possible loss of data
+        /w14263      # Function does not override base class virtual
+        /w14265      # Class has virtual functions but destructor is not virtual
+        /w14287      # Unsigned/negative constant mismatch
+        /w14296      # Expression is always false
+        /w14311      # Pointer truncation
+        /w14545      # Expression before comma evaluates to function
+        /w14546      # Function call before comma missing argument list
+        /w14547      # Operator before comma has no effect
+        /w14549      # Operator before comma has no effect
+        /w14555      # Expression has no effect
+        /w14619      # Pragma warning: nonexistent warning number
+        /w14826      # Conversion sign-extended
+        /w14946      # Reinterpret_cast between related types
+        /w14242      # Conversion, possible loss of data (like -Wconversion)
+        /w14254      # Conversion, possible loss of data
+    )
 endif()
 
 add_executable(khala
