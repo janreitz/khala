@@ -172,6 +172,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         -Wnull-dereference
         -Wdouble-promotion
     )
+
+    # Clang's __cpp_concepts macro is 201907L, but libstdc++ requires >= 202002L
+    # for C++23 features like std::expected. We redefine it and suppress the warning.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_definitions(__cpp_concepts=202002L)
+        add_compile_options(-Wno-builtin-macro-redefined)
+    endif()
 elseif(MSVC)
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS")
     set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS")

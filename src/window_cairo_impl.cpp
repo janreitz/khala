@@ -33,7 +33,7 @@ enum class Corner : uint8_t {
 };
 
 // Bitwise operators for Corner enum
-constexpr Corner operator|(Corner a, Corner b)
+[[maybe_unused]] constexpr Corner operator|(Corner a, Corner b)
 {
     return static_cast<Corner>(static_cast<uint8_t>(a) |
                                static_cast<uint8_t>(b));
