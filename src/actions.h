@@ -60,6 +60,7 @@ struct CopyUUID {
 struct CustomCommand {
     std::optional<fs::path> path;
     std::string shell_cmd;
+    std::string shell;  // shell to use for execution
     bool stdout_to_clipboard = false;
 };
 

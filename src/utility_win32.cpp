@@ -1,5 +1,7 @@
 #include "utility.h"
 
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <optional>
 
@@ -132,7 +134,8 @@ void run_command(const std::vector<std::string> &args)
 
 void run_custom_command(const std::string &cmd,
                         const std::optional<fs::path> &path,
-                        bool stdout_to_clipboard)
+                        bool stdout_to_clipboard,
+                        const std::string &shell)
 {
     if (cmd.empty()) {
         throw std::runtime_error("Custom command is empty");
@@ -155,8 +158,23 @@ void run_custom_command(const std::string &cmd,
         set_env("EXTENSION", _path.extension().string());
     }
 
-    // Run with cmd.exe
-    std::string cmdline = "cmd.exe /c " + cmd;
+    // Determine shell flag based on shell type
+    std::string shell_flag;
+    std::string shell_lower = shell;
+    std::transform(shell_lower.begin(), shell_lower.end(), shell_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    if (shell_lower.find("cmd.exe") != std::string::npos ||
+        shell_lower.find("cmd") == shell_lower.length() - 3) {
+        shell_flag = "/c";
+    } else if (shell_lower.find("powershell") != std::string::npos) {
+        shell_flag = "-Command";
+    } else {
+        // Default to Unix-style for bash, sh, etc.
+        shell_flag = "-c";
+    }
+
+    std::string cmdline = shell + " " + shell_flag + " " + cmd;
 
     STARTUPINFOA si = {};
     si.cb = sizeof(si);

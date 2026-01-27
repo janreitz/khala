@@ -80,7 +80,8 @@ void copy_to_clipboard(const std::string &content);
 void run_command(const std::vector<std::string> &args);
 void run_custom_command(const std::string &cmd,
                         const std::optional<std::filesystem::path> &path,
-                        bool stdout_to_clipboard);
+                        bool stdout_to_clipboard,
+                        const std::string &shell);
 void open_file(const std::filesystem::path &path);
 void open_directory(const std::filesystem::path &path);
 

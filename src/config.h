@@ -10,12 +10,19 @@
 
 namespace fs = std::filesystem;
 
+enum class ActionType {
+    File,      // Only shown for files
+    Directory, // Only shown for directories
+    Utility    // Global action (no file/dir context)
+};
+
 struct CustomActionDef {
     std::string title;
     std::string description;
     std::string shell_cmd;
-    bool is_file_action;              // true = file action, false = global
-    bool stdout_to_clipboard = false; // true = capture stdout to clipboard
+    ActionType action_type;
+    bool stdout_to_clipboard = false;      // true = capture stdout to clipboard
+    std::optional<std::string> shell;      // override default_shell if specified
 };
 
 struct Color {
@@ -58,6 +65,11 @@ struct Config {
     // Behavior
     std::string editor = "xdg-open"; // Use default application
     std::string file_manager = "xdg-open";
+#ifdef PLATFORM_WIN32
+    std::string default_shell = "cmd.exe";
+#else
+    std::string default_shell = "sh";
+#endif
     bool quit_on_action = true;
 
     // Background mode (Windows and X11 only - ignored on Wayland)

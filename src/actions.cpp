@@ -49,6 +49,27 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                                              .modifiers = KeyModifier::Ctrl,
                                              .character = std::nullopt}},
         };
+
+        // Append custom directory actions
+        for (const auto &action_def : config.custom_actions) {
+            if (action_def.action_type != ActionType::Directory)
+                continue;
+
+            items.push_back(ui::Item{
+                .title = action_def.title,
+                .description = action_def.description,
+                .path = std::nullopt,
+                .command =
+                    CustomCommand{
+                        .path = path,
+                        .shell_cmd = action_def.shell_cmd,
+                        .shell = action_def.shell.value_or(config.default_shell),
+                        .stdout_to_clipboard = action_def.stdout_to_clipboard,
+                    },
+                .hotkey = std::nullopt,
+            });
+        }
+
         return items;
     } else {
         std::vector<ui::Item> items{
@@ -92,7 +113,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
 
         // Append custom file actions, filling in the path
         for (const auto &action_def : config.custom_actions) {
-            if (!action_def.is_file_action)
+            if (action_def.action_type != ActionType::File)
                 continue;
 
             items.push_back(ui::Item{
@@ -103,6 +124,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                     CustomCommand{
                         .path = path,
                         .shell_cmd = action_def.shell_cmd,
+                        .shell = action_def.shell.value_or(config.default_shell),
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
                 .hotkey = std::nullopt,
@@ -139,7 +161,7 @@ std::vector<ui::Item> get_global_actions(const Config &config)
     };
 
     for (const auto &action_def : config.custom_actions) {
-        if (action_def.is_file_action)
+        if (action_def.action_type != ActionType::Utility)
             continue;
 
         items.push_back(ui::Item{
@@ -150,6 +172,7 @@ std::vector<ui::Item> get_global_actions(const Config &config)
                 CustomCommand{
                     .path = std::nullopt,
                     .shell_cmd = action_def.shell_cmd,
+                    .shell = action_def.shell.value_or(config.default_shell),
                     .stdout_to_clipboard = action_def.stdout_to_clipboard,
                 },
             .hotkey = std::nullopt,
@@ -230,7 +253,7 @@ process_command(const Command &cmd, const Config &)
                 [](const CustomCommand &custom_cmd) {
                     platform::run_custom_command(
                         custom_cmd.shell_cmd, custom_cmd.path,
-                        custom_cmd.stdout_to_clipboard);
+                        custom_cmd.stdout_to_clipboard, custom_cmd.shell);
                 }},
             cmd);
         return effect;

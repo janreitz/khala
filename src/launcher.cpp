@@ -223,7 +223,7 @@ int main()
                         }
                     },
                     [](ui::CursorPositionChanged) {},
-                    [&state, &ranker, &global_actions, &desktop_apps,
+                    [&state, &ranker, &global_actions, &desktop_apps, &config,
                      max_visible_items](ui::InputChanged) {
                         state.selected_item_index =
                             0; // Reset selection when search changes
@@ -284,7 +284,8 @@ int main()
                                     .command =
                                         CustomCommand{.path = std::nullopt,
                                                       .shell_cmd =
-                                                          app.exec_command},
+                                                          app.exec_command,
+                                                      .shell = config.default_shell},
                                     .hotkey = std::nullopt,
                                 });
                             }

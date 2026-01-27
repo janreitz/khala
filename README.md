@@ -37,17 +37,28 @@ You can define custom commands by creating `*.ini` files in `~/.config/khala/com
 title=My Custom Action # The name shown in search results
 description=Description of what this does
 # Custom commands are executed in the shell
-# You can access these environment variables
-# FILEPATH
-# FILENAME
-# PARENT_DIR
+# You can access these environment variables when action_type is file or directory:
+# FILEPATH, FILENAME, PARENT_DIR, EXTENSION
 shell_cmd=echo "Hello World"
-# `true`: Command appears as action in file context menus
-# `false`: Command appears as action in command search
-is_file_action=false
-# `true`: Capture command stdout and copy to clipboard
-# `false`: Run command normally (default)
-stdout_to_clipboard=false
+
+# Action type determines where this command appears:
+# - file: Shown in file context menus only
+# - directory: Shown in directory context menus only
+# - utility: Shown in command search (>) only
+action_type=utility
+
+# Optional: Override the default shell for this command
+# If not specified, uses the default_shell from config.ini
+# shell=/bin/bash
+
+# Capture command stdout and copy to clipboard
+stdout_to_clipboard=true
+```
+
+The default shell can be configured globally in `config.ini`:
+```ini
+# Shell used to execute custom commands (default: "sh" on Linux, "cmd.exe" on Windows)
+default_shell=sh
 ```
 
 #### Examples
@@ -57,15 +68,23 @@ stdout_to_clipboard=false
 title=Code
 description=Open File in VS Code
 shell_cmd=code "$FILEPATH"
-is_file_action=true
+action_type=file
 ```
 
 ```ini
-# ~/.khala/commands/generate_password.ini
+# ~/.config/khala/commands/archive_directory.ini
+title=Archive Directory
+description=Create a tar.gz archive of this directory
+shell_cmd=tar -czf "$FILENAME.tar.gz" -C "$PARENT_DIR" "$FILENAME"
+action_type=directory
+```
+
+```ini
+# ~/.config/khala/commands/generate_password.ini
 title=Generate Password
 description=Generate 16-character password and copy to clipboard
 shell_cmd=openssl rand -base64 16 | tr -d '\n'
-is_file_action=false
+action_type=utility
 stdout_to_clipboard=true
 ```
 

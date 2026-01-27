@@ -133,7 +133,8 @@ void run_command(const std::vector<std::string> &args)
 }
 
 void run_custom_command_with_capture(const std::string &cmd,
-                                     const std::optional<fs::path> &path)
+                                     const std::optional<fs::path> &path,
+                                     const std::string &shell)
 {
     if (cmd.empty()) {
         throw std::runtime_error("Custom command is empty");
@@ -161,7 +162,7 @@ void run_custom_command_with_capture(const std::string &cmd,
             setenv("EXTENSION", _path.extension().string().c_str(), 1);
         }
 
-        execlp("sh", "sh", "-c", cmd.c_str(), nullptr);
+        execlp(shell.c_str(), shell.c_str(), "-c", cmd.c_str(), nullptr);
         _exit(1);
     } else if (pid > 0) {
         // Parent process
@@ -201,14 +202,15 @@ void run_custom_command_with_capture(const std::string &cmd,
 
 void run_custom_command(const std::string &cmd,
                         const std::optional<fs::path> &path,
-                        bool stdout_to_clipboard)
+                        bool stdout_to_clipboard,
+                        const std::string &shell)
 {
     if (cmd.empty()) {
         throw std::runtime_error("Custom command is empty");
     }
 
     if (stdout_to_clipboard) {
-        run_custom_command_with_capture(cmd, path);
+        run_custom_command_with_capture(cmd, path, shell);
     }
 
     const pid_t pid = fork();
@@ -227,7 +229,7 @@ void run_custom_command(const std::string &cmd,
                 setenv("EXTENSION", _path.extension().string().c_str(), 1);
             }
 
-            execlp("sh", "sh", "-c", cmd.c_str(), nullptr);
+            execlp(shell.c_str(), shell.c_str(), "-c", cmd.c_str(), nullptr);
             _exit(1);
         } else {
             throw std::runtime_error(

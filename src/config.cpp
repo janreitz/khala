@@ -108,6 +108,25 @@ double get_double_or(const std::multimap<std::string, std::string> &map,
     }
 }
 
+ActionType get_action_type_or(const std::multimap<std::string, std::string> &map,
+                               const std::string &key,
+                               ActionType default_value)
+{
+    auto value = get_last(map, key);
+    if (!value)
+        return default_value;
+
+    if (*value == "file") {
+        return ActionType::File;
+    } else if (*value == "directory") {
+        return ActionType::Directory;
+    } else if (*value == "utility") {
+        return ActionType::Utility;
+    }
+
+    return default_value;
+}
+
 std::set<fs::path>
 get_dirs_or(const std::multimap<std::string, std::string> &map,
             const std::string &key, std::set<fs::path> default_value,
@@ -405,6 +424,7 @@ ConfigLoadResult load_config(const fs::path &path)
     cfg.quit_on_action = get_bool_or(map, "quit_on_action", cfg.quit_on_action);
     cfg.editor = get_string_or(map, "editor", cfg.editor);
     cfg.file_manager = get_string_or(map, "file_manager", cfg.file_manager);
+    cfg.default_shell = get_string_or(map, "default_shell", cfg.default_shell);
 
     // Background mode
     cfg.background_mode =
@@ -430,15 +450,16 @@ ConfigLoadResult load_config(const fs::path &path)
 
                 auto command_map = parse_ini(entry.path());
 
-                const bool is_file_action =
-                    get_bool_or(command_map, "is_file_action", false);
-                const bool stdout_to_clipboard =
-                    get_bool_or(command_map, "stdout_to_clipboard", false);
                 std::string title = get_string_or(command_map, "title", "");
                 std::string description =
                     get_string_or(command_map, "description", "");
                 std::string shell_cmd =
                     get_string_or(command_map, "shell_cmd", "");
+                ActionType action_type =
+                    get_action_type_or(command_map, "action_type", ActionType::Utility);
+                bool stdout_to_clipboard =
+                    get_bool_or(command_map, "stdout_to_clipboard", false);
+                std::string shell = get_string_or(command_map, "shell", "");
 
                 if (title.empty() || shell_cmd.empty())
                     continue;
@@ -449,8 +470,10 @@ ConfigLoadResult load_config(const fs::path &path)
                         .title = title,
                         .description = description,
                         .shell_cmd = shell_cmd,
-                        .is_file_action = is_file_action,
+                        .action_type = action_type,
                         .stdout_to_clipboard = stdout_to_clipboard,
+                        .shell = shell.empty() ? std::nullopt
+                                               : std::optional<std::string>(shell),
                     });
             }
         }
@@ -490,6 +513,7 @@ void Config::save(const fs::path &path) const
     file << "quit_on_action=" << (quit_on_action ? "true" : "false") << "\n";
     file << "editor=" << editor << "\n";
     file << "file_manager=" << file_manager << "\n";
+    file << "default_shell=" << default_shell << "\n";
     file << "\n";
 
     file << "# Background mode (Windows)\n";
