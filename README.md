@@ -1,4 +1,4 @@
-[![Ubuntu](https://github.com/janreitz/khala/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/ubuntu.yml) [![Fedora](https://github.com/janreitz/khala/actions/workflows/fedora.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/fedora.yml)
+[![Ubuntu](https://github.com/janreitz/khala/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/ubuntu.yml) [![Fedora](https://github.com/janreitz/khala/actions/workflows/fedora.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/fedora.yml) [![Windows](https://github.com/janreitz/khala/actions/workflows/windows.yml/badge.svg)](https://github.com/janreitz/khala/actions/workflows/windows.yml)
 
 # Khala
 

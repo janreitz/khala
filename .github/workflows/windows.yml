@@ -1,0 +1,23 @@
+name: Windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: vcpkg install tbb:x64-windows
+
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DPLATFORM=win32
+
+    - name: Build
+      run: cmake --build build -j $env:NUMBER_OF_PROCESSORS
