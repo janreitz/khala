@@ -58,10 +58,6 @@ fs::path get_data_dir()
     return get_home_dir().value_or(".") / "khala" / "data";
 }
 
-fs::path get_history_path()
-{
-    return get_data_dir() / "history.txt";
-}
 
 void copy_to_clipboard(const std::string &content)
 {

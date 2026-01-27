@@ -517,7 +517,7 @@ size_t simd_find_all(const char *data, size_t len, char target,
 }
 
 void load_history(PackedStrings& history) {
-    const auto path = platform::get_history_path();
+    const auto path = platform::get_data_dir() / "history.txt";
     if (!fs::exists(path)) {
         LOG_INFO("No history file at %s", path.c_str());
         return;
@@ -534,7 +534,7 @@ void load_history(PackedStrings& history) {
 }
 
 void save_history(const PackedStrings& history) {
-    const auto path = platform::get_history_path();
+    const auto path = platform::get_data_dir() / "history.txt";
     std::error_code err;
     fs::create_directories(path.parent_path(), err);
     if (err) {
@@ -562,5 +562,3 @@ std::optional<std::filesystem::path> get_dir(std::string_view path)
                ? std::optional<fs::path>(dir)
                : std::optional<fs::path>(std::nullopt);
 }
-
-fs::path get_history_path() { return platform::get_data_dir() / "history.txt"; }

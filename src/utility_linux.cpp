@@ -3,6 +3,8 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fstream>
+#include <unordered_map>
 
 namespace platform
 {
@@ -23,8 +25,7 @@ fs::path get_temp_dir()
     if (!temp) {
         temp = "/tmp";
     }
-    return temp == nullptr ? std::optional<fs::path>(std::nullopt)
-                           : get_dir(temp);
+    return temp;
 }
 
 fs::path get_data_dir() { 
@@ -35,7 +36,7 @@ fs::path get_data_dir() {
         }
     }
 
-    const auto maybe_home_dir = get_home_dir();
+    if (const auto maybe_home_dir = get_home_dir()) {
         return maybe_home_dir.value() / ".local" / "share" / "khala";
     }
     return fs::path(".") / "khala";
@@ -290,9 +291,9 @@ parse_desktop_file(const fs::path &desktop_file_path)
     return entries;
 }
 
-std::vector<DesktopApp> scan_desktop_files()
+std::vector<ApplicationInfo> scan_app_infos()
 {
-    std::vector<DesktopApp> apps;
+    std::vector<ApplicationInfo> apps;
 
     // Standard desktop file locations
     std::vector<fs::path> search_paths = {
@@ -352,10 +353,10 @@ std::vector<DesktopApp> scan_desktop_files()
                     exec_command = exec_command.substr(0, space_pos);
                 }
 
-                apps.push_back(DesktopApp{.name = name_it->second,
+                apps.push_back(ApplicationInfo{.name = name_it->second,
                                           .description = description,
                                           .exec_command = exec_command,
-                                          .desktop_file_path = entry.path()});
+                                          .app_info_path = entry.path()});
             }
         } catch (const fs::filesystem_error &) {
             // Skip directories we can't read

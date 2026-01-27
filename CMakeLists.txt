@@ -265,7 +265,7 @@ target_link_libraries(indexer_benchmark PRIVATE
 )
 
 target_compile_definitions(indexer_benchmark PRIVATE
-    KHALA_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
+    KHALA_INSTALL_DIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
 
 install(TARGETS khala DESTINATION bin)
 install(DIRECTORY commands/
