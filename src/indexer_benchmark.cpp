@@ -41,7 +41,7 @@ int main()
  
         printf("=================================\n");
         printf("Batch indexing complete!\n");
-        printf("  Filesystem scan (%zu entries): %ldms\n", paths.size(), scan_duration.count());   
+        printf("  Filesystem scan (%zu entries): %zdms\n", paths.size(), scan_duration.count());   
 
         printf("\n================ Streaming Approach =================\n");
         const auto streaming_start = std::chrono::steady_clock::now();
@@ -59,8 +59,8 @@ int main()
 
         printf("=================================\n");
         printf("Streaming indexing complete!\n");
-        printf("  Filesystem scan (%ld entries): %ldms\n", stream_index.get_total_files(), streaming_scan_duration.count());
-        printf("  Total streaming time: %ldms\n", streaming_scan_duration.count());
+        printf("  Filesystem scan (%zu entries): %zdms\n", stream_index.get_total_files(), streaming_scan_duration.count());
+        printf("  Total streaming time: %zdms\n", streaming_scan_duration.count());
         
         // ================ FUZZY SCORING BENCHMARKS =================
         printf("\n================ Fuzzy Scoring Benchmark =================\n");
@@ -87,7 +87,7 @@ int main()
                 auto score_duration =
                     std::chrono::duration_cast<std::chrono::milliseconds>(score_end - score_start);
                 
-                printf("  %s: %ldms (%zu paths scored, %zu matches)\n", 
+                printf("  %s: %zdms (%zu paths scored, %zu matches)\n", 
                        algo_name.c_str(), score_duration.count(), paths.size(), scored_paths);
             }
         }
