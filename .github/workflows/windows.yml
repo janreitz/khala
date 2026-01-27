@@ -13,9 +13,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: vcpkg install tbb:x64-windows
-
     - name: Configure
       run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DPLATFORM=win32
 

@@ -16,7 +16,6 @@ A lightweight application launcher and file finder for Linux with support for X1
 - CMake 3.20+
 - Cairo development libraries
 - Pango development libraries
-- Intel TBB (Threading Building Blocks) for parallel ranking
 - pkg-config
 
 **For X11 platform:**
@@ -32,7 +31,6 @@ A lightweight application launcher and file finder for Linux with support for X1
 sudo apt-get install \
     cmake \
     build-essential \
-    libtbb-dev \
     libcairo2-dev \
     libpango1.0-dev \
     libx11-dev \
@@ -45,7 +43,6 @@ sudo apt-get install \
 sudo apt-get install \
     cmake \
     build-essential \
-    libtbb-dev \
     libcairo2-dev \
     libpango1.0-dev \
     libwayland-dev \
@@ -59,7 +56,6 @@ sudo apt-get install \
 dnf install \
     cmake \
     gcc-c++ \
-    tbb-devel \
     cairo-devel \
     pango-devel \
     libX11-devel \
@@ -72,7 +68,6 @@ dnf install \
 dnf install -y \
     cmake \
     gcc-c++ \
-    tbb-devel \
     cairo-devel \
     pango-devel \
     wayland-devel \

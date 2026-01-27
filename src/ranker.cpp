@@ -181,21 +181,19 @@ void StreamingRanker::process_chunks()
 
         // Skip scoring if query is empty, but still update metadata
         if (!current_request_.query.empty()) {
-            // Score new chunk and add results with score > 0 to flattened results
-            std::vector<size_t> indices(chunk->size());
-            std::iota(indices.begin(), indices.end(), 0);
-
+            // Score in parallel into temporary buffer
             std::vector<RankResult> chunk_scored(chunk->size());
-            std::transform(std::execution::par_unseq, indices.begin(),
-                           indices.end(), chunk_scored.begin(), [&](size_t i) {
-                               return RankResult{
-                                   global_offset + i, // Use global index
-                                   fuzzy::fuzzy_score_5_simd(chunk->at(i),
-                                                      current_request_.query)};
-                           });
 
-            // Add only results with score > 0 to flattened results
-            for (const auto& result : chunk_scored) {
+            #pragma omp parallel for schedule(static)
+            for (int64_t i = 0; i < static_cast<int64_t>(chunk->size()); ++i) {
+                const auto score = fuzzy::fuzzy_score_5_simd(
+                    chunk->at(i), current_request_.query);
+                chunk_scored[i] =
+                    RankResult{global_offset + static_cast<size_t>(i), score};
+            }
+
+            // Filter and append (sequential, but fast)
+            for (const auto &result : chunk_scored) {
                 if (result.score > 0.0F) {
                     scored_results_.push_back(result);
                 }

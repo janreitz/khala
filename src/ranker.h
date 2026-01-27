@@ -3,9 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
-#include <execution>
 #include <mutex>
-#include <numeric>
 #include <string>
 #include <thread>
 #include <utility>
@@ -50,31 +48,6 @@ struct ResultUpdate {
     ResultUpdate(std::vector<FileResult> &&results_)
         : results(std::move(results_)) {}
 };
-
-// Parallel ranking using std::execution::par_unseq
-template <typename ContainerT, typename ScoreFn>
-std::vector<RankResult> rank_parallel(const ContainerT &data,
-                                      ScoreFn scoring_function, size_t n)
-{
-    std::vector<size_t> indices(data.size());
-    std::iota(indices.begin(), indices.end(), 0);
-
-    std::vector<RankResult> scored(data.size());
-
-    std::transform(std::execution::par_unseq, indices.begin(), indices.end(),
-                   scored.begin(), [&](size_t i) {
-                       return RankResult{i, scoring_function(data.at(i))};
-                   });
-
-    // Partial sort to get top n
-    std::partial_sort(
-        scored.begin(), scored.begin() + std::min(n, scored.size()),
-        scored.end(),
-        [](const auto &a, const auto &b) { return a.score > b.score; });
-
-    scored.resize(std::min(n, scored.size()));
-    return scored;
-}
 
 // Sequential ranking using min-heap
 template <typename ContainerT, typename ScoreFn>
