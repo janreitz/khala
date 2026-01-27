@@ -322,7 +322,7 @@ std::set<fs::path> Config::default_index_roots()
 fs::path Config::default_path()
 {
     const auto home_dir = platform::get_home_dir();
-    return home_dir.value_or(".") / ".khala" / "config.ini";
+    return home_dir.value_or(".") / ".config" / "khala" / "config.ini";
 }
 
 void load_theme(const std::string &theme_name,
@@ -333,7 +333,7 @@ void load_theme(const std::string &theme_name,
             continue;
         }
 
-        fs::path theme_file = theme_dir / (theme_name + ".ini");
+        const fs::path theme_file = theme_dir / (theme_name + ".ini");
         if (!fs::exists(theme_file)) {
             continue;
         }
