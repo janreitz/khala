@@ -20,9 +20,9 @@
 std::vector<ui::Item> make_file_actions(const fs::path &path,
                                         const Config &config)
 {
+    using ui::KeyboardEvent;
     using ui::KeyCode;
     using ui::KeyModifier;
-    using ui::KeyboardEvent;
 
     if (fs::is_directory(path)) {
         std::vector<ui::Item> items{
@@ -74,7 +74,8 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                      .path = std::nullopt,
                      .command = CopyContentToClipboard{path},
                      .hotkey = KeyboardEvent{.key = KeyCode::C,
-                                             .modifiers = KeyModifier::Ctrl | KeyModifier::Shift,
+                                             .modifiers = KeyModifier::Ctrl |
+                                                          KeyModifier::Shift,
                                              .character = std::nullopt}},
         };
         if (path.has_parent_path()) {
@@ -157,24 +158,21 @@ std::vector<ui::Item> get_global_actions(const Config &config)
     return items;
 }
 
-std::expected<std::optional<Effect>, std::string> process_command(const Command &cmd,
-                                                                  const Config &)
+std::expected<std::optional<Effect>, std::string>
+process_command(const Command &cmd, const Config &)
 {
     std::optional<Effect> effect;
     try {
         std::visit(
             overloaded{
-                [](const Noop &) {
-                },
+                [](const Noop &) {},
                 [](const OpenFileCommand &open_file) {
                     platform::open_file(open_file.path);
                 },
                 [](const OpenDirectory &open_dir) {
                     platform::open_directory(open_dir.path);
                 },
-                [](const RemoveFile &rm_file) {
-                    fs::remove(rm_file.path);
-                },
+                [](const RemoveFile &rm_file) { fs::remove(rm_file.path); },
                 [](const RemoveFileRecursive &rm_file) {
                     fs::remove_all(rm_file.path);
                 },
@@ -229,7 +227,11 @@ std::expected<std::optional<Effect>, std::string> process_command(const Command 
 
                     platform::copy_to_clipboard(oss.str());
                 },
-                [](const CustomCommand &custom_cmd) { platform::run_custom_command(custom_cmd.shell_cmd, custom_cmd.path, custom_cmd.stdout_to_clipboard); }},
+                [](const CustomCommand &custom_cmd) {
+                    platform::run_custom_command(
+                        custom_cmd.shell_cmd, custom_cmd.path,
+                        custom_cmd.stdout_to_clipboard);
+                }},
             cmd);
         return effect;
     } catch (const std::exception &e) {

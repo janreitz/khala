@@ -121,15 +121,16 @@ get_dirs_or(const std::multimap<std::string, std::string> &map,
     std::set<fs::path> result;
     for (const auto &value : values) {
         fs::path dir_path(value);
-        if (!fs::exists(dir_path)){
-            warnings.push_back("Config: " + key + " path does not exist: " +value);
+        if (!fs::exists(dir_path)) {
+            warnings.push_back("Config: " + key +
+                               " path does not exist: " + value);
             continue;
-        } 
+        }
         if (!fs::is_directory(dir_path)) {
-            warnings.push_back("Config: " + key + " path is not a directory: " +
-                                value);
-                                continue;
-        } 
+            warnings.push_back("Config: " + key +
+                               " path is not a directory: " + value);
+            continue;
+        }
         result.insert(fs::canonical(dir_path));
     }
 
@@ -224,8 +225,7 @@ std::optional<Color> parse_color(const std::string &str)
     return color;
 }
 
-std::optional<ui::KeyboardEvent>
-parse_hotkey(const std::string &hotkey_str)
+std::optional<ui::KeyboardEvent> parse_hotkey(const std::string &hotkey_str)
 {
     ui::KeyboardEvent result;
 
@@ -302,7 +302,8 @@ parse_hotkey(const std::string &hotkey_str)
     return result;
 }
 
-ui::KeyboardEvent get_hotkey_or(const std::multimap<std::string, std::string> &map,
+ui::KeyboardEvent
+get_hotkey_or(const std::multimap<std::string, std::string> &map,
               const std::string &key, ui::KeyboardEvent default_value)
 {
     auto value = get_last(map, key);
@@ -364,12 +365,12 @@ void load_theme(const std::string &theme_name,
                          config.selection_description_color);
 
         LOG_INFO("Loaded theme '%s' from %s", theme_name.c_str(),
-               platform::path_to_string(theme_file).c_str());
+                 platform::path_to_string(theme_file).c_str());
         return; // Found and loaded, return immediately
     }
 
     LOG_WARNING("Theme '%s' not found, using built-in defaults",
-           theme_name.c_str());
+                theme_name.c_str());
 }
 
 ConfigLoadResult load_config(const fs::path &path)
@@ -406,7 +407,8 @@ ConfigLoadResult load_config(const fs::path &path)
     cfg.file_manager = get_string_or(map, "file_manager", cfg.file_manager);
 
     // Background mode
-    cfg.background_mode = get_bool_or(map, "background_mode", cfg.background_mode);
+    cfg.background_mode =
+        get_bool_or(map, "background_mode", cfg.background_mode);
     cfg.hotkey = get_hotkey_or(map, "hotkey", cfg.hotkey);
     cfg.quit_hotkey = get_hotkey_or(map, "quit_hotkey", cfg.quit_hotkey);
 
@@ -416,7 +418,8 @@ ConfigLoadResult load_config(const fs::path &path)
     cfg.ignore_dir_names =
         get_strings_or(map, "ignore_dir_name", cfg.ignore_dir_names);
 
-    std::vector<fs::path> commands_dirs{fs::path(KHALA_INSTALL_DIR) / "commands",
+    std::vector<fs::path> commands_dirs{fs::path(KHALA_INSTALL_DIR) /
+                                            "commands",
                                         path.parent_path() / "commands"};
     std::unordered_map<std::string, CustomActionDef> actions_by_stem;
     for (const auto &commands_dir : commands_dirs) {
@@ -432,8 +435,10 @@ ConfigLoadResult load_config(const fs::path &path)
                 const bool stdout_to_clipboard =
                     get_bool_or(command_map, "stdout_to_clipboard", false);
                 std::string title = get_string_or(command_map, "title", "");
-                std::string description = get_string_or(command_map, "description", "");
-                std::string shell_cmd = get_string_or(command_map, "shell_cmd", "");
+                std::string description =
+                    get_string_or(command_map, "description", "");
+                std::string shell_cmd =
+                    get_string_or(command_map, "shell_cmd", "");
 
                 if (title.empty() || shell_cmd.empty())
                     continue;
@@ -490,19 +495,24 @@ void Config::save(const fs::path &path) const
     file << "# Background mode (Windows)\n";
     file << "# When enabled, app starts hidden and registers a global hotkey\n";
     file << "background_mode=" << (background_mode ? "true" : "false") << "\n";
-    file << "# Hotkey format: modifier keys + key (e.g., Alt+Space, Ctrl+Shift+K)\n";
+    file << "# Hotkey format: modifier keys + key (e.g., Alt+Space, "
+            "Ctrl+Shift+K)\n";
     file << "hotkey=" << to_string(hotkey) << "\n";
-    file << "# Hotkey to quit the application (In background mode, Esc only hides)\n";
+    file << "# Hotkey to quit the application (In background mode, Esc only "
+            "hides)\n";
     file << "quit_hotkey=" << to_string(quit_hotkey) << "\n";
     file << "\n";
 
     file << "# Indexing \n";
-    file << "# Multiple index_root entries can be specified for indexing multiple locations\n";
+    file << "# Multiple index_root entries can be specified for indexing "
+            "multiple locations\n";
     for (const auto &root : index_roots) {
-        file << "index_root=" << platform::path_to_string(fs::canonical(root)) << "\n";
+        file << "index_root=" << platform::path_to_string(fs::canonical(root))
+             << "\n";
     }
     for (const auto &dir : ignore_dirs) {
-        file << "ignore_dir=" << platform::path_to_string(fs::canonical(dir)) << "\n";
+        file << "ignore_dir=" << platform::path_to_string(fs::canonical(dir))
+             << "\n";
     }
     for (const auto &dir_name : ignore_dir_names) {
         file << "ignore_dir_name=" << dir_name << "\n";
@@ -512,5 +522,5 @@ void Config::save(const fs::path &path) const
     file.flush();
 
     LOG_INFO("Written config to %s",
-           platform::path_to_string(fs::canonical(path)).c_str());
+             platform::path_to_string(fs::canonical(path)).c_str());
 }

@@ -1,7 +1,7 @@
 #include "indexer.h"
-#include "utility.h"
 #include "logger.h"
 #include "packed_strings.h"
+#include "utility.h"
 
 #include <atomic>
 #include <cstdio>
@@ -39,7 +39,7 @@ PackedStrings scan_subtree(const fs::path &root,
                 }
             }
 
-            if (it->is_regular_file()  || it->is_directory()) {
+            if (it->is_regular_file() || it->is_directory()) {
                 paths.push(platform::path_to_string(it->path()));
             }
         }
@@ -65,8 +65,8 @@ scan_filesystem_parallel(const std::set<fs::path> &root_paths,
                 if (entry.is_directory()) {
                     // Check both full paths and directory names
                     if (!ignore_dirs.contains(entry.path()) &&
-                        !ignore_dir_names.contains(
-                            platform::path_to_string(entry.path().filename()))) {
+                        !ignore_dir_names.contains(platform::path_to_string(
+                            entry.path().filename()))) {
                         subdirs.push_back(entry.path());
                     }
                 } else if (entry.is_regular_file()) {
@@ -108,7 +108,8 @@ void scan_subtree_streaming(const fs::path &root,
             if (it->is_directory()) {
                 // Check both full paths and directory names
                 if (ignore_dirs.contains(it->path()) ||
-                    ignore_dir_names.contains(platform::path_to_string(it->path().filename()))) {
+                    ignore_dir_names.contains(
+                        platform::path_to_string(it->path().filename()))) {
                     it.disable_recursion_pending();
                     continue;
                 }
@@ -172,8 +173,8 @@ void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
         try {
             for (const auto &entry : fs::directory_iterator(path)) {
                 if (entry.is_directory()) {
-                    if (ignore_dir_names.contains(
-                            platform::path_to_string(entry.path().filename())) ||
+                    if (ignore_dir_names.contains(platform::path_to_string(
+                            entry.path().filename())) ||
                         ignore_dirs.contains(entry.path())) {
                         continue;
                     }
@@ -200,7 +201,10 @@ void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
         std::min(work_units.size(),
                  static_cast<size_t>(std::thread::hardware_concurrency()));
 
-    LOG_DEBUG("Number of work units %ld, hardware_concurrency: %d, number of threads: %ld", work_units.size(), std::thread::hardware_concurrency(), num_threads);
+    LOG_DEBUG("Number of work units %ld, hardware_concurrency: %d, number of "
+              "threads: %ld",
+              work_units.size(), std::thread::hardware_concurrency(),
+              num_threads);
     workers.reserve(num_threads);
 
     for (size_t i = 0; i < num_threads; i++) {

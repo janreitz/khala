@@ -358,9 +358,11 @@ std::vector<Event> handle_keyboard_input(State &state,
             state.selected_item_index--;
             return {SelectionChanged{}};
         }
-        // History navigation in FileSearch mode when at top of results or already navigating
+        // History navigation in FileSearch mode when at top of results or
+        // already navigating
         if (std::holds_alternative<FileSearch>(state.mode) &&
-            (state.selected_item_index == 0 || state.items.empty() || state.navigating_history)) {
+            (state.selected_item_index == 0 || state.items.empty() ||
+             state.navigating_history)) {
             if (!state.file_search_history.empty()) {
                 if (!state.navigating_history) {
                     // First time entering history - save current input
@@ -370,7 +372,8 @@ std::vector<Event> handle_keyboard_input(State &state,
                 }
                 if (state.history_position > 0) {
                     state.history_position--;
-                    state.input_buffer = std::string(state.file_search_history.at(state.history_position));
+                    state.input_buffer = std::string(
+                        state.file_search_history.at(state.history_position));
                     state.cursor_position = state.input_buffer.size();
                     return {InputChanged{}};
                 }
@@ -390,7 +393,8 @@ std::vector<Event> handle_keyboard_input(State &state,
                 state.saved_input_buffer.clear();
                 return {InputChanged{}};
             }
-            state.input_buffer = std::string(state.file_search_history.at(state.history_position));
+            state.input_buffer = std::string(
+                state.file_search_history.at(state.history_position));
             state.cursor_position = state.input_buffer.size();
             return {InputChanged{}};
         }

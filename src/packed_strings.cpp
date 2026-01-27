@@ -44,10 +44,7 @@ void PackedStrings::shrink_to_fit()
 bool PackedStrings::empty() const noexcept { return indices_.empty(); }
 size_t PackedStrings::size() const noexcept { return indices_.size(); }
 
-PackedStrings::iterator PackedStrings::begin() const
-{
-    return {this, 0};
-}
+PackedStrings::iterator PackedStrings::begin() const { return {this, 0}; }
 
 PackedStrings::iterator PackedStrings::end() const
 {

@@ -3,8 +3,8 @@
 #include "lastwriterwinsslot.h"
 #include "streamingindex.h"
 
-#include <cstdint>
 #include <chrono>
+#include <cstdint>
 #include <thread>
 
 // TODO we could merge into the existing results without creating a copy?
@@ -64,7 +64,7 @@ void StreamingRanker::resume()
     state_cv_.notify_one();
 }
 
-void StreamingRanker::update_query(const std::string& query)
+void StreamingRanker::update_query(const std::string &query)
 {
     std::lock_guard lock(state_mutex_);
     ranker_request_.query = query;
@@ -116,8 +116,10 @@ void StreamingRanker::run()
             current_request_ = new_request;
         }
 
-        // Special case: count increased but no new chunks - re-sort existing scored chunks
-        if (only_count_increased && processed_chunks_ == streaming_index_.get_available_chunks()) {
+        // Special case: count increased but no new chunks - re-sort existing
+        // scored chunks
+        if (only_count_increased &&
+            processed_chunks_ == streaming_index_.get_available_chunks()) {
             handle_count_increase();
             continue;
         }
@@ -185,7 +187,7 @@ void StreamingRanker::process_chunks()
             // Score in parallel into temporary buffer
             std::vector<RankResult> chunk_scored(chunk->size());
 
-            #pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static)
             for (int64_t i = 0; i < static_cast<int64_t>(chunk->size()); ++i) {
                 const auto score = fuzzy::fuzzy_score_5_simd(
                     chunk->at(static_cast<size_t>(i)), current_request_.query);
@@ -205,38 +207,42 @@ void StreamingRanker::process_chunks()
         global_offset += chunk->size();
         ++processed_chunks_;
 
-        // Incrementally rebuild accumulated results (or send empty update for empty query)
+        // Incrementally rebuild accumulated results (or send empty update for
+        // empty query)
         report_results();
     }
 }
 
 void StreamingRanker::report_results()
 {
-    const size_t n = std::min(current_request_.requested_count, scored_results_.size());
+    const size_t n =
+        std::min(current_request_.requested_count, scored_results_.size());
     // Sort all scored results to get top requested_count
     std::partial_sort(scored_results_.begin(),
                       scored_results_.begin() + static_cast<std::ptrdiff_t>(n),
-                      scored_results_.end(),
-                      [](const auto &a, const auto &b) { return a.score > b.score; });
+                      scored_results_.end(), [](const auto &a, const auto &b) {
+                          return a.score > b.score;
+                      });
 
-    // Convert top n to FileResult  
+    // Convert top n to FileResult
     accumulated_results_.clear();
     accumulated_results_.reserve(n);
-    
+
     for (size_t i = 0; i < n; ++i) {
-        const auto& result = scored_results_[i];
-        
+        const auto &result = scored_results_[i];
+
         // Find the file path from chunk and global index
         size_t global_index = result.index;
-        for (size_t chunk_idx = 0; chunk_idx < streaming_index_.get_available_chunks(); ++chunk_idx) {
+        for (size_t chunk_idx = 0;
+             chunk_idx < streaming_index_.get_available_chunks(); ++chunk_idx) {
             auto chunk = streaming_index_.get_chunk(chunk_idx);
-            if (!chunk) break;
-            
+            if (!chunk)
+                break;
+
             if (global_index < chunk->size()) {
-                accumulated_results_.push_back(FileResult{
-                    .path = std::string(chunk->at(global_index)),
-                    .score = result.score
-                });
+                accumulated_results_.push_back(
+                    FileResult{.path = std::string(chunk->at(global_index)),
+                               .score = result.score});
                 break;
             }
             global_index -= chunk->size();
@@ -254,7 +260,8 @@ void StreamingRanker::send_update(bool is_final)
         is_final ? true : streaming_index_.is_scan_complete();
     update.total_files = streaming_index_.get_total_files();
     update.processed_chunks = processed_chunks_;
-    update.total_available_results = scored_results_.size(); // Use flattened results size
+    update.total_available_results =
+        scored_results_.size(); // Use flattened results size
 
     result_updates_.write(std::move(update));
 }

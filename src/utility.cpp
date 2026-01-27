@@ -9,9 +9,9 @@
 #include <chrono>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <sstream>
-#include <fstream>
 
 namespace fs = std::filesystem;
 
@@ -345,7 +345,6 @@ std::string read_file(const fs::path &path)
     return buffer.str();
 }
 
-
 int find_last_or(std::string_view str, char c, int _default)
 {
     const auto *data = str.data();
@@ -366,7 +365,7 @@ int count_leading_zeros(unsigned int x)
     unsigned long index;
     unsigned char success = _BitScanReverse(&index, x);
     // _BitScanReverse fails for x = 0
-    // If success == 0, return 32 
+    // If success == 0, return 32
     // If success == 1, we want to return 31 - index
     return 32 - (success * (index + 1));
 #else
@@ -516,7 +515,8 @@ size_t simd_find_all(const char *data, size_t len, char target,
     return pos_idx;
 }
 
-void load_history(PackedStrings& history) {
+void load_history(PackedStrings &history)
+{
     const auto path = platform::get_data_dir() / "history.txt";
     if (!fs::exists(path)) {
         LOG_INFO("No history file at %s", path.c_str());
@@ -530,15 +530,18 @@ void load_history(PackedStrings& history) {
             history.push(line);
         }
     }
-    LOG_INFO("Loaded %zu history entries from %s", history.size(), path.c_str());
+    LOG_INFO("Loaded %zu history entries from %s", history.size(),
+             path.c_str());
 }
 
-void save_history(const PackedStrings& history) {
+void save_history(const PackedStrings &history)
+{
     const auto path = platform::get_data_dir() / "history.txt";
     std::error_code err;
     fs::create_directories(path.parent_path(), err);
     if (err) {
-        LOG_ERROR("Failed to create history directory: %s", err.message().c_str());
+        LOG_ERROR("Failed to create history directory: %s",
+                  err.message().c_str());
         return;
     }
 
@@ -548,11 +551,13 @@ void save_history(const PackedStrings& history) {
         return;
     }
     constexpr size_t MAX_HISTORY = 1000;
-    size_t start = history.size() > MAX_HISTORY ? history.size() - MAX_HISTORY : 0;
+    size_t start =
+        history.size() > MAX_HISTORY ? history.size() - MAX_HISTORY : 0;
     for (size_t i = start; i < history.size(); i++) {
         file << history.at(i) << '\n';
     }
-    LOG_INFO("Saved %zu history entries to %s", history.size() - start, path.c_str());
+    LOG_INFO("Saved %zu history entries to %s", history.size() - start,
+             path.c_str());
 }
 
 std::optional<std::filesystem::path> get_dir(std::string_view path)

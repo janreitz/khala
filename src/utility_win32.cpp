@@ -3,11 +3,11 @@
 #include <filesystem>
 #include <optional>
 
+#include <Windows.h>
 #include <comdef.h>
 #include <objbase.h>  // For CoInitialize, IShellLink
 #include <shlobj.h>   // For SHGetKnownFolderPath
 #include <shobjidl.h> // For IShellLink
-#include <Windows.h>
 
 namespace fs = std::filesystem;
 
@@ -46,7 +46,6 @@ fs::path get_temp_dir()
     return fs::path(temp);
 }
 
-
 fs::path get_data_dir()
 {
     const char *appdata = std::getenv("APPDATA");
@@ -57,7 +56,6 @@ fs::path get_data_dir()
     }
     return get_home_dir().value_or(".") / "khala" / "data";
 }
-
 
 void copy_to_clipboard(const std::string &content)
 {
@@ -289,7 +287,8 @@ bool setup_autostart(bool enable)
     const char *run_key = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 
     if (RegOpenKeyExA(HKEY_CURRENT_USER, run_key, 0,
-                      KEY_SET_VALUE | KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS) {
+                      KEY_SET_VALUE | KEY_QUERY_VALUE,
+                      &hKey) != ERROR_SUCCESS) {
         return false;
     }
 
@@ -324,8 +323,8 @@ bool is_autostart_enabled()
 
     DWORD type;
     DWORD size = 0;
-    bool exists =
-        RegQueryValueExA(hKey, "Khala", NULL, &type, NULL, &size) == ERROR_SUCCESS;
+    bool exists = RegQueryValueExA(hKey, "Khala", NULL, &type, NULL, &size) ==
+                  ERROR_SUCCESS;
 
     RegCloseKey(hKey);
     return exists;
@@ -385,9 +384,9 @@ std::optional<ApplicationInfo> parse_shortcut(const fs::path &lnk_path)
     };
 
     ApplicationInfo app{.name = name,
-                   .description = wide_to_utf8(description),
-                   .exec_command = wide_to_utf8(target_path),
-                   .app_info_path = lnk_path};
+                        .description = wide_to_utf8(description),
+                        .exec_command = wide_to_utf8(target_path),
+                        .app_info_path = lnk_path};
 
     persist_file->Release();
     shell_link->Release();

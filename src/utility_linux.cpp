@@ -1,9 +1,9 @@
 #include "utility.h"
 
+#include <fstream>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <fstream>
 #include <unordered_map>
 
 namespace platform
@@ -16,7 +16,8 @@ std::string path_to_string(const fs::path &path) { return path.string(); }
 std::optional<fs::path> get_home_dir()
 {
     const char *home = std::getenv("HOME");
-    return home == nullptr ? std::optional<fs::path>(std::nullopt) : get_dir(home);
+    return home == nullptr ? std::optional<fs::path>(std::nullopt)
+                           : get_dir(home);
 }
 
 fs::path get_temp_dir()
@@ -28,8 +29,9 @@ fs::path get_temp_dir()
     return temp;
 }
 
-fs::path get_data_dir() { 
-    const char *xdg_data = std::getenv("XDG_DATA_HOME"); 
+fs::path get_data_dir()
+{
+    const char *xdg_data = std::getenv("XDG_DATA_HOME");
     if (xdg_data) {
         if (const auto maybe_data_dir = get_dir(xdg_data)) {
             return maybe_data_dir.value() / "khala";
@@ -246,11 +248,13 @@ void run_custom_command(const std::string &cmd,
     }
 }
 
-void open_file(const fs::path& path) {
+void open_file(const fs::path &path)
+{
     run_command({"xdg-open", path.string()});
 }
 
-void open_directory(const fs::path &path) {
+void open_directory(const fs::path &path)
+{
     run_command({"xdg-open", path.string()});
 }
 
@@ -354,9 +358,9 @@ std::vector<ApplicationInfo> scan_app_infos()
                 }
 
                 apps.push_back(ApplicationInfo{.name = name_it->second,
-                                          .description = description,
-                                          .exec_command = exec_command,
-                                          .app_info_path = entry.path()});
+                                               .description = description,
+                                               .exec_command = exec_command,
+                                               .app_info_path = entry.path()});
             }
         } catch (const fs::filesystem_error &) {
             // Skip directories we can't read

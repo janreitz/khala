@@ -36,7 +36,10 @@ int main()
     ui::State state;
     load_history(state.file_search_history);
     const defer save_hist([&state]() noexcept {
-        try { save_history(state.file_search_history); } catch (...) {}
+        try {
+            save_history(state.file_search_history);
+        } catch (...) {
+        }
     });
     auto [config, config_warnings] = load_config(Config::default_path());
     const defer save_config([&config]() noexcept {
@@ -61,7 +64,6 @@ int main()
             .x = config.width_ratio,
             .y = config.height_ratio,
         });
-
 
     // Background mode setup
     if (config.background_mode) {
@@ -89,8 +91,7 @@ int main()
 
     // Shared state
     StreamingIndex streaming_index;
-    std::vector<ApplicationInfo> desktop_apps =
-        platform::scan_app_infos();
+    std::vector<ApplicationInfo> desktop_apps = platform::scan_app_infos();
     LOG_INFO("Loaded %zu desktop apps", desktop_apps.size());
 
     // Communication channels
@@ -178,8 +179,11 @@ int main()
                             ui::required_item_count(state, max_visible_items);
                         ranker.update_requested_count(required_item_count);
                     },
-                    [&state, &config, &effects](const ui::ActionRequested &req) {
-                        if (std::holds_alternative<ui::FileSearch>(state.mode) && !state.input_buffer.empty()) {
+                    [&state, &config,
+                     &effects](const ui::ActionRequested &req) {
+                        if (std::holds_alternative<ui::FileSearch>(
+                                state.mode) &&
+                            !state.input_buffer.empty()) {
                             state.file_search_history.push(state.input_buffer);
                         }
                         const auto cmd_result =
@@ -319,7 +323,8 @@ int main()
                         // Reset history navigation state
                         state.navigating_history = false;
                         state.saved_input_buffer.clear();
-                        state.history_position = state.file_search_history.size();
+                        state.history_position =
+                            state.file_search_history.size();
 
                         // Reset ranker to empty query
                         ranker.update_query("");
