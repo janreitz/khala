@@ -2,7 +2,7 @@
 
 # Khala
 
-A lightweight application launcher and file finder for Linux with support for X11 and Wayland.
+A lightweight application launcher and file finder for Linux (X11 and Wayland) and Windows.
 
 - **File search**: Default mode - search for files and directories
 - **App search**: Prefix with `!` to search for applications only
@@ -10,121 +10,27 @@ A lightweight application launcher and file finder for Linux with support for X1
 - **Custom commands**: Define your own utility commands and file actions
 - **Responsive design**: Scales with your screen size
 
-### Prerequisites
-
-- C++ compiler with C++23 support (GCC 13+, Clang 14+)
-- CMake 3.20+
-- Cairo development libraries
-- Pango development libraries
-- pkg-config
-
-**For X11 platform:**
-- X11 development libraries (libX11, libXrandr (extension for multi-monitor setups))
-
-**For Wayland platform:**
-- Wayland development libraries
-- Wayland protocols
-- xkbcommon development libraries
-
-**Ubuntu/Debian (X11):**
-```bash
-sudo apt-get install \
-    cmake \
-    build-essential \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libx11-dev \
-    libxrandr-dev \
-    pkg-config
-```
-
-**Ubuntu/Debian (Wayland):**
-```bash
-sudo apt-get install \
-    cmake \
-    build-essential \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libwayland-dev \
-    wayland-protocols \
-    libxkbcommon-dev \
-    pkg-config
-```
-
-**Fedora/RHEL/CentOS (X11):**
-```bash
-dnf install \
-    cmake \
-    gcc-c++ \
-    cairo-devel \
-    pango-devel \
-    libX11-devel \
-    libXrandr-devel \
-    pkgconfig
-```
-
-**Fedora/RHEL/CentOS (Wayland):**
-```bash
-dnf install -y \
-    cmake \
-    gcc-c++ \
-    cairo-devel \
-    pango-devel \
-    wayland-devel \
-    wayland-protocols-devel \
-    libxkbcommon-devel \
-    pkgconfig
-```
-
-### Build from source
-
-**For X11 (default):**
-```bash
-git clone <repository-url>
-cd khala
-cmake -S . -B build
-cmake --build build
-```
-
-**For Wayland:**
-```bash
-git clone <repository-url>
-cd khala
-cmake -S . -B build -DPLATFORM=wayland
-cmake --build build
-```
-
 ## Usage
 
-Set a global hotkey to the `./khala` binary.
+On X11 and Windows, Khala will register a global hotkey (default `Alt+Space`) and stay in the background. The hotkey will cause it to pop up.
 
 - **Arrow keys**: Navigate through results
-- **Tab**: Open context menu for additional actions
+- **Tab/Right**: Open context menu for additional actions
 - **Left**: Close context menu
-- **Enter**: Execute selected action
-- **Escape**: Close launcher
-
-### Wayland Setup
-
-On Wayland, proper window activation requires setting up the `XDG_ACTIVATION_TOKEN` environment variable. This allows the launcher to request focus from the compositor.
-
-**For desktop environment hotkeys (recommended):**
-Most Wayland compositors and desktop environments support setting custom hotkeys that automatically provide activation tokens. For example: 
-- GNOME Shell (via Settings → Keyboard → Custom Shortcuts)
-- KDE Plasma (via System Settings → Shortcuts)
-
-Configure your hotkey to run:
-```bash
-/path/to/khala
-```
+- **Up/Down/Scroll**: Cycle through search results
+- **Up**: From the query input to cycle through search history
+- **Enter/Click**: Execute selected action
+- **Escape**: Close/Minimize
+- **Ctrl+q**: Quit/Exit
+- **Hotkeys**: Hotkeys are indicated in the search results. Hotkeys for file actions (for example `Ctrl+Enter` for open containing folder) can be invoked for the selected item while in file search.
 
 ## Configuration
 
-Khala creates a configuration file at `~/.khala/config.ini` and populates it with the default values for all available settings. Feel free to modify.
+Khala creates a configuration file at `~/.config/khala/config.ini` and populates it with the default values for all available settings. Feel free to modify.
 
 ### Custom Commands
 
-You can define custom commands by creating `.ini` files in `~/.khala/commands/`. Each command file should follow this format:
+You can define custom commands by creating `.ini` files in `~/.config/khala/commands/`. Each command file should follow this format:
 
 ```ini
 title=My Custom Action # The name shown in search results
@@ -146,10 +52,10 @@ stdout_to_clipboard=false
 #### Examples
 
 ```ini
-# ~/.khala/commands/rm.ini
-title=Remove
-description=Delete File
-shell_cmd=rm "$FILEPATH"
+# ~/.config/khala/commands/open_with_code.ini
+title=Code
+description=Open File in VS Code
+shell_cmd=code "$FILEPATH"
 is_file_action=true
 ```
 
@@ -170,7 +76,7 @@ You can customize the appearance by selecting one of the default themes (`defaul
 
 You can create your own themes by placing `.ini` files in:
 - System-wide: `${PREFIX}/share/khala/themes/`
-- User-specific: `~/.khala/themes/` (User themes override system themes with the same name.)
+- User-specific: `~/.config/khala/themes/` (User themes override system themes with the same name.)
 
 ```ini
 # My Custom Theme
@@ -189,3 +95,51 @@ Colors can be specified in hex format:
 - `#RGBA` - Short form with alpha
 - `#RRGGBB` - Standard form (e.g., `#FF0000` for red)
 - `#RRGGBBAA` - Standard form with alpha
+
+
+## Build from source
+
+### Linux 
+
+The project requires a C++ compiler with C++23 support (GCC 13+, Clang 14+), CMake 3.20+, pkg-config, as well as Cairo (2D Graphics) and Pango (Text rendering) development libraries.
+
+**For X11 platform:**
+- X11 development libraries (libX11, libXrandr (extension for multi-monitor setups))
+
+**For Wayland platform:**
+- Wayland development libraries
+- Wayland protocols
+- xkbcommon development libraries
+
+**Ubuntu/Debian (X11):**
+```bash
+sudo apt-get install cmake build-essential libcairo2-dev libpango1.0-dev libx11-dev libxrandr-dev pkg-config
+```
+
+**Ubuntu/Debian (Wayland):**
+```bash
+sudo apt-get install cmake build-essential libcairo2-dev libpango1.0-dev libwayland-dev wayland-protocols libxkbcommon-dev pkg-config
+```
+
+**Fedora/RHEL/CentOS (X11):**
+```bash
+dnf install cmake gcc-c++ cairo-devel pango-devel libX11-devel libXrandr-devel pkgconfig
+```
+
+**Fedora/RHEL/CentOS (Wayland):**
+```bash
+dnf install -y cmake gcc-c++ cairo-devel pango-devel wayland-devel wayland-protocols-devel libxkbcommon-devel pkgconfig
+```
+
+
+**To build:**
+```bash
+git clone <repository-url>
+cd khala
+cmake -S . -B build -DPLATFORM=[x11|wayland]
+cmake --build build
+```
+
+### Windows
+The Windows build relies on native win32 APIs, so no dependencies beyond Visual Studio 2022+ and its CMake integration. Make sure to set `PLATFORM=win32` in the Visual Studio CMake Settings, or directly in the `CMakeLists.txt`.
+
