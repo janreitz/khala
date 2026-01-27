@@ -321,8 +321,13 @@ std::set<fs::path> Config::default_index_roots()
 
 fs::path Config::default_path()
 {
+#ifdef PLATFORM_WIN32
+    const char *appdata = std::getenv("APPDATA");
+    return fs::path(appdata) / "khala" / "config.ini";
+#else
     const auto home_dir = platform::get_home_dir();
     return home_dir.value_or(".") / ".config" / "khala" / "config.ini";
+#endif
 }
 
 void load_theme(const std::string &theme_name,
