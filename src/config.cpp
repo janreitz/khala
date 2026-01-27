@@ -397,7 +397,7 @@ ConfigLoadResult load_config(const fs::path &path)
     cfg.theme = get_string_or(map, "theme", cfg.theme);
     load_theme(
         cfg.theme,
-        {fs::path(KHALA_DATADIR) / "themes", path.parent_path() / "themes"},
+        {fs::path(KHALA_INSTALL_DIR) / "themes", path.parent_path() / "themes"},
         cfg);
 
     // Behavior
@@ -416,7 +416,7 @@ ConfigLoadResult load_config(const fs::path &path)
     cfg.ignore_dir_names =
         get_strings_or(map, "ignore_dir_name", cfg.ignore_dir_names);
 
-    std::vector<fs::path> commands_dirs{fs::path(KHALA_DATADIR) / "commands",
+    std::vector<fs::path> commands_dirs{fs::path(KHALA_INSTALL_DIR) / "commands",
                                         path.parent_path() / "commands"};
     std::unordered_map<std::string, CustomActionDef> actions_by_stem;
     for (const auto &commands_dir : commands_dirs) {

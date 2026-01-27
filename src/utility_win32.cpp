@@ -46,13 +46,21 @@ fs::path get_temp_dir()
     return fs::path(temp);
 }
 
-fs::path get_history_path()
+
+fs::path get_data_dir()
 {
     const char *appdata = std::getenv("APPDATA");
     if (appdata) {
-        return fs::path(appdata) / "khala" / "history.txt";
+        if (const auto maybe_data_dir = get_dir(appdata)) {
+            return maybe_data_dir.value() / "khala";
+        }
     }
-    return get_temp_dir() / "khala" / "history.txt";
+    return get_home_dir().value_or(".") / "khala" / "data";
+}
+
+fs::path get_history_path()
+{
+    return get_data_dir() / "history.txt";
 }
 
 void copy_to_clipboard(const std::string &content)

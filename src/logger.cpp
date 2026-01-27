@@ -9,41 +9,20 @@
 
 namespace fs = std::filesystem;
 
-void Logger::init(const std::string& log_dir) {
+void Logger::init(const fs::path& log_dir) {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (initialized_) {
         return;
     }
-
-    fs::path dir(log_dir);
-    if (dir.empty() || !fs::exists(dir)) {
-        // Use KHALA_DATA_DIR or fallback to XDG_DATA_HOME or ~/.local/share
-        const char* khala_data = std::getenv("KHALA_DATA_DIR");
-        if (khala_data) {
-            dir = std::string(khala_data) + "/logs";
-        } else {
-            const char* xdg_data = std::getenv("XDG_DATA_HOME");
-            if (xdg_data) {
-                dir = std::string(xdg_data) + "/khala/logs";
-            } else {
-                const auto home = platform::get_home_dir();
-                if (home) {
-                    dir = home.value() / ".local/share/khala/logs";
-                } else {
-                    dir = platform::get_temp_dir() / "khala/logs";
-                }
-            }
-        }
-    }
-
+    
     try {
-        std::filesystem::create_directories(dir);
+        std::filesystem::create_directories(log_dir);
         
         auto now = std::chrono::system_clock::now();
         auto time_value = std::chrono::system_clock::to_time_t(now);
         std::stringstream ss;
-        ss << dir << "/khala_" << std::put_time(std::localtime(&time_value), "%Y%m%d_%H%M%S") << ".log";
+        ss << platform::path_to_string(log_dir) << "/khala_" << std::put_time(std::localtime(&time_value), "%Y%m%d_%H%M%S") << ".log";
         
         log_file_ = std::make_unique<std::ofstream>(ss.str(), std::ios::app);
         if (!log_file_->is_open()) {

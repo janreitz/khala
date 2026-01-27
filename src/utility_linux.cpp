@@ -11,18 +11,10 @@ namespace fs = std::filesystem;
 
 std::string path_to_string(const fs::path &path) { return path.string(); }
 
-std::optional<std::filesystem::path> get_home_dir()
+std::optional<fs::path> get_home_dir()
 {
     const char *home = std::getenv("HOME");
-
-    if (!home) {
-        return std::nullopt;
-    }
-    const fs::path home_path(home);
-    if (!fs::exists(home_path)) {
-        return std::nullopt;
-    }
-    return home_path;
+    return home == nullptr ? std::optional<fs::path>(std::nullopt) : get_dir(home);
 }
 
 fs::path get_temp_dir()
@@ -31,16 +23,22 @@ fs::path get_temp_dir()
     if (!temp) {
         temp = "/tmp";
     }
-    return fs::path(temp);
+    return temp == nullptr ? std::optional<fs::path>(std::nullopt)
+                           : get_dir(temp);
 }
 
-fs::path get_history_path()
-{
-    const auto home = get_home_dir();
-    if (home) {
-        return home.value() / ".local/share/khala/history.txt";
+fs::path get_data_dir() { 
+    const char *xdg_data = std::getenv("XDG_DATA_HOME"); 
+    if (xdg_data) {
+        if (const auto maybe_data_dir = get_dir(xdg_data)) {
+            return maybe_data_dir.value() / "khala";
+        }
     }
-    return get_temp_dir() / "khala/history.txt";
+
+    const auto maybe_home_dir = get_home_dir();
+        return maybe_home_dir.value() / ".local" / "share" / "khala";
+    }
+    return fs::path(".") / "khala";
 }
 
 void copy_to_clipboard(const std::string &content)

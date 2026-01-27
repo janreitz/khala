@@ -235,7 +235,7 @@ if(PLATFORM STREQUAL "win32")
 endif()
 
 target_compile_definitions(khala PRIVATE
-    KHALA_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
+    KHALA_INSTALL_DIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
 
 target_include_directories(khala PRIVATE
     ${PLATFORM_INCLUDE_DIRS}

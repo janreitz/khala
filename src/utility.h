@@ -58,6 +58,8 @@ size_t find_all(const char *data, size_t len, char target, size_t *positions,
 size_t simd_find_all(const char *data, size_t len, char target,
                      size_t *positions, size_t max_results);
 
+std::optional<std::filesystem::path> get_dir(std::string_view path);
+
 struct ApplicationInfo {
     std::string name;
     std::string description;
@@ -71,6 +73,7 @@ namespace platform
 std::string path_to_string(const std::filesystem::path &path);
 std::optional<std::filesystem::path> get_home_dir();
 std::filesystem::path get_temp_dir();
+std::filesystem::path get_data_dir();
 std::filesystem::path get_history_path();
 
 void copy_to_clipboard(const std::string &content);

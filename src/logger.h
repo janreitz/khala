@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <source_location>
 #include <sstream>
+#include <filesystem>
 
 enum class LogLevel {
     DEBUG,
@@ -24,7 +25,7 @@ public:
         return instance;
     }
 
-    void init(const std::string& log_dir = "");
+    void init(const std::filesystem::path& log_dir);
     
     // Printf-style logging functions
 

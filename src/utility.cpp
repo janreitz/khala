@@ -554,3 +554,13 @@ void save_history(const PackedStrings& history) {
     }
     LOG_INFO("Saved %zu history entries to %s", history.size() - start, path.c_str());
 }
+
+std::optional<std::filesystem::path> get_dir(std::string_view path)
+{
+    fs::path dir(path);
+    return fs::exists(dir) && fs::is_directory(dir)
+               ? std::optional<fs::path>(dir)
+               : std::optional<fs::path>(std::nullopt);
+}
+
+fs::path get_history_path() { return platform::get_data_dir() / "history.txt"; }
