@@ -34,6 +34,15 @@ fs::path get_temp_dir()
     return fs::path(temp);
 }
 
+fs::path get_history_path()
+{
+    const auto home = get_home_dir();
+    if (home) {
+        return home.value() / ".local/share/khala/history.txt";
+    }
+    return get_temp_dir() / "khala/history.txt";
+}
+
 void copy_to_clipboard(const std::string &content)
 {
     int pipefd[2];

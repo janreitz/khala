@@ -1,5 +1,6 @@
 #pragma once
 
+#include "packed_strings.h"
 #include "types.h"
 
 #include <filesystem>
@@ -63,6 +64,7 @@ namespace platform
 std::string path_to_string(const std::filesystem::path &path);
 std::optional<std::filesystem::path> get_home_dir();
 std::filesystem::path get_temp_dir();
+std::filesystem::path get_history_path();
 
 void copy_to_clipboard(const std::string &content);
 void run_command(const std::vector<std::string> &args);
@@ -78,3 +80,7 @@ void open_directory(const std::filesystem::path &path);
 bool setup_autostart(bool enable);
 bool is_autostart_enabled();
 } // namespace platform
+
+// History file operations
+void load_history(PackedStrings& history);
+void save_history(const PackedStrings& history);

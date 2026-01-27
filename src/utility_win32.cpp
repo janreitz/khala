@@ -42,6 +42,15 @@ fs::path get_temp_dir()
     return fs::path(temp);
 }
 
+fs::path get_history_path()
+{
+    const char *appdata = std::getenv("APPDATA");
+    if (appdata) {
+        return fs::path(appdata) / "khala" / "history.txt";
+    }
+    return get_temp_dir() / "khala" / "history.txt";
+}
+
 void copy_to_clipboard(const std::string &content)
 {
     if (!OpenClipboard(nullptr)) {

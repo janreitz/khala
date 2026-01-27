@@ -1,4 +1,5 @@
 #include "utility.h"
+#include "logger.h"
 
 #include <emmintrin.h>
 #ifdef _MSC_VER
@@ -513,4 +514,43 @@ size_t simd_find_all(const char *data, size_t len, char target,
     }
 
     return pos_idx;
+}
+
+void load_history(PackedStrings& history) {
+    const auto path = platform::get_history_path();
+    if (!fs::exists(path)) {
+        LOG_INFO("No history file at %s", path.c_str());
+        return;
+    }
+
+    std::ifstream file(path);
+    std::string line;
+    while (std::getline(file, line)) {
+        if (!line.empty()) {
+            history.push(line);
+        }
+    }
+    LOG_INFO("Loaded %zu history entries from %s", history.size(), path.c_str());
+}
+
+void save_history(const PackedStrings& history) {
+    const auto path = platform::get_history_path();
+    std::error_code err;
+    fs::create_directories(path.parent_path(), err);
+    if (err) {
+        LOG_ERROR("Failed to create history directory: %s", err.message().c_str());
+        return;
+    }
+
+    std::ofstream file(path, std::ios::trunc);
+    if (!file) {
+        LOG_ERROR("Failed to open history file for writing: %s", path.c_str());
+        return;
+    }
+    constexpr size_t MAX_HISTORY = 1000;
+    size_t start = history.size() > MAX_HISTORY ? history.size() - MAX_HISTORY : 0;
+    for (size_t i = start; i < history.size(); i++) {
+        file << history.at(i) << '\n';
+    }
+    LOG_INFO("Saved %zu history entries to %s", history.size() - start, path.c_str());
 }

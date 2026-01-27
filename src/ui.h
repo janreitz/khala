@@ -2,6 +2,7 @@
 
 #include "actions.h"
 #include "config.h"
+#include "packed_strings.h"
 #include "ranker.h"
 #include "types.h"
 #include "utility.h"
@@ -85,6 +86,12 @@ struct State {
     // Cache of last file search update for restoration when leaving ContextMenu
     // Also serves as the source of truth for progress tracking metadata
     std::optional<ResultUpdate> cached_file_search_update;
+
+    // History for file search queries
+    PackedStrings file_search_history;
+    size_t history_position = 0;  // size() = "current input" (not navigating)
+    std::string saved_input_buffer;  // Saved when entering history navigation
+    bool navigating_history = false;
 
     std::optional<Item> get_selected_item() const;
 

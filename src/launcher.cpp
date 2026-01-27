@@ -34,6 +34,10 @@ int main()
     LOG_INFO("Khala launcher starting up");
 
     ui::State state;
+    load_history(state.file_search_history);
+    const defer save_hist([&state]() noexcept {
+        try { save_history(state.file_search_history); } catch (...) {}
+    });
     auto [config, config_warnings] = load_config(Config::default_path());
     const defer save_config([&config]() noexcept {
         try {
@@ -175,6 +179,9 @@ int main()
                         ranker.update_requested_count(required_item_count);
                     },
                     [&state, &config, &effects](const ui::ActionRequested &req) {
+                        if (std::holds_alternative<ui::FileSearch>(state.mode) && !state.input_buffer.empty()) {
+                            state.file_search_history.push(state.input_buffer);
+                        }
                         const auto cmd_result =
                             process_command(req.command, config);
                         if (!cmd_result.has_value()) {
@@ -308,6 +315,11 @@ int main()
                         state.selected_item_index = 0;
                         state.visible_range_offset = 0;
                         state.mode = ui::FileSearch{.query = ""};
+
+                        // Reset history navigation state
+                        state.navigating_history = false;
+                        state.saved_input_buffer.clear();
+                        state.history_position = state.file_search_history.size();
 
                         // Reset ranker to empty query
                         ranker.update_query("");
