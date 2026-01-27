@@ -3,6 +3,10 @@
 #include <filesystem>
 #include <optional>
 
+#include <comdef.h>
+#include <objbase.h>  // For CoInitialize, IShellLink
+#include <shlobj.h>   // For SHGetKnownFolderPath
+#include <shobjidl.h> // For IShellLink
 #include <Windows.h>
 
 namespace fs = std::filesystem;
@@ -322,4 +326,118 @@ bool is_autostart_enabled()
     RegCloseKey(hKey);
     return exists;
 }
+
+std::optional<ApplicationInfo> parse_shortcut(const fs::path &lnk_path)
+{
+    IShellLinkW *shell_link = nullptr;
+    IPersistFile *persist_file = nullptr;
+
+    HRESULT hr =
+        CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+                         IID_IShellLinkW, (void **)&shell_link);
+    if (FAILED(hr)) {
+        return std::nullopt;
+    }
+
+    hr = shell_link->QueryInterface(IID_IPersistFile, (void **)&persist_file);
+    if (FAILED(hr)) {
+        shell_link->Release();
+        return std::nullopt;
+    }
+
+    hr = persist_file->Load(lnk_path.wstring().c_str(), STGM_READ);
+    if (FAILED(hr)) {
+        persist_file->Release();
+        shell_link->Release();
+        return std::nullopt;
+    }
+
+    // Get target path
+    wchar_t target_path[MAX_PATH];
+    hr = shell_link->GetPath(target_path, MAX_PATH, nullptr, SLGP_UNCPRIORITY);
+    if (FAILED(hr) || target_path[0] == L'\0') {
+        persist_file->Release();
+        shell_link->Release();
+        return std::nullopt;
+    }
+
+    // Get description (optional)
+    wchar_t description[1024];
+    shell_link->GetDescription(description, 1024);
+
+    // Use the shortcut filename (minus .lnk) as the app name
+    std::string name = lnk_path.stem().string();
+
+    // Convert wide strings to UTF-8
+    auto wide_to_utf8 = [](const wchar_t *wide) -> std::string {
+        if (!wide || !*wide)
+            return "";
+        int size = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0,
+                                       nullptr, nullptr);
+        std::string result(size - 1, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, wide, -1, result.data(), size, nullptr,
+                            nullptr);
+        return result;
+    };
+
+    ApplicationInfo app{.name = name,
+                   .description = wide_to_utf8(description),
+                   .exec_command = wide_to_utf8(target_path),
+                   .app_info_path = lnk_path};
+
+    persist_file->Release();
+    shell_link->Release();
+
+    return app;
+}
+
+std::vector<ApplicationInfo> scan_app_infos()
+{
+    std::vector<ApplicationInfo> apps;
+
+    // Get Start Menu paths
+    std::vector<fs::path> search_paths;
+
+    auto add_known_folder = [&](REFKNOWNFOLDERID folder_id) {
+        PWSTR path = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(folder_id, 0, nullptr, &path))) {
+            search_paths.push_back(path);
+            CoTaskMemFree(path);
+        }
+    };
+
+    add_known_folder(FOLDERID_Programs);       // User's Start Menu\Programs
+    add_known_folder(FOLDERID_CommonPrograms); // All Users Start Menu\Programs
+
+    // Initialize COM for shell link parsing
+    CoInitialize(nullptr);
+
+    for (const auto &search_path : search_paths) {
+        if (!fs::exists(search_path)) {
+            continue;
+        }
+
+        try {
+            // Recursively scan (Start Menu has subdirectories)
+            for (const auto &entry :
+                 fs::recursive_directory_iterator(search_path)) {
+                if (!entry.is_regular_file() ||
+                    entry.path().extension() != ".lnk") {
+                    continue;
+                }
+
+                auto app = parse_shortcut(entry.path());
+                if (app) {
+                    apps.push_back(std::move(*app));
+                }
+            }
+        } catch (const fs::filesystem_error &) {
+            continue;
+        }
+    }
+
+    CoUninitialize();
+    return apps;
+}
+
 } // namespace platform

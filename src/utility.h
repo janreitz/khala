@@ -58,6 +58,13 @@ size_t find_all(const char *data, size_t len, char target, size_t *positions,
 size_t simd_find_all(const char *data, size_t len, char target,
                      size_t *positions, size_t max_results);
 
+struct ApplicationInfo {
+    std::string name;
+    std::string description;
+    std::string exec_command;
+    std::filesystem::path app_info_path;
+};
+
 // Platform specific helpers
 namespace platform
 {
@@ -73,6 +80,8 @@ void run_custom_command(const std::string &cmd,
                         bool stdout_to_clipboard);
 void open_file(const std::filesystem::path &path);
 void open_directory(const std::filesystem::path &path);
+
+std::vector<ApplicationInfo> scan_app_infos();
 
 // Registers/unregisters app to start on system boot
 // Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Run

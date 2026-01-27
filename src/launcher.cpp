@@ -89,8 +89,8 @@ int main()
 
     // Shared state
     StreamingIndex streaming_index;
-    std::vector<indexer::DesktopApp> desktop_apps =
-        indexer::scan_desktop_files();
+    std::vector<ApplicationInfo> desktop_apps =
+        platform::scan_app_infos();
     LOG_INFO("Loaded %zu desktop apps", desktop_apps.size());
 
     // Communication channels
@@ -263,7 +263,7 @@ int main()
                             const auto query_lower = to_lower(query);
                             auto ranked = rank(
                                 desktop_apps,
-                                [&query_lower](const indexer::DesktopApp &app) {
+                                [&query_lower](const ApplicationInfo &app) {
                                     return fuzzy::fuzzy_score_5_simd(
                                         app.name + app.description,
                                         query_lower);
