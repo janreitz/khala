@@ -3,6 +3,7 @@
 #include "lastwriterwinsslot.h"
 #include "streamingindex.h"
 
+#include <cstdint>
 #include <chrono>
 #include <thread>
 
@@ -187,8 +188,8 @@ void StreamingRanker::process_chunks()
             #pragma omp parallel for schedule(static)
             for (int64_t i = 0; i < static_cast<int64_t>(chunk->size()); ++i) {
                 const auto score = fuzzy::fuzzy_score_5_simd(
-                    chunk->at(i), current_request_.query);
-                chunk_scored[i] =
+                    chunk->at(static_cast<size_t>(i)), current_request_.query);
+                chunk_scored[static_cast<size_t>(i)] =
                     RankResult{global_offset + static_cast<size_t>(i), score};
             }
 
