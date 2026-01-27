@@ -12,7 +12,8 @@ A lightweight application launcher and file finder for Linux (X11 and Wayland) a
 
 ## Usage
 
-On X11 and Windows, Khala will register a global hotkey (default `Alt+Space`) and stay in the background. The hotkey will cause it to pop up.
+Khala defaults to `background_mode` on X11 and Windows. It registers a global pop-up hotkey (default `Alt+Space`, configurable) and stays in the background.
+Wayland doesn't allow programs to register global hotkeys, so you need to manually register a global hotkey to launch the program. With a fast SSD, the difference between starting/exiting and pop-up/hide should be acceptable.
 
 - **Arrow keys**: Navigate through results
 - **Tab/Right**: Open context menu for additional actions
@@ -26,11 +27,11 @@ On X11 and Windows, Khala will register a global hotkey (default `Alt+Space`) an
 
 ## Configuration
 
-Khala creates a configuration file at `~/.config/khala/config.ini` and populates it with the default values for all available settings. Feel free to modify.
+Khala creates a configuration file at `~/.config/khala/config.ini` and populates it with the default values for all available settings. Feel free to modify. The config will be overwritten with the successfully parsed values on exit, so avoid making edits while Khala runs.
 
 ### Custom Commands
 
-You can define custom commands by creating `.ini` files in `~/.config/khala/commands/`. Each command file should follow this format:
+You can define custom commands by creating `*.ini` files in `~/.config/khala/commands/`. Each command file should follow this format:
 
 ```ini
 title=My Custom Action # The name shown in search results
@@ -99,38 +100,37 @@ Colors can be specified in hex format:
 
 ## Build from source
 
+
+### Windows
+The Windows build relies on native win32 APIs, so no dependencies beyond Visual Studio 2022+ and its CMake integration. Make sure to set `PLATFORM=win32` in the Visual Studio CMake Settings, or directly in the `CMakeLists.txt`.
+
+
 ### Linux 
 
 The project requires a C++ compiler with C++23 support (GCC 13+, Clang 14+), CMake 3.20+, pkg-config, as well as Cairo (2D Graphics) and Pango (Text rendering) development libraries.
 
-**For X11 platform:**
-- X11 development libraries (libX11, libXrandr (extension for multi-monitor setups))
+**For `-DPLATFROM=X11`:** X11 development libraries and extension to detect multi-monitor setups
 
-**For Wayland platform:**
-- Wayland development libraries
-- Wayland protocols
-- xkbcommon development libraries
-
-**Ubuntu/Debian (X11):**
 ```bash
+# Ubuntu/Debian
 sudo apt-get install cmake build-essential libcairo2-dev libpango1.0-dev libx11-dev libxrandr-dev pkg-config
 ```
 
-**Ubuntu/Debian (Wayland):**
 ```bash
-sudo apt-get install cmake build-essential libcairo2-dev libpango1.0-dev libwayland-dev wayland-protocols libxkbcommon-dev pkg-config
-```
-
-**Fedora/RHEL/CentOS (X11):**
-```bash
+# Fedora/RHEL/CentOS
 dnf install cmake gcc-c++ cairo-devel pango-devel libX11-devel libXrandr-devel pkgconfig
 ```
 
-**Fedora/RHEL/CentOS (Wayland):**
+**For `-DPLATFROM=wayland`:** Wayland development libraries, Wayland protocols, xkbcommon development libraries
+
 ```bash
+# Ubuntu/Debian
+sudo apt-get install cmake build-essential libcairo2-dev libpango1.0-dev libwayland-dev wayland-protocols libxkbcommon-dev pkg-config
+```
+```bash
+# Fedora/RHEL/CentOS
 dnf install -y cmake gcc-c++ cairo-devel pango-devel wayland-devel wayland-protocols-devel libxkbcommon-devel pkgconfig
 ```
-
 
 **To build:**
 ```bash
@@ -139,7 +139,3 @@ cd khala
 cmake -S . -B build -DPLATFORM=[x11|wayland]
 cmake --build build
 ```
-
-### Windows
-The Windows build relies on native win32 APIs, so no dependencies beyond Visual Studio 2022+ and its CMake integration. Make sure to set `PLATFORM=win32` in the Visual Studio CMake Settings, or directly in the `CMakeLists.txt`.
-
