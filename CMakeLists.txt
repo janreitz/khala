@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+find_package(OpenMP REQUIRED)
+
 # Platform selection (default to x11)
 set(PLATFORM "x11" CACHE STRING "Target platform: x11, wayland, win32")
 set_property(CACHE PLATFORM PROPERTY STRINGS x11 wayland win32)
@@ -154,7 +156,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
     add_compile_options(
-        -fopenmp
         -Wall
         -Wextra
         -Wpedantic
@@ -179,8 +180,8 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         add_compile_options(-Wno-builtin-macro-redefined)
     endif()
 elseif(MSVC)
-    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS /openmp")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS /openmp")
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /RTC1 /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG /DNOMINMAX /D_CRT_SECURE_NO_WARNINGS")
 
     add_compile_options(
         /W4          # High warning level (similar to -Wall -Wextra)
@@ -243,6 +244,7 @@ target_include_directories(khala PRIVATE
 
 target_link_libraries(khala PRIVATE
     ${PLATFORM_LIBS}
+    OpenMP::OpenMP_CXX
 )
 
 add_executable(indexer_benchmark
@@ -256,6 +258,10 @@ add_executable(indexer_benchmark
     src/utility.cpp
     ${PLATFORM_UTILITY_SOURCE}
     src/fuzzy.cpp
+)
+
+target_link_libraries(indexer_benchmark PRIVATE
+    OpenMP::OpenMP_CXX
 )
 
 target_compile_definitions(indexer_benchmark PRIVATE
