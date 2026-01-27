@@ -24,7 +24,6 @@ jobs:
         dnf install -y \
           cmake \
           gcc-c++ \
-          tbb-devel \
           cairo-devel \
           pango-devel \
           libX11-devel \
