@@ -321,16 +321,84 @@ std::optional<ui::KeyboardEvent> parse_hotkey(const std::string &hotkey_str)
     return result;
 }
 
-ui::KeyboardEvent
-get_hotkey_or(const std::multimap<std::string, std::string> &map,
-              const std::string &key, ui::KeyboardEvent default_value)
+std::optional<ui::KeyboardEvent>
+get_hotkey(const std::multimap<std::string, std::string> &map,
+              const std::string &key)
 {
     auto value = get_last(map, key);
     if (!value) {
-        return default_value;
+        return std::nullopt;
     }
-    auto parsed = parse_hotkey(*value);
-    return parsed ? *parsed : default_value;
+    return parse_hotkey(*value);
+}
+
+// Check if hotkey is a reserved navigation key or Ctrl+0-9
+bool is_reserved_hotkey(const ui::KeyboardEvent &hotkey)
+{
+    using ui::KeyCode;
+    using ui::KeyModifier;
+
+    // TODO normal characters without modifier are also reserved for regular input.
+
+    // Navigation keys without modifiers are reserved
+    if (hotkey.modifiers == KeyModifier::NoModifier) {
+        switch (hotkey.key) {
+        case KeyCode::Up:
+        case KeyCode::Down:
+        case KeyCode::Left:
+        case KeyCode::Right:
+        case KeyCode::Tab:
+        case KeyCode::Escape:
+        case KeyCode::Return:
+        case KeyCode::Home:
+        case KeyCode::End:
+        case KeyCode::BackSpace:
+        case KeyCode::Delete:
+            return true;
+        default:
+            break;
+        }
+    }
+
+    // Ctrl+0 through Ctrl+9 are reserved for quick selection
+    if (hotkey.modifiers == KeyModifier::Ctrl) {
+        if (hotkey.key >= KeyCode::Num0 && hotkey.key <= KeyCode::Num9) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Returns the name of the hardcoded shortcut if it conflicts, empty string otherwise
+std::string get_hardcoded_conflict(const ui::KeyboardEvent &hotkey)
+{
+    using ui::KeyCode;
+    using ui::KeyModifier;
+
+    // Ctrl+C - Copy Path to Clipboard
+    if (hotkey.key == KeyCode::C && hotkey.modifiers == KeyModifier::Ctrl) {
+        return "Copy Path to Clipboard";
+    }
+
+    // Ctrl+Shift+C - Copy Content to Clipboard
+    if (hotkey.key == KeyCode::C &&
+        hotkey.modifiers == (KeyModifier::Ctrl | KeyModifier::Shift)) {
+        return "Copy Content to Clipboard";
+    }
+
+    // Ctrl+Return - Open Containing Folder
+    if (hotkey.key == KeyCode::Return && hotkey.modifiers == KeyModifier::Ctrl) {
+        return "Open Containing Folder";
+    }
+
+    return "";
+}
+
+// Compare two KeyboardEvent structs for equality
+bool hotkeys_match(const ui::KeyboardEvent &a, const ui::KeyboardEvent &b)
+{
+    return a.key == b.key && a.modifiers == b.modifiers;
 }
 
 std::set<fs::path> Config::default_index_roots()
@@ -429,8 +497,8 @@ ConfigLoadResult load_config(const fs::path &path)
     // Background mode
     cfg.background_mode =
         get_bool_or(map, "background_mode", cfg.background_mode);
-    cfg.hotkey = get_hotkey_or(map, "hotkey", cfg.hotkey);
-    cfg.quit_hotkey = get_hotkey_or(map, "quit_hotkey", cfg.quit_hotkey);
+    cfg.hotkey = get_hotkey(map, "hotkey").value_or(cfg.hotkey);
+    cfg.quit_hotkey = get_hotkey(map, "quit_hotkey").value_or(cfg.quit_hotkey);
 
     // Indexing
     cfg.index_roots = get_dirs_or(map, "index_root", cfg.index_roots, warnings);
@@ -460,9 +528,12 @@ ConfigLoadResult load_config(const fs::path &path)
                 bool stdout_to_clipboard =
                     get_bool_or(command_map, "stdout_to_clipboard", false);
                 std::string shell = get_string_or(command_map, "shell", "");
+                // TODO use get_hotkey_or
+                std::optional<ui::KeyboardEvent> hotkey = get_hotkey(command_map, "hotkey");
 
-                if (title.empty() || shell_cmd.empty())
+                if (title.empty() || shell_cmd.empty()) {
                     continue;
+                }
 
                 actions_by_stem.insert_or_assign(
                     platform::path_to_string(entry.path().stem()),
@@ -474,6 +545,7 @@ ConfigLoadResult load_config(const fs::path &path)
                         .stdout_to_clipboard = stdout_to_clipboard,
                         .shell = shell.empty() ? std::nullopt
                                                : std::optional<std::string>(shell),
+                        .hotkey = hotkey,
                     });
             }
         }
@@ -481,6 +553,59 @@ ConfigLoadResult load_config(const fs::path &path)
 
     auto values = actions_by_stem | std::views::values;
     cfg.custom_actions.assign(values.begin(), values.end());
+
+    // Validate hotkeys and check for conflicts
+    std::vector<std::pair<std::string, ui::KeyboardEvent>> used_hotkeys;
+    for (auto &action : cfg.custom_actions) {
+        if (!action.hotkey)
+            continue;
+
+        const auto &hk = *action.hotkey;
+
+        // Check if reserved
+        if (is_reserved_hotkey(hk)) {
+            LOG_WARNING("Hotkey for '%s' is reserved (navigation/quick-select), ignoring",
+                        action.title.c_str());
+            action.hotkey = std::nullopt;
+            continue;
+        }
+
+        // Check if it conflicts with global hotkey or quit_hotkey
+        if (hotkeys_match(hk, cfg.hotkey)) {
+            LOG_WARNING("Hotkey for '%s' conflicts with global hotkey, ignoring",
+                        action.title.c_str());
+            action.hotkey = std::nullopt;
+            continue;
+        }
+        if (hotkeys_match(hk, cfg.quit_hotkey)) {
+            LOG_WARNING("Hotkey for '%s' conflicts with quit hotkey, ignoring",
+                        action.title.c_str());
+            action.hotkey = std::nullopt;
+            continue;
+        }
+
+        // Check if it conflicts with hardcoded shortcuts (warn but allow)
+        std::string hardcoded_conflict = get_hardcoded_conflict(hk);
+        if (!hardcoded_conflict.empty()) {
+            LOG_WARNING("Hotkey for '%s' overrides hardcoded '%s'",
+                        action.title.c_str(), hardcoded_conflict.c_str());
+        }
+
+        // Check for duplicate custom command hotkeys
+        bool duplicate = false;
+        for (const auto &[existing_title, existing_hk] : used_hotkeys) {
+            if (hotkeys_match(hk, existing_hk)) {
+                LOG_WARNING("Hotkey for '%s' duplicates '%s', ignoring",
+                            action.title.c_str(), existing_title.c_str());
+                action.hotkey = std::nullopt;
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+            used_hotkeys.emplace_back(action.title, hk);
+        }
+    }
     return {.config = cfg, .warnings = std::move(warnings)};
 }
 

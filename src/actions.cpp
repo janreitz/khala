@@ -66,7 +66,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                         .shell = action_def.shell.value_or(config.default_shell),
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
-                .hotkey = std::nullopt,
+                .hotkey = action_def.hotkey,
             });
         }
 
@@ -127,7 +127,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                         .shell = action_def.shell.value_or(config.default_shell),
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
-                .hotkey = std::nullopt,
+                .hotkey = action_def.hotkey,
             });
         }
         return items;
@@ -175,7 +175,7 @@ std::vector<ui::Item> get_global_actions(const Config &config)
                     .shell = action_def.shell.value_or(config.default_shell),
                     .stdout_to_clipboard = action_def.stdout_to_clipboard,
                 },
-            .hotkey = std::nullopt,
+            .hotkey = action_def.hotkey,
         });
     }
     return items;

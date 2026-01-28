@@ -23,6 +23,7 @@ struct CustomActionDef {
     ActionType action_type;
     bool stdout_to_clipboard = false;      // true = capture stdout to clipboard
     std::optional<std::string> shell;      // override default_shell if specified
+    std::optional<ui::KeyboardEvent> hotkey;
 };
 
 struct Color {
