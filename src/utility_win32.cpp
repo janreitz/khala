@@ -162,7 +162,7 @@ void run_custom_command(const std::string &cmd,
     std::string shell_flag;
     std::string shell_lower = shell;
     std::transform(shell_lower.begin(), shell_lower.end(), shell_lower.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+                   [](unsigned char c) { return static_cast<unsigned char>(std::tolower(c)); });
 
     if (shell_lower.find("cmd.exe") != std::string::npos ||
         shell_lower.find("cmd") == shell_lower.length() - 3) {
