@@ -347,6 +347,19 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             cairo_fill(cr);
         }
 
+        // Measure hotkey hint width first to reserve space for it
+        int hint_reserved_width = 0;
+        if (!dropdown_items.at(i).hotkey_hint.empty()) {
+            pango_layout_set_text(layout,
+                                  dropdown_items.at(i).hotkey_hint.c_str(), -1);
+            int hint_width = 0;
+            int hint_height_unused = 0;
+            pango_layout_get_size(layout, &hint_width, &hint_height_unused);
+            // Reserve space for hint plus spacing
+            hint_reserved_width = static_cast<int>(
+                (hint_width / PANGO_SCALE) + ui::DESCRIPTION_SPACING);
+        }
+
         // Set text color (selected vs normal)
         if (item_is_selected) {
             set_color(cr, config.selection_text_color);
@@ -368,8 +381,10 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             calculate_text_y_centered(y_pos, item_height, item_text_height);
         cairo_move_to(cr, ui::BORDER_WIDTH + ui::TEXT_MARGIN, text_y_centered);
         pango_layout_set_width(
-            layout, static_cast<int>((content_width - 2 * ui::TEXT_MARGIN) *
-                                     PANGO_SCALE));
+            layout,
+            static_cast<int>((content_width - 2 * ui::TEXT_MARGIN -
+                              hint_reserved_width) *
+                             PANGO_SCALE));
         pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_MIDDLE);
         pango_cairo_show_layout(cr, layout);
         pango_layout_set_width(layout, -1);
@@ -382,10 +397,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             int title_height = 0;
             pango_layout_get_size(layout, &title_width, &title_height);
 
-            // Calculate available width for description
+            // Calculate available width for description (accounting for hint)
             const int available_width = static_cast<int>(
                 content_width - 2 * ui::TEXT_MARGIN -
-                (title_width / PANGO_SCALE) - ui::DESCRIPTION_SPACING);
+                (title_width / PANGO_SCALE) - ui::DESCRIPTION_SPACING -
+                hint_reserved_width);
 
             // Set description color
             if (item_is_selected) {
