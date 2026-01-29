@@ -125,6 +125,7 @@ private:
 
     // Internal state
     size_t processed_chunks_ = 0;
+    size_t global_offset_ = 0; // Cumulative size of all processed chunks
     std::vector<FileResult> accumulated_results_;
     RankerRequest current_request_;
     std::vector<RankResult> scored_results_; // Flattened, only score > 0
