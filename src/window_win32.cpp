@@ -591,6 +591,25 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
         const bool is_selected = (i == state.selected_item_index);
 
+        // Measure hotkey hint width first to reserve space for it
+        float hint_reserved_width = 0.0f;
+        std::string hotkey_hint;
+        if (!state.has_errors() && i < state.items.size() &&
+            state.items[i].hotkey.has_value()) {
+            hotkey_hint = to_string(*state.items[i].hotkey);
+        } else if (!state.has_errors() && i >= state.visible_range_offset &&
+                   i < state.visible_range_offset + 10) {
+            const size_t visible_pos = i - state.visible_range_offset;
+            hotkey_hint = "Ctrl+" + std::to_string((visible_pos + 1) % 10);
+        }
+        if (!hotkey_hint.empty()) {
+            std::wstring hint_wide = utf8_to_wide(hotkey_hint);
+            const auto hint_size =
+                measure_text(dwFactory, textFormat, hint_wide);
+            hint_reserved_width =
+                hint_size.width + static_cast<float>(ui::DESCRIPTION_SPACING);
+        }
+
         // Selection highlight
         if (is_selected) {
             draw_rounded_rect(rt, data->selectionBrush.Get(), ui::BORDER_WIDTH,
@@ -604,7 +623,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         ComPtr<IDWriteTextLayout> titleLayout;
         dwFactory->CreateTextLayout(
             title.c_str(), static_cast<UINT32>(title.length()), textFormat,
-            content_width - static_cast<float>(2.0 * ui::TEXT_MARGIN),
+            content_width - static_cast<float>(2.0 * ui::TEXT_MARGIN) -
+                hint_reserved_width,
             item_height, &titleLayout);
 
         // Apply bold highlighting for fuzzy matches
@@ -642,7 +662,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
                 content_width - static_cast<float>(ui::TEXT_MARGIN) -
                 titleMetrics.width -
                 static_cast<float>(ui::DESCRIPTION_SPACING) -
-                static_cast<float>(ui::TEXT_MARGIN);
+                static_cast<float>(ui::TEXT_MARGIN) - hint_reserved_width;
 
             if (available_width > 50) {
                 ComPtr<IDWriteTextLayout> descLayout;
@@ -681,20 +701,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             }
         }
 
-        // Draw hotkey hint on the right side of the item (only for non-error
-        // items) Use item's hotkey if set, otherwise show Ctrl+1-9 for visible
-        // items at positions 0-8
-        std::string hotkey_hint;
-        if (!state.has_errors() && i < state.items.size() &&
-            state.items[i].hotkey.has_value()) {
-            hotkey_hint = to_string(*state.items[i].hotkey);
-        } else if (!state.has_errors() && i >= state.visible_range_offset &&
-                   i < state.visible_range_offset + 10) {
-            const size_t visible_pos = i - state.visible_range_offset;
-            // Maps to 1,2,3,...,8,9,0
-            hotkey_hint = "Ctrl+" + std::to_string((visible_pos + 1) % 10);
-        }
-
+        // Draw hotkey hint on the right side of the item
         if (!hotkey_hint.empty()) {
             std::wstring hint_wide = utf8_to_wide(hotkey_hint);
             const auto hint_size =
