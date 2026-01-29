@@ -1,22 +1,28 @@
-name: Windows
+name: Windows Release
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v*'
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
     - uses: actions/checkout@v4
+
     - name: Configure
       run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DPLATFORM=win32
+
     - name: Build
       run: cmake --build build --config Release -j $env:NUMBER_OF_PROCESSORS
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: khala-windows
-        path: build/Release/khala.exe
+        files: build/Release/khala.exe
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
