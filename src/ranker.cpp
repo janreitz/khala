@@ -179,37 +179,43 @@ void StreamingRanker::process_chunks()
     // Collect chunk information for parallel processing
     struct ChunkInfo {
         size_t chunk_idx;
-        size_t global_offset;
+        size_t global_offset;   // Offset into the complete file list
+        size_t result_offset;   // Offset into the results array for this batch
+        size_t size;
     };
 
     std::vector<ChunkInfo> chunks_to_process;
+    size_t result_offset = 0;
 
     for (size_t i = processed_chunks_; i < available_chunks; ++i) {
         const auto chunk = streaming_index_.get_chunk(i);
         assert(chunk);
-        chunks_to_process.push_back(
-            ChunkInfo{.chunk_idx = i, .global_offset = global_offset_});
-        global_offset_ += chunk->size();
+        const size_t chunk_size = chunk->size();
+
+        chunks_to_process.push_back(ChunkInfo{
+            .chunk_idx = i,
+            .global_offset = global_offset_,
+            .result_offset = result_offset,
+            .size = chunk_size
+        });
+
+        global_offset_ += chunk_size;
+        result_offset += chunk_size;
     }
 
     // Skip scoring if query is empty, but still update metadata
     if (!current_request_.query.empty()) {
-        // Count total strings to process
-        size_t total_strings = 0;
-        for (const auto &info : chunks_to_process) {
-            auto chunk = streaming_index_.get_chunk(info.chunk_idx);
-            if (chunk) {
-                total_strings += chunk->size();
-            }
-        }
+        // Total strings is the final result_offset value (accumulated size)
+        const size_t total_strings = result_offset;
 
         const auto start_time = std::chrono::steady_clock::now();
 
-        // Per-thread results to avoid synchronization
-        std::vector<std::vector<RankResult>> per_thread_results(
-            chunks_to_process.size());
+        // Single flat vector for all results, initialized with sentinel score
+        // Sentinel value -1.0F indicates "no match" and will be filtered out
+        std::vector<RankResult> result_array(
+            total_strings, RankResult{0, -1.0F});
 
-        // Process chunks in parallel - each thread gets whole chunks
+        // Process chunks in parallel - each thread writes to its own range
         parallel::parallel_for(
             0, chunks_to_process.size(), [&](size_t work_idx) {
                 const auto &info = chunks_to_process[work_idx];
@@ -217,27 +223,20 @@ void StreamingRanker::process_chunks()
 
                 assert(chunk);
 
-                auto &results = per_thread_results[work_idx];
-                results.reserve(chunk->size() /
-                                4); // Heuristic: ~25% match rate
-
-                // Score all items in this chunk
-                for (size_t i = 0; i < chunk->size(); ++i) {
+                for (size_t i = 0; i < info.size; ++i) {
                     const auto score = fuzzy::fuzzy_score_5_simd(
                         chunk->at(i), current_request_.query);
 
-                    if (score > 0.0F) {
-                        results.push_back(
-                            RankResult{info.global_offset + i, score});
-                    }
+                    result_array[info.result_offset + i] =
+                        RankResult{info.global_offset + i, score};
                 }
             });
 
-        // Merge per-thread results into scored_results_
-        for (const auto &thread_results : per_thread_results) {
-            scored_results_.insert(scored_results_.end(),
-                                   thread_results.begin(),
-                                   thread_results.end());
+        // Filter and append only valid results (score > 0)
+        for (const auto &result : result_array) {
+            if (result.score > 0.0F) {
+                scored_results_.push_back(result);
+            }
         }
 
         const auto end_time = std::chrono::steady_clock::now();
