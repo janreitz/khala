@@ -168,7 +168,7 @@ std::optional<size_t> window_pos_to_item_index(const WindowCoord &position,
     const int relative_y = position.y - dropdown_start_y;
 
     // Calculate visible item index
-    const size_t visible_item_index =
+    const auto visible_item_index =
         static_cast<size_t>(relative_y / item_height);
 
     // Convert to absolute index

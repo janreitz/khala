@@ -250,7 +250,7 @@ std::string serialize_file_info(const fs::path &path)
     auto format_size = [](uintmax_t bytes) -> std::string {
         const char *units[] = {"B", "K", "M", "G", "T", "P"};
         int unit_index = 0;
-        double size = static_cast<double>(bytes);
+        auto size = static_cast<double>(bytes);
 
         while (size >= 1024.0 && unit_index < 5) {
             size /= 1024.0;
@@ -330,7 +330,7 @@ std::string to_lower(std::string_view str)
     lower_case_string.reserve(str.size());
 
     for (const char c : str) {
-        const unsigned char lc = static_cast<unsigned char>(
+        const auto lc = static_cast<unsigned char>(
             std::tolower(static_cast<unsigned char>(c)));
         lower_case_string.push_back(static_cast<char>(lc));
     }
@@ -422,7 +422,7 @@ int simd_find_first_or(const char *data, size_t len, char c, size_t start,
         const __m128i chunk =
             _mm_loadu_si128(reinterpret_cast<const __m128i *>(data + offset));
         const __m128i cmp_result = _mm_cmpeq_epi8(chunk, compare_against);
-        const unsigned int match_mask =
+        const auto match_mask =
             static_cast<unsigned int>(_mm_movemask_epi8(cmp_result));
 
         if (match_mask != 0) {
