@@ -15,13 +15,12 @@ namespace parallel {
 // Uses static partitioning similar to OpenMP schedule(static)
 // The function is called with each index in the range exactly once
 template <typename Func>
-void parallel_for(size_t begin, size_t end, Func &&func)
+void parallel_for(size_t begin, size_t end, Func &&func, size_t n_threads = std::thread::hardware_concurrency())
 {
     if (begin >= end) {
         return;
     }
 
-    const size_t n_threads = std::thread::hardware_concurrency();
     const size_t total_work = end - begin;
 
     // Don't create more threads than work items
