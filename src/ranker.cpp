@@ -5,7 +5,6 @@
 #include "parallel.h"
 #include "streamingindex.h"
 
-#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -209,49 +208,6 @@ void StreamingRanker::process_chunks()
 
         const auto start_time = std::chrono::steady_clock::now();
 
-#if 0
-        // Single flat vector for all results
-        std::vector<RankResult> result_array;
-        result_array.resize(total_strings);
-
-        std::atomic<size_t> result_array_idx = 0;
-
-        // Process chunks in parallel - each thread writes to its own range
-        parallel::parallel_for(
-            0, chunks_to_process.size(), [&](size_t work_idx) {
-                const auto &info = chunks_to_process[work_idx];
-                auto chunk = streaming_index_.get_chunk(info.chunk_idx);
-
-                // Allocate result buffer for each thread
-                static thread_local std::vector<RankResult> local_results(
-                    info.size);
-                local_results.clear();
-
-                assert(chunk);
-
-                for (size_t i = 0; i < info.size; ++i) {
-                    const auto score = fuzzy::fuzzy_score_5_simd(
-                        chunk->at(i), current_request_.query);
-
-                    if (score > 0.0F) {
-                        local_results.push_back(
-                            RankResult{info.global_offset + i, score});
-                    }
-                }
-                // insert local_result into result_array
-                const size_t my_idx = result_array_idx.fetch_add(
-                    local_results.size(), std::memory_order::relaxed);
-                result_array.insert(
-                    result_array.begin() +
-                        static_cast<decltype(result_array)::difference_type>(
-                            my_idx),
-                    local_results.cbegin(), local_results.cend());
-            });
-
-        result_array.resize(result_array_idx.load(std::memory_order::acquire));
-        scored_results_.insert(scored_results_.end(), result_array.cbegin(),
-                               result_array.cend());
-#else
         // Each thread gets its own results vector
         std::vector<std::vector<RankResult>> per_thread_results(chunks_to_process.size());
 
@@ -280,7 +236,6 @@ void StreamingRanker::process_chunks()
             scored_results_.insert(scored_results_.end(), 
                                 local.begin(), local.end());
         }
-#endif
 
         const auto end_time = std::chrono::steady_clock::now();
         const auto duration =
