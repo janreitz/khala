@@ -5,10 +5,16 @@
 #include "parallel.h"
 #include "streamingindex.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
-#include <cstdint>
+#include <cstddef>
+#include <mutex>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 // TODO we could merge into the existing results without creating a copy?
 std::vector<FileResult>
@@ -209,7 +215,8 @@ void StreamingRanker::process_chunks()
         const auto start_time = std::chrono::steady_clock::now();
 
         // Each thread gets its own results vector
-        std::vector<std::vector<RankResult>> per_thread_results(chunks_to_process.size());
+        std::vector<std::vector<RankResult>> per_thread_results(
+            chunks_to_process.size());
 
         parallel::parallel_for(
             0, chunks_to_process.size(), [&](size_t work_idx) {
@@ -218,7 +225,8 @@ void StreamingRanker::process_chunks()
                 assert(chunk);
 
                 auto &local_results = per_thread_results[work_idx];
-                local_results.reserve(info.size / 4);  // estimate ~25% match rate
+                local_results.reserve(info.size /
+                                      4); // estimate ~25% match rate
 
                 for (size_t i = 0; i < info.size; ++i) {
                     const auto score = fuzzy::fuzzy_score_5_simd(
@@ -233,8 +241,8 @@ void StreamingRanker::process_chunks()
 
         // Sequential merge
         for (auto &local : per_thread_results) {
-            scored_results_.insert(scored_results_.end(), 
-                                local.begin(), local.end());
+            scored_results_.insert(scored_results_.end(), local.begin(),
+                                   local.end());
         }
 
         const auto end_time = std::chrono::steady_clock::now();

@@ -1,15 +1,21 @@
 #include "utility.h"
 
+#include <cerrno>
+#include <cstdlib>
 #include <linux/limits.h>
+#include <stdexcept>
+#include <stdlib.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <optional>
+#include <string>
 #include <unistd.h>
 #include <unordered_map>
-#include <filesystem>
-#include <string>
+#include <vector>
 
 namespace platform
 {
@@ -209,8 +215,7 @@ void run_custom_command_with_capture(const std::string &cmd,
 
 void run_custom_command(const std::string &cmd,
                         const std::optional<fs::path> &path,
-                        bool stdout_to_clipboard,
-                        const std::string &shell)
+                        bool stdout_to_clipboard, const std::string &shell)
 {
     if (cmd.empty()) {
         throw std::runtime_error("Custom command is empty");

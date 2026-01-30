@@ -1,12 +1,17 @@
 #include "packed_strings.h"
+#include <cstddef>
+#include <string>
+#include <string_view>
 
-void PackedStrings::reserve(size_t string_count, size_t expected_avg_string_length)
+void PackedStrings::reserve(size_t string_count,
+                            size_t expected_avg_string_length)
 {
     data_.reserve(string_count * expected_avg_string_length);
     indices_.reserve(string_count);
 }
 
-void PackedStrings::prefix(size_t count, char c) {
+void PackedStrings::prefix(size_t count, char c)
+{
     // Enter 16 characters padding for SIMD operations searching backwards
     data_.insert(data_.begin(), count, c);
 }

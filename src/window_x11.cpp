@@ -1,20 +1,26 @@
 #ifdef PLATFORM_X11
 
 #include "logger.h"
-#include "ui.h"
-#include "utility.h"
 #include "window.h"
 
+#include "types.h"
+
 #include <X11/X.h>
+#include <X11/Xatom.h>
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <X11/extensions/Xrandr.h>
+#include <X11/extensions/randr.h>
 
 #include <cairo-xlib.h>
 #include <cairo.h>
 
 #include <array>
+#include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace
 {

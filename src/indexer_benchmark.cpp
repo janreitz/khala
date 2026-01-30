@@ -1,19 +1,22 @@
+#include "config.h"
 #include "fuzzy.h"
 #include "indexer.h"
 #include "parallel.h"
 #include "ranker.h"
-#include "utility.h"
 
 #include <algorithm>
+#include <bits/chrono.h>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
-#include <filesystem>
 #include <functional>
 #include <map>
 #include <numeric>
 #include <string>
+#include <string_view>
+#include <thread>
 #include <vector>
 
 #ifdef HAVE_TBB
@@ -120,8 +123,7 @@ int main()
         printf("Comparing different parallel approaches using "
                "fuzzy_score_5_simd\n");
         printf("Dataset size: %zu entries\n", paths.size());
-        printf("Hardware threads: %u\n\n",
-               std::thread::hardware_concurrency());
+        printf("Hardware threads: %u\n\n", std::thread::hardware_concurrency());
 
         for (const auto &test_query : test_queries) {
             printf("--- Query: '%s' ---\n", test_query.c_str());
@@ -136,8 +138,8 @@ int main()
             }
             auto seq_end = std::chrono::steady_clock::now();
             auto seq_duration =
-                std::chrono::duration_cast<std::chrono::microseconds>(seq_end -
-                                                                       seq_start);
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    seq_end - seq_start);
 
             printf("  Sequential:        %6.2fms  (baseline)\n",
                    static_cast<double>(seq_duration.count()) / 1000.0);
@@ -155,8 +157,9 @@ int main()
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     custom_end - custom_start);
 
-            double custom_speedup = static_cast<double>(seq_duration.count()) /
-                                    static_cast<double>(custom_duration.count());
+            double custom_speedup =
+                static_cast<double>(seq_duration.count()) /
+                static_cast<double>(custom_duration.count());
 
             printf("  Custom parallel:   %6.2fms  (%.2fx speedup)\n",
                    static_cast<double>(custom_duration.count()) / 1000.0,
@@ -170,12 +173,13 @@ int main()
             for (int64_t i = 0; i < static_cast<int64_t>(paths.size()); ++i) {
                 const auto score = fuzzy::fuzzy_score_5_simd(
                     paths.at(static_cast<size_t>(i)), test_query);
-                omp_results[static_cast<size_t>(i)] = RankResult{static_cast<size_t>(i), score};
+                omp_results[static_cast<size_t>(i)] =
+                    RankResult{static_cast<size_t>(i), score};
             }
             auto omp_end = std::chrono::steady_clock::now();
             auto omp_duration =
-                std::chrono::duration_cast<std::chrono::microseconds>(omp_end -
-                                                                       omp_start);
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    omp_end - omp_start);
 
             double omp_speedup = static_cast<double>(seq_duration.count()) /
                                  static_cast<double>(omp_duration.count());

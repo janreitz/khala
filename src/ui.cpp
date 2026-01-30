@@ -2,13 +2,20 @@
 #include "actions.h"
 #include "config.h"
 #include "logger.h"
+#include "ranker.h"
 #include "types.h"
+#include "utility.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <exception>
+#include <filesystem>
+#include <limits>
 #include <optional>
 #include <string>
+#include <variant>
+#include <vector>
 
 namespace ui
 {

@@ -1,7 +1,17 @@
 #include "utility.h"
 #include "logger.h"
+#include "packed_strings.h"
+#include "types.h"
 
+#include <cctype>
+#include <cstdint>
 #include <emmintrin.h>
+#include <ios>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <system_error>
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif

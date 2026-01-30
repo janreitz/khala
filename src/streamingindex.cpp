@@ -1,5 +1,9 @@
 #include "streamingindex.h"
 #include "packed_strings.h"
+#include <cstddef>
+#include <memory>
+#include <mutex>
+#include <utility>
 
 void StreamingIndex::add_chunk(PackedStrings &&chunk)
 {

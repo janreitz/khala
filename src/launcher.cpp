@@ -11,15 +11,19 @@
 #include "utility.h"
 #include "window.h"
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <filesystem>
 #include <future>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
+#include <variant>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -282,10 +286,10 @@ int main()
                                     .description = app.description,
                                     .path = std::nullopt,
                                     .command =
-                                        CustomCommand{.path = std::nullopt,
-                                                      .shell_cmd =
-                                                          app.exec_command,
-                                                      .shell = config.default_shell},
+                                        CustomCommand{
+                                            .path = std::nullopt,
+                                            .shell_cmd = app.exec_command,
+                                            .shell = config.default_shell},
                                     .hotkey = std::nullopt,
                                 });
                             }

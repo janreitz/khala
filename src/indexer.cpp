@@ -1,14 +1,20 @@
 #include "indexer.h"
 #include "logger.h"
 #include "packed_strings.h"
+#include "streamingindex.h"
 #include "utility.h"
 
+#include <algorithm>
 #include <atomic>
+#include <bits/fs_dir.h>
 #include <cstdio>
+#include <deque>
 #include <filesystem>
 #include <future>
 #include <set>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -148,7 +154,7 @@ void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
 
     const auto min_work_units = std::thread::hardware_concurrency() * 4;
     std::deque<fs::path> to_expand;
-    
+
     PackedStrings root_files;
     root_files.reserve(min_work_units, platform::MAX_PATH_LENGTH);
     // Prefix for SIMD operations that scan backwards

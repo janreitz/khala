@@ -1,21 +1,25 @@
 #include "actions.h"
 #include "config.h"
+#include "types.h"
 #include "ui.h"
 #include "utility.h"
 
 #include <chrono>
 #include <cstring>
+#include <ctime>
+#include <exception>
 #include <filesystem>
+#include <ios>
+#include <optional>
 #include <random>
 #include <sstream>
-#include <stdexcept>
 #include <string>
 
 #include <cerrno>
 #include <cstring>
-#include <fcntl.h>
-#include <fstream>
 #include <iomanip>
+#include <variant>
+#include <vector>
 
 std::vector<ui::Item> make_file_actions(const fs::path &path,
                                         const Config &config)
@@ -63,7 +67,8 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                     CustomCommand{
                         .path = path,
                         .shell_cmd = action_def.shell_cmd,
-                        .shell = action_def.shell.value_or(config.default_shell),
+                        .shell =
+                            action_def.shell.value_or(config.default_shell),
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
                 .hotkey = action_def.hotkey,
@@ -124,7 +129,8 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                     CustomCommand{
                         .path = path,
                         .shell_cmd = action_def.shell_cmd,
-                        .shell = action_def.shell.value_or(config.default_shell),
+                        .shell =
+                            action_def.shell.value_or(config.default_shell),
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
                 .hotkey = action_def.hotkey,

@@ -1,17 +1,24 @@
 // config.cpp
 #include "config.h"
 #include "logger.h"
+#include "types.h"
 #include "utility.h"
 
+#include <cctype>
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <string>
+#include <system_error>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace
@@ -108,9 +115,9 @@ double get_double_or(const std::multimap<std::string, std::string> &map,
     }
 }
 
-ActionType get_action_type_or(const std::multimap<std::string, std::string> &map,
-                               const std::string &key,
-                               ActionType default_value)
+ActionType
+get_action_type_or(const std::multimap<std::string, std::string> &map,
+                   const std::string &key, ActionType default_value)
 {
     auto value = get_last(map, key);
     if (!value)
@@ -323,7 +330,7 @@ std::optional<ui::KeyboardEvent> parse_hotkey(const std::string &hotkey_str)
 
 std::optional<ui::KeyboardEvent>
 get_hotkey(const std::multimap<std::string, std::string> &map,
-              const std::string &key)
+           const std::string &key)
 {
     auto value = get_last(map, key);
     if (!value) {
@@ -338,7 +345,8 @@ bool is_reserved_hotkey(const ui::KeyboardEvent &hotkey)
     using ui::KeyCode;
     using ui::KeyModifier;
 
-    // TODO normal characters without modifier are also reserved for regular input.
+    // TODO normal characters without modifier are also reserved for regular
+    // input.
 
     // Navigation keys without modifiers are reserved
     if (hotkey.modifiers == KeyModifier::NoModifier) {
@@ -370,7 +378,8 @@ bool is_reserved_hotkey(const ui::KeyboardEvent &hotkey)
     return false;
 }
 
-// Returns the name of the hardcoded shortcut if it conflicts, empty string otherwise
+// Returns the name of the hardcoded shortcut if it conflicts, empty string
+// otherwise
 std::string get_hardcoded_conflict(const ui::KeyboardEvent &hotkey)
 {
     using ui::KeyCode;
@@ -388,7 +397,8 @@ std::string get_hardcoded_conflict(const ui::KeyboardEvent &hotkey)
     }
 
     // Ctrl+Return - Open Containing Folder
-    if (hotkey.key == KeyCode::Return && hotkey.modifiers == KeyModifier::Ctrl) {
+    if (hotkey.key == KeyCode::Return &&
+        hotkey.modifiers == KeyModifier::Ctrl) {
         return "Open Containing Folder";
     }
 
@@ -523,13 +533,14 @@ ConfigLoadResult load_config(const fs::path &path)
                     get_string_or(command_map, "description", "");
                 std::string shell_cmd =
                     get_string_or(command_map, "shell_cmd", "");
-                ActionType action_type =
-                    get_action_type_or(command_map, "action_type", ActionType::Utility);
+                ActionType action_type = get_action_type_or(
+                    command_map, "action_type", ActionType::Utility);
                 bool stdout_to_clipboard =
                     get_bool_or(command_map, "stdout_to_clipboard", false);
                 std::string shell = get_string_or(command_map, "shell", "");
                 // TODO use get_hotkey_or
-                std::optional<ui::KeyboardEvent> hotkey = get_hotkey(command_map, "hotkey");
+                std::optional<ui::KeyboardEvent> hotkey =
+                    get_hotkey(command_map, "hotkey");
 
                 if (title.empty() || shell_cmd.empty()) {
                     continue;
@@ -543,8 +554,9 @@ ConfigLoadResult load_config(const fs::path &path)
                         .shell_cmd = shell_cmd,
                         .action_type = action_type,
                         .stdout_to_clipboard = stdout_to_clipboard,
-                        .shell = shell.empty() ? std::nullopt
-                                               : std::optional<std::string>(shell),
+                        .shell = shell.empty()
+                                     ? std::nullopt
+                                     : std::optional<std::string>(shell),
                         .hotkey = hotkey,
                     });
             }
@@ -564,7 +576,8 @@ ConfigLoadResult load_config(const fs::path &path)
 
         // Check if reserved
         if (is_reserved_hotkey(hk)) {
-            LOG_WARNING("Hotkey for '%s' is reserved (navigation/quick-select), ignoring",
+            LOG_WARNING("Hotkey for '%s' is reserved "
+                        "(navigation/quick-select), ignoring",
                         action.title.c_str());
             action.hotkey = std::nullopt;
             continue;
@@ -572,8 +585,9 @@ ConfigLoadResult load_config(const fs::path &path)
 
         // Check if it conflicts with global hotkey or quit_hotkey
         if (hotkeys_match(hk, cfg.hotkey)) {
-            LOG_WARNING("Hotkey for '%s' conflicts with global hotkey, ignoring",
-                        action.title.c_str());
+            LOG_WARNING(
+                "Hotkey for '%s' conflicts with global hotkey, ignoring",
+                action.title.c_str());
             action.hotkey = std::nullopt;
             continue;
         }
