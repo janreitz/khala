@@ -33,9 +33,9 @@ float fuzzy_score(std::string_view path, std::string_view query)
     bool prev_matched = false;
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
-        char pc = static_cast<char>(
+        const char pc = static_cast<char>(
             std::tolower(static_cast<unsigned char>(path[i])));
-        char qc = query[query_idx];
+        const char qc = query[query_idx];
 
         if (pc == qc) {
             // Base score for match
@@ -57,7 +57,7 @@ float fuzzy_score(std::string_view path, std::string_view query)
 
             // Penalty: gap between matches
             if (query_idx > 0) {
-                size_t gap = i - last_match - 1;
+                const size_t gap = i - last_match - 1;
                 score -= static_cast<float>(gap) * 0.1F;
             }
 
@@ -95,7 +95,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
 
     // Find filename start once
     size_t filename_start = 0;
-    if (size_t last_slash = path.rfind('/');
+    if (const size_t last_slash = path.rfind('/');
         last_slash != std::string_view::npos) {
         filename_start = last_slash + 1;
     }
@@ -117,7 +117,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
             score += 1.0F;
 
             // Track if this is a consecutive match
-            bool is_consecutive =
+            const bool is_consecutive =
                 (last_match != std::string_view::npos && i == last_match + 1);
 
             if (is_consecutive) {
@@ -130,7 +130,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
 
                 // Penalty for gaps (only between non-consecutive matches)
                 if (last_match != std::string_view::npos) {
-                    size_t gap = i - last_match - 1;
+                    const size_t gap = i - last_match - 1;
                     // Steeper gap penalty
                     score -= static_cast<float>(gap) * 0.5F;
                 }
@@ -140,7 +140,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
             if (i == 0 || i == filename_start) {
                 score += 5.0F; // Strong bonus for path/filename start
             } else {
-                char prev = path[i - 1];
+                const char prev = path[i - 1];
                 if (prev == '/' || prev == '_' || prev == '-' || prev == '.' ||
                     prev == ' ') {
                     score += 3.0F;
@@ -181,7 +181,7 @@ float fuzzy_score_2(std::string_view path, std::string_view query)
     }
 
     // Bonus: exact filename match
-    std::string_view filename = path.substr(filename_start);
+    const std::string_view filename = path.substr(filename_start);
     if (query.size() == filename.size() && is_prefix_of_filename) {
         score += 20.0F; // Exact match bonus
     }
@@ -202,7 +202,7 @@ bool has_subsequence(std::string_view path, std::string query_lower)
         return true;
 
     size_t qi = 0;
-    for (char c : path) {
+    for (const char c : path) {
         if (std::tolower(static_cast<unsigned char>(c)) == query_lower[qi]) {
             if (++qi == query_lower.size())
                 return true;
@@ -350,7 +350,7 @@ float fuzzy_score_4(std::string_view path, std::string_view query_lower)
         if (path_len - i < query_len - query_idx)
             return 0.0F;
 
-        char pc = static_cast<char>(
+        const char pc = static_cast<char>(
             std::tolower(static_cast<unsigned char>(path_data[i])));
 
         if (pc == query_data[query_idx]) {
@@ -474,7 +474,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
                 if (i == 0 || i == filename_start) {
                     score += 5.0F;
                 } else {
-                    unsigned char prev =
+                    const unsigned char prev =
                         static_cast<unsigned char>(path_data[i - 1]);
                     if (prev == '/' || prev == '_' || prev == '-' ||
                         prev == '.' || prev == ' ' ||
@@ -504,7 +504,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
             score += 10.0F;
             if (is_filename_prefix) {
                 score += 15.0F;
-                size_t filename_len = path_len - filename_start;
+                const size_t filename_len = path_len - filename_start;
                 if (query_len == filename_len ||
                     (query_len < filename_len &&
                      path_data[filename_start + query_len] == '.')) {
@@ -519,7 +519,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
 
     // Find all potential starting positions (where first query char matches)
     // But limit to reasonable candidates to avoid O(n*m) blowup
-    unsigned char first_char = static_cast<unsigned char>(query_data[0]);
+    const unsigned char first_char = static_cast<unsigned char>(query_data[0]);
 
     float best_score = -1000.0F;
     int candidates_tried = 0;
@@ -531,7 +531,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
 
         if (c == first_char) {
             // Prioritize good starting positions
-            bool is_boundary =
+            const bool is_boundary =
                 (i == 0 || i == filename_start || path_data[i - 1] == '/' ||
                  path_data[i - 1] == '_' || path_data[i - 1] == '-' ||
                  path_data[i - 1] == '.' || path_data[i - 1] == ' ' ||
@@ -540,7 +540,7 @@ float fuzzy_score_5(std::string_view path, std::string_view query_lower)
 
             // Always try boundary matches; limit non-boundary matches
             if (is_boundary || candidates_tried < 3) {
-                float s = score_from(i);
+                const float s = score_from(i);
                 if (s > best_score)
                     best_score = s;
                 candidates_tried++;
@@ -699,9 +699,9 @@ std::vector<size_t> fuzzy_match(std::string_view path, std::string_view query)
     size_t query_idx = 0;
 
     for (size_t i = 0; i < path.size() && query_idx < query.size(); ++i) {
-        char pc = static_cast<char>(
+        const char pc = static_cast<char>(
             std::tolower(static_cast<unsigned char>(path[i])));
-        char qc = query[query_idx];
+        const char qc = query[query_idx];
 
         if (pc == qc) {
             match_positions.push_back(i);
@@ -777,7 +777,7 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path,
                 if (i == 0 || i == filename_start) {
                     score += 5.0F;
                 } else {
-                    unsigned char prev =
+                    const unsigned char prev =
                         static_cast<unsigned char>(path_data[i - 1]);
                     if (prev == '/' || prev == '_' || prev == '-' ||
                         prev == '.' || prev == ' ' ||
@@ -807,7 +807,7 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path,
             score += 10.0F;
             if (is_filename_prefix) {
                 score += 15.0F;
-                size_t filename_len = path_len - filename_start;
+                const size_t filename_len = path_len - filename_start;
                 if (query_len == filename_len ||
                     (query_len < filename_len &&
                      path_data[filename_start + query_len] == '.')) {
@@ -819,7 +819,7 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path,
         return {score, std::move(positions)};
     };
 
-    unsigned char first_char = static_cast<unsigned char>(query_data[0]);
+    const unsigned char first_char = static_cast<unsigned char>(query_data[0]);
     float best_score = -1000.0F;
     std::vector<size_t> best_positions;
     int candidates_tried = 0;
@@ -830,7 +830,7 @@ std::vector<size_t> fuzzy_match_optimal(std::string_view path,
         c = to_lower(c);
 
         if (c == first_char) {
-            bool is_boundary =
+            const bool is_boundary =
                 (i == 0 || i == filename_start || path_data[i - 1] == '/' ||
                  path_data[i - 1] == '_' || path_data[i - 1] == '-' ||
                  path_data[i - 1] == '.' || path_data[i - 1] == ' ' ||

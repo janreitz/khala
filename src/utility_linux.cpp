@@ -64,7 +64,7 @@ void copy_to_clipboard(const std::string &content)
         throw std::runtime_error("Failed to create pipe for clipboard: " +
                                  std::string(strerror(errno)));
 
-    pid_t pid = fork();
+    const pid_t pid = fork();
     if (pid == 0) {
         // Child: read from pipe, exec xclip
         close(pipefd[1]);
@@ -76,9 +76,10 @@ void copy_to_clipboard(const std::string &content)
     } else if (pid > 0) {
         // Parent: write to pipe
         close(pipefd[0]);
-        ssize_t bytes_written =
+        const ssize_t bytes_written =
             write(pipefd[1], content.data(), content.size());
-        int write_errno = errno; // Save errno before close() might change it
+        const int write_errno =
+            errno; // Save errno before close() might change it
         close(pipefd[1]);
 
         if (bytes_written == -1) {
@@ -300,8 +301,8 @@ parse_desktop_file(const fs::path &desktop_file_path)
         // Parse key=value pairs
         auto pos = line.find('=');
         if (pos != std::string::npos) {
-            std::string key = line.substr(0, pos);
-            std::string value = line.substr(pos + 1);
+            const std::string key = line.substr(0, pos);
+            const std::string value = line.substr(pos + 1);
             entries[key] = value;
         }
     }
@@ -314,7 +315,7 @@ std::vector<ApplicationInfo> scan_app_infos()
     std::vector<ApplicationInfo> apps;
 
     // Standard desktop file locations
-    std::vector<fs::path> search_paths = {
+    const std::vector<fs::path> search_paths = {
         "/usr/share/applications", "/usr/local/share/applications",
         fs::path(std::getenv("HOME") ? std::getenv("HOME") : "") /
             ".local/share/applications"};

@@ -57,7 +57,7 @@ std::optional<MonitorInfo> get_primary_monitor_xrandr(Display *display,
         return std::nullopt;
     }
 
-    ::Window root = RootWindow(display, screen);
+    const ::Window root = RootWindow(display, screen);
 
     // Get screen resources
     XRRScreenResources *screen_resources = XRRGetScreenResources(display, root);
@@ -220,12 +220,12 @@ PlatformWindow::PlatformWindow(ui::RelScreenCoord top_left,
                                CWBorderPixel | CWEventMask,
                            &attrs);
 
-    Atom windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+    const Atom windowType = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
     Atom dialogType = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
     XChangeProperty(display, window, windowType, XA_ATOM, 32, PropModeReplace,
                     (unsigned char *)&dialogType, 1);
 
-    Atom stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
+    const Atom stateAtom = XInternAtom(display, "_NET_WM_STATE", False);
     Atom stateAbove = XInternAtom(display, "_NET_WM_STATE_ABOVE", False);
     XChangeProperty(display, window, stateAtom, XA_ATOM, 32, PropModeReplace,
                     (unsigned char *)&stateAbove, 1);
@@ -757,20 +757,20 @@ bool PlatformWindow::register_global_hotkey(const ui::KeyboardEvent &hotkey)
         unregister_global_hotkey();
     }
 
-    KeySym keysym = keycode_to_keysym(hotkey.key);
+    const KeySym keysym = keycode_to_keysym(hotkey.key);
     if (keysym == NoSymbol) {
         LOG_ERROR("Cannot convert key to X11 KeySym");
         return false;
     }
 
-    ::KeyCode keycode = XKeysymToKeycode(display, keysym);
+    const ::KeyCode keycode = XKeysymToKeycode(display, keysym);
     if (keycode == 0) {
         LOG_ERROR("Cannot convert KeySym to X11 KeyCode");
         return false;
     }
 
-    unsigned int x11_mods = modifiers_to_x11(hotkey.modifiers);
-    ::Window root = DefaultRootWindow(display);
+    const unsigned int x11_mods = modifiers_to_x11(hotkey.modifiers);
+    const ::Window root = DefaultRootWindow(display);
 
     // Install error handler to catch BadAccess
     g_grab_error_occurred = false;
@@ -822,7 +822,7 @@ void PlatformWindow::unregister_global_hotkey()
         return;
     }
 
-    ::Window root = DefaultRootWindow(display);
+    const ::Window root = DefaultRootWindow(display);
 
     // Ungrab all the modifier combinations we grabbed
     XUngrabKey(display, hotkey_keycode, hotkey_modifiers, root);

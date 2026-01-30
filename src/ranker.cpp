@@ -75,7 +75,7 @@ void StreamingRanker::resume()
 
 void StreamingRanker::update_query(const std::string &query)
 {
-    std::lock_guard lock(state_mutex_);
+    const std::lock_guard lock(state_mutex_);
     ranker_request_.query = query;
     query_changed_.store(true, std::memory_order_release);
     state_cv_.notify_one();
@@ -83,7 +83,7 @@ void StreamingRanker::update_query(const std::string &query)
 
 void StreamingRanker::update_requested_count(size_t count)
 {
-    std::lock_guard lock(state_mutex_);
+    const std::lock_guard lock(state_mutex_);
     ranker_request_.requested_count = count;
     query_changed_.store(true, std::memory_order_release);
     state_cv_.notify_one();
@@ -110,7 +110,7 @@ void StreamingRanker::run()
         if (query_changed_.exchange(false, std::memory_order_acq_rel)) {
             RankerRequest new_request;
             {
-                std::lock_guard lock(state_mutex_);
+                const std::lock_guard lock(state_mutex_);
                 new_request = ranker_request_;
             }
 

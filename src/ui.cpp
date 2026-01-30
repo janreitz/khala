@@ -36,12 +36,12 @@ std::optional<std::string> get_query(const AppMode &mode)
 std::string format_file_count(size_t count)
 {
     if (count >= 1'000'000) {
-        double millions = static_cast<double>(count) / 1'000'000.0;
+        const double millions = static_cast<double>(count) / 1'000'000.0;
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%.1fM", millions);
         return buffer;
     } else if (count >= 1'000) {
-        double thousands = static_cast<double>(count) / 1'000.0;
+        const double thousands = static_cast<double>(count) / 1'000.0;
         char buffer[32];
         snprintf(buffer, sizeof(buffer), "%.1fK", thousands);
         return buffer;
@@ -77,11 +77,11 @@ create_highlighted_markup(const std::string &text,
     size_t match_idx = 0;
 
     for (size_t i = 0; i < text.size(); ++i) {
-        char c = text[i];
+        const char c = text[i];
 
         // Check if this position should be highlighted
-        bool should_highlight = (match_idx < match_positions.size() &&
-                                 match_positions[match_idx] == i);
+        const bool should_highlight = (match_idx < match_positions.size() &&
+                                       match_positions[match_idx] == i);
 
         if (should_highlight) {
             result += "<b>";

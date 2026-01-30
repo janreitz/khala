@@ -100,7 +100,7 @@ int main()
 
                 size_t scored_paths = 0;
                 for (const auto &path : paths) {
-                    float score = scoring_func(path, test_query);
+                    const float score = scoring_func(path, test_query);
                     if (score > 0.0F) {
                         scored_paths++;
                     }
@@ -157,7 +157,7 @@ int main()
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     custom_end - custom_start);
 
-            double custom_speedup =
+            const double custom_speedup =
                 static_cast<double>(seq_duration.count()) /
                 static_cast<double>(custom_duration.count());
 
@@ -181,8 +181,9 @@ int main()
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     omp_end - omp_start);
 
-            double omp_speedup = static_cast<double>(seq_duration.count()) /
-                                 static_cast<double>(omp_duration.count());
+            const double omp_speedup =
+                static_cast<double>(seq_duration.count()) /
+                static_cast<double>(omp_duration.count());
 
             printf("  OpenMP:            %6.2fms  (%.2fx speedup)\n",
                    static_cast<double>(omp_duration.count()) / 1000.0,
@@ -209,8 +210,9 @@ int main()
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     exec_end - exec_start);
 
-            double exec_speedup = static_cast<double>(seq_duration.count()) /
-                                  static_cast<double>(exec_duration.count());
+            const double exec_speedup =
+                static_cast<double>(seq_duration.count()) /
+                static_cast<double>(exec_duration.count());
 
             printf("  std::execution:    %6.2fms  (%.2fx speedup)\n",
                    static_cast<double>(exec_duration.count()) / 1000.0,

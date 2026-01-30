@@ -312,7 +312,7 @@ std::string serialize_file_info(const fs::path &path)
         std::chrono::time_point_cast<std::chrono::system_clock::duration>(
             ftime - fs::file_time_type::clock::now() +
             std::chrono::system_clock::now());
-    std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
+    const std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
     std::tm *tm = std::localtime(&tt);
 
     char time_buf[32];
@@ -329,8 +329,8 @@ std::string to_lower(std::string_view str)
     std::string lower_case_string;
     lower_case_string.reserve(str.size());
 
-    for (char c : str) {
-        unsigned char lc = static_cast<unsigned char>(
+    for (const char c : str) {
+        const unsigned char lc = static_cast<unsigned char>(
             std::tolower(static_cast<unsigned char>(c)));
         lower_case_string.push_back(static_cast<char>(lc));
     }
@@ -451,15 +451,15 @@ void simd_to_lower(const char *src, size_t len, char *out_buffer)
     const __m128i upper_z = _mm_set1_epi8('Z' + 1);
     const __m128i lower_bit = _mm_set1_epi8(0x20);
     for (; i + 16 <= len; i += 16) {
-        __m128i chunk =
+        const __m128i chunk =
             _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + i));
 
-        __m128i ge_a = _mm_cmpgt_epi8(chunk, upper_a);
-        __m128i le_z = _mm_cmpgt_epi8(upper_z, chunk);
-        __m128i is_upper = _mm_and_si128(ge_a, le_z);
+        const __m128i ge_a = _mm_cmpgt_epi8(chunk, upper_a);
+        const __m128i le_z = _mm_cmpgt_epi8(upper_z, chunk);
+        const __m128i is_upper = _mm_and_si128(ge_a, le_z);
 
-        __m128i to_add = _mm_and_si128(is_upper, lower_bit);
-        __m128i result = _mm_add_epi8(chunk, to_add);
+        const __m128i to_add = _mm_and_si128(is_upper, lower_bit);
+        const __m128i result = _mm_add_epi8(chunk, to_add);
 
         _mm_storeu_si128(reinterpret_cast<__m128i *>(out_buffer + i), result);
     }
@@ -561,7 +561,7 @@ void save_history(const PackedStrings &history)
         return;
     }
     constexpr size_t MAX_HISTORY = 1000;
-    size_t start =
+    const size_t start =
         history.size() > MAX_HISTORY ? history.size() - MAX_HISTORY : 0;
     for (size_t i = start; i < history.size(); i++) {
         file << history.at(i) << '\n';

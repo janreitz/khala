@@ -19,7 +19,7 @@ namespace fs = std::filesystem;
 
 void Logger::init(const fs::path &log_dir)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     if (initialized_) {
         return;
@@ -55,7 +55,7 @@ void Logger::init(const fs::path &log_dir)
 
 Logger::~Logger()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
     if (log_file_ && log_file_->is_open()) {
         *log_file_ << formatMessage(LogLevel::INFO, "Logger shutting down")
                    << std::endl;
@@ -75,9 +75,9 @@ void Logger::log(LogLevel level, const char *format, ...)
 
     va_end(args);
 
-    std::string formatted_msg = formatMessage(level, std::string(buffer));
+    const std::string formatted_msg = formatMessage(level, std::string(buffer));
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::lock_guard<std::mutex> lock(mutex_);
 
     // Always output to stdout
     fprintf(stdout, "%s\n", formatted_msg.c_str());

@@ -36,8 +36,8 @@ std::multimap<std::string, std::string> parse_ini(const fs::path &path)
 
         auto pos = line.find('=');
         if (pos != std::string::npos) {
-            std::string key = line.substr(0, pos);
-            std::string value = line.substr(pos + 1);
+            const std::string key = line.substr(0, pos);
+            const std::string value = line.substr(pos + 1);
             result.emplace(key, value);
         }
     }
@@ -146,7 +146,7 @@ get_dirs_or(const std::multimap<std::string, std::string> &map,
 
     std::set<fs::path> result;
     for (const auto &value : values) {
-        fs::path dir_path(value);
+        const fs::path dir_path(value);
         if (!fs::exists(dir_path)) {
             warnings.push_back("Config: " + key +
                                " path does not exist: " + value);
@@ -208,7 +208,7 @@ std::optional<Color> parse_color(const std::string &str)
     // Expand shorthand: #RGB -> #RRGGBB, #RGBA -> #RRGGBBAA
     if (hex.length() == 3 || hex.length() == 4) {
         std::string expanded;
-        for (char c : hex) {
+        for (const char c : hex) {
             expanded += c;
             expanded += c;
         }
@@ -258,7 +258,7 @@ std::optional<ui::KeyboardEvent> parse_hotkey(const std::string &hotkey_str)
     // Split by '+' and parse each part
     std::string remaining = hotkey_str;
     while (!remaining.empty()) {
-        size_t plus_pos = remaining.find('+');
+        const size_t plus_pos = remaining.find('+');
         std::string part;
         if (plus_pos != std::string::npos) {
             part = remaining.substr(0, plus_pos);
@@ -276,7 +276,7 @@ std::optional<ui::KeyboardEvent> parse_hotkey(const std::string &hotkey_str)
 
         // Convert to lowercase for comparison
         std::string lower;
-        for (char c : part) {
+        for (const char c : part) {
             lower += static_cast<char>(tolower(static_cast<unsigned char>(c)));
         }
 
@@ -516,9 +516,9 @@ ConfigLoadResult load_config(const fs::path &path)
     cfg.ignore_dir_names =
         get_strings_or(map, "ignore_dir_name", cfg.ignore_dir_names);
 
-    std::vector<fs::path> commands_dirs{fs::path(KHALA_INSTALL_DIR) /
-                                            "commands",
-                                        path.parent_path() / "commands"};
+    const std::vector<fs::path> commands_dirs{fs::path(KHALA_INSTALL_DIR) /
+                                                  "commands",
+                                              path.parent_path() / "commands"};
     std::unordered_map<std::string, CustomActionDef> actions_by_stem;
     for (const auto &commands_dir : commands_dirs) {
         if (fs::exists(commands_dir)) {
@@ -528,18 +528,19 @@ ConfigLoadResult load_config(const fs::path &path)
 
                 auto command_map = parse_ini(entry.path());
 
-                std::string title = get_string_or(command_map, "title", "");
-                std::string description =
+                const std::string title =
+                    get_string_or(command_map, "title", "");
+                const std::string description =
                     get_string_or(command_map, "description", "");
-                std::string shell_cmd =
+                const std::string shell_cmd =
                     get_string_or(command_map, "shell_cmd", "");
-                ActionType action_type = get_action_type_or(
+                const ActionType action_type = get_action_type_or(
                     command_map, "action_type", ActionType::Utility);
-                bool stdout_to_clipboard =
+                const bool stdout_to_clipboard =
                     get_bool_or(command_map, "stdout_to_clipboard", false);
                 std::string shell = get_string_or(command_map, "shell", "");
                 // TODO use get_hotkey_or
-                std::optional<ui::KeyboardEvent> hotkey =
+                const std::optional<ui::KeyboardEvent> hotkey =
                     get_hotkey(command_map, "hotkey");
 
                 if (title.empty() || shell_cmd.empty()) {
@@ -599,7 +600,7 @@ ConfigLoadResult load_config(const fs::path &path)
         }
 
         // Check if it conflicts with hardcoded shortcuts (warn but allow)
-        std::string hardcoded_conflict = get_hardcoded_conflict(hk);
+        const std::string hardcoded_conflict = get_hardcoded_conflict(hk);
         if (!hardcoded_conflict.empty()) {
             LOG_WARNING("Hotkey for '%s' overrides hardcoded '%s'",
                         action.title.c_str(), hardcoded_conflict.c_str());

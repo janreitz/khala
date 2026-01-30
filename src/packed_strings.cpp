@@ -25,14 +25,14 @@ void PackedStrings::push(const std::string &str)
 
 void PackedStrings::merge(PackedStrings &&other)
 {
-    size_t data_offset = data_.size();
+    const size_t data_offset = data_.size();
 
     // Append raw data_
     data_.insert(data_.end(), other.data_.begin(), other.data_.end());
 
     // Append indices, adjusted by offset
     indices_.reserve(indices_.size() + other.indices_.size());
-    for (size_t idx : other.indices_) {
+    for (const size_t idx : other.indices_) {
         indices_.push_back(idx + data_offset);
     }
 }
