@@ -24,7 +24,7 @@
 namespace fs = std::filesystem;
 
 // Constants for event loop timing and indexing
-constexpr size_t INDEXER_BATCH_SIZE = 10'000;
+constexpr size_t INDEXER_BATCH_SIZE = 1024;
 constexpr int EVENT_LOOP_SLEEP_MS = 16; // ~60 FPS
 
 int main()
