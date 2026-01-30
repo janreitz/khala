@@ -6,11 +6,9 @@
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
-#include <fstream>
 #include <future>
 #include <set>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -99,6 +97,9 @@ void scan_subtree_streaming(const fs::path &root,
                             StreamingIndex &index, size_t chunk_size)
 {
     PackedStrings current_chunk;
+    current_chunk.reserve(chunk_size, platform::MAX_PATH_LENGTH);
+    // Prefix for SIMD operations that scan backwards
+    current_chunk.prefix(16, 'F');
 
     try {
         for (auto it = fs::recursive_directory_iterator(
@@ -119,7 +120,6 @@ void scan_subtree_streaming(const fs::path &root,
                 current_chunk.push(platform::path_to_string(it->path()));
 
                 if (current_chunk.size() >= chunk_size) {
-                    current_chunk.shrink_to_fit();
                     index.add_chunk(std::move(current_chunk));
                     current_chunk = PackedStrings{};
                 }
@@ -146,10 +146,13 @@ void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
     const defer mark_complete(
         [&index]() noexcept { index.mark_scan_complete(); });
 
-    PackedStrings root_files;
-
     const auto min_work_units = std::thread::hardware_concurrency() * 4;
     std::deque<fs::path> to_expand;
+    
+    PackedStrings root_files;
+    root_files.reserve(min_work_units, platform::MAX_PATH_LENGTH);
+    // Prefix for SIMD operations that scan backwards
+    root_files.prefix(16, 'F');
 
     // Initialize with all root paths
     for (const auto &root_path : root_paths) {

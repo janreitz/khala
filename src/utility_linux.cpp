@@ -1,13 +1,20 @@
 #include "utility.h"
 
-#include <fstream>
-#include <string.h>
+#include <linux/limits.h>
 #include <sys/wait.h>
+
+#include <cstring>
+#include <fstream>
+#include <optional>
 #include <unistd.h>
 #include <unordered_map>
+#include <filesystem>
+#include <string>
 
 namespace platform
 {
+
+const size_t MAX_PATH_LENGTH = PATH_MAX;
 
 namespace fs = std::filesystem;
 

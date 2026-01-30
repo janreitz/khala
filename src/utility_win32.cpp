@@ -15,6 +15,9 @@ namespace fs = std::filesystem;
 
 namespace platform
 {
+
+size_t MAX_PATH_LENGTH = MAX_PATH;
+
 std::string path_to_string(const fs::path &path)
 {
     const auto u8_filename = path.u8string();

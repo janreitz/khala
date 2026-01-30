@@ -1,11 +1,14 @@
 #include "packed_strings.h"
 
-PackedStrings::PackedStrings()
+void PackedStrings::reserve(size_t string_count, size_t expected_avg_string_length)
 {
-    data_.reserve(1024 * 1024);
-    indices_.reserve(16384);
+    data_.reserve(string_count * expected_avg_string_length);
+    indices_.reserve(string_count);
+}
+
+void PackedStrings::prefix(size_t count, char c) {
     // Enter 16 characters padding for SIMD operations searching backwards
-    data_.insert(data_.begin(), 16, 'F');
+    data_.insert(data_.begin(), count, c);
 }
 
 void PackedStrings::push(const std::string &str)

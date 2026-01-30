@@ -12,11 +12,14 @@ struct PackedStrings {
     std::vector<size_t> indices_;
 
   public:
-    PackedStrings();
+    PackedStrings() = default;
 
+    void reserve(size_t string_count, size_t expected_avg_string_length);
     void push(const std::string &str);
     void merge(PackedStrings &&other);
     void shrink_to_fit();
+
+    void prefix(size_t count, char c);
 
     std::string_view at(size_t idx) const;
     bool empty() const noexcept;

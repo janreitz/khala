@@ -70,6 +70,8 @@ struct ApplicationInfo {
 // Platform specific helpers
 namespace platform
 {
+extern const size_t MAX_PATH_LENGTH;
+
 std::string path_to_string(const std::filesystem::path &path);
 std::optional<std::filesystem::path> get_home_dir();
 std::filesystem::path get_temp_dir();
