@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <linux/limits.h>
 #include <stdexcept>
-#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
