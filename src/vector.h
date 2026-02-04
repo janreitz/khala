@@ -16,6 +16,9 @@ typedef struct Vec {
 } Vec;
 
 void vec_init(Vec*, size_t);
+// Reset count, keep buffer
+void vec_clear(Vec *v);
+void vec_free(Vec *v);
 int vec_push(Vec*, const void*);
 void vec_pop(Vec*, void*);
 void vec_at(Vec*, size_t, void*);

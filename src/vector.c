@@ -12,6 +12,17 @@ void vec_init(Vec* vec, size_t element_size) {
     vec->element_size = element_size;
 }
 
+void vec_clear(Vec *v) {
+    v->count = 0;  // keep capacity, reuse buffer
+}
+
+void vec_free(Vec *v) {
+    free(v->data);
+    v->data = NULL;
+    v->count = 0;
+    v->capacity = 0;
+}
+
 int vec_push(Vec* vec, const void* element) {
     assert (vec->count <= vec->capacity);
     if (vec->count == vec->capacity) {
