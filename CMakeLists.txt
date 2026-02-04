@@ -162,16 +162,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         -Wpedantic
         -Werror
         -Wshadow
-        -Wnon-virtual-dtor
         -Wcast-align
         -Wunused
-        -Woverloaded-virtual
         -Wconversion
         -Wsign-conversion
         -Wformat=2
         -Wimplicit-fallthrough
         -Wnull-dereference
         -Wdouble-promotion
+    )
+
+     # C++-only flags
+    add_compile_options(
+        $<$<COMPILE_LANGUAGE:CXX>:-Wnon-virtual-dtor>
+        $<$<COMPILE_LANGUAGE:CXX>:-Woverloaded-virtual>
     )
 
     # Clang's __cpp_concepts macro is 201907L, but libstdc++ requires >= 202002L
@@ -226,6 +230,7 @@ add_executable(khala
     ${WINDOW_SOURCE}
     ${PLATFORM_UTILITY_SOURCE}
     src/utility.cpp
+    src/vector.c
 )
 
 if(PLATFORM STREQUAL "win32")
