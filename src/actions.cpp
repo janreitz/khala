@@ -3,9 +3,9 @@
 #include "types.h"
 #include "ui.h"
 #include "utility.h"
+#include "vector.h"
 
 #include <chrono>
-#include <cstring>
 #include <ctime>
 #include <exception>
 #include <filesystem>
@@ -19,47 +19,50 @@
 #include <cstring>
 #include <iomanip>
 #include <variant>
-#include <vector>
 
-std::vector<ui::Item> make_file_actions(const fs::path &path,
-                                        const Config &config)
+#define EMIT(item) do { if (!cb(&(item), user_data)) return; } while(0)
+
+void for_each_file_action(const fs::path &path, const Config &config,
+                          FileActionCallback cb, void *user_data)
 {
-    using ui::KeyboardEvent;
-    using ui::KeyCode;
-    using ui::KeyModifier;
-
     if (fs::is_directory(path)) {
-        std::vector<ui::Item> items{
-            ui::Item{.title = "Open Directory",
-                     .description = config.file_manager,
-                     .path = std::nullopt,
-                     .command = OpenDirectory{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Remove Directory",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = RemoveFile{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Remove Directory Recursive",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = RemoveFileRecursive{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Copy Path to Clipboard",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = CopyPathToClipboard{path},
-                     .hotkey = KeyboardEvent{.key = KeyCode::C,
-                                             .modifiers = KeyModifier::Ctrl,
-                                             .character = std::nullopt}},
-        };
+        const ui::Item open_dir{.title = "Open Directory",
+                                .description = config.file_manager,
+                                .path = std::nullopt,
+                                .command = OpenDirectory{path},
+                                .hotkey = std::nullopt};
+        EMIT(open_dir);
+
+        const ui::Item rm_dir{.title = "Remove Directory",
+                              .description = "",
+                              .path = std::nullopt,
+                              .command = RemoveFile{path},
+                              .hotkey = std::nullopt};
+        EMIT(rm_dir);
+
+        const ui::Item rm_dir_recursive{.title = "Remove Directory Recursive",
+                                        .description = "",
+                                        .path = std::nullopt,
+                                        .command = RemoveFileRecursive{path},
+                                        .hotkey = std::nullopt};
+        EMIT(rm_dir_recursive);
+
+        const ui::Item cp_to_clipboard{
+            .title = "Copy Path to Clipboard",
+            .description = "",
+            .path = std::nullopt,
+            .command = CopyPathToClipboard{path},
+            .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
+                                        .modifiers = ui::KeyModifier::Ctrl,
+                                        .character = std::nullopt}};
+        EMIT(cp_to_clipboard);
 
         // Append custom directory actions
         for (const auto &action_def : config.custom_actions) {
             if (action_def.action_type != ActionType::Directory)
                 continue;
 
-            items.push_back(ui::Item{
+            const ui::Item custom_action{
                 .title = action_def.title,
                 .description = action_def.description,
                 .path = std::nullopt,
@@ -72,48 +75,54 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
                 .hotkey = action_def.hotkey,
-            });
+            };
+            EMIT(custom_action);
         }
-
-        return items;
+        return;
     } else {
-        std::vector<ui::Item> items{
-            ui::Item{.title = "Open File",
-                     .description = config.editor,
-                     .path = std::nullopt,
-                     .command = OpenFileCommand{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Remove File",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = RemoveFile{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Copy Path to Clipboard",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = CopyPathToClipboard{path},
-                     .hotkey = KeyboardEvent{.key = KeyCode::C,
-                                             .modifiers = KeyModifier::Ctrl,
-                                             .character = std::nullopt}},
-            ui::Item{.title = "Copy Content to Clipboard",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = CopyContentToClipboard{path},
-                     .hotkey = KeyboardEvent{.key = KeyCode::C,
-                                             .modifiers = KeyModifier::Ctrl |
-                                                          KeyModifier::Shift,
-                                             .character = std::nullopt}},
-        };
+        const ui::Item open_file = {.title = "Open File",
+                                    .description = config.editor,
+                                    .path = std::nullopt,
+                                    .command = OpenFileCommand{path},
+                                    .hotkey = std::nullopt};
+        EMIT(open_file);
+        const ui::Item rm_file = {.title = "Remove File",
+                                  .description = "",
+                                  .path = std::nullopt,
+                                  .command = RemoveFile{path},
+                                  .hotkey = std::nullopt};
+        EMIT(rm_file);
+        const ui::Item cp_path = {
+            .title = "Copy Path to Clipboard",
+            .description = "",
+            .path = std::nullopt,
+            .command = CopyPathToClipboard{path},
+            .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
+                                        .modifiers = ui::KeyModifier::Ctrl,
+                                        .character = std::nullopt}};
+        EMIT(cp_path);
+        const ui::Item cp_content = {
+            .title = "Copy Content to Clipboard",
+            .description = "",
+            .path = std::nullopt,
+            .command = CopyContentToClipboard{path},
+            .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
+                                        .modifiers = ui::KeyModifier::Ctrl |
+                                                     ui::KeyModifier::Shift,
+                                        .character = std::nullopt}};
+        EMIT(cp_content);
+
         if (path.has_parent_path()) {
-            items.push_back(ui::Item{
+            const ui::Item open_folder = {
                 .title = "Open Containing Folder",
                 .description = "",
                 .path = std::nullopt,
                 .command = OpenDirectory{path.parent_path()},
-                .hotkey = KeyboardEvent{.key = KeyCode::Return,
-                                        .modifiers = KeyModifier::Ctrl,
-                                        .character = std::nullopt},
-            });
+                .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::Return,
+                                            .modifiers = ui::KeyModifier::Ctrl,
+                                            .character = std::nullopt},
+            };
+            EMIT(open_folder);
         }
 
         // Append custom file actions, filling in the path
@@ -121,7 +130,7 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
             if (action_def.action_type != ActionType::File)
                 continue;
 
-            items.push_back(ui::Item{
+            const ui::Item custom_action = {
                 .title = action_def.title,
                 .description = action_def.description,
                 .path = std::nullopt,
@@ -134,9 +143,9 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
                         .stdout_to_clipboard = action_def.stdout_to_clipboard,
                     },
                 .hotkey = action_def.hotkey,
-            });
+            };
+            EMIT(custom_action);
         }
-        return items;
     }
 }
 

@@ -18,9 +18,12 @@ namespace fs = std::filesystem;
 
 // Effects that commands/events can request
 // These are processed after event handling completes
-struct QuitApplication {};
-struct HideWindow {};
-struct ReloadIndexEffect {};
+struct QuitApplication {
+};
+struct HideWindow {
+};
+struct ReloadIndexEffect {
+};
 
 using Effect = std::variant<QuitApplication, HideWindow, ReloadIndexEffect>;
 
@@ -60,19 +63,23 @@ struct CopyUUID {
 struct CustomCommand {
     std::optional<fs::path> path;
     std::string shell_cmd;
-    std::string shell;  // shell to use for execution
+    std::string shell; // shell to use for execution
     bool stdout_to_clipboard = false;
 };
 
-using Command = std::variant<Noop, OpenFileCommand, OpenDirectory, RemoveFile,
-                             RemoveFileRecursive, CopyPathToClipboard,
-                             CopyContentToClipboard, ReloadIndex, CopyISOTimestamp,
-                             CopyUnixTimestamp, CopyUUID, CustomCommand>;
+using Command =
+    std::variant<Noop, OpenFileCommand, OpenDirectory, RemoveFile,
+                 RemoveFileRecursive, CopyPathToClipboard,
+                 CopyContentToClipboard, ReloadIndex, CopyISOTimestamp,
+                 CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
-std::vector<ui::Item> make_file_actions(const fs::path &path,
-                                        const Config &config);
+/// @brief Return false to short-circuit iteration
+typedef bool (*FileActionCallback)(const ui::Item *file_action,
+                                   void *user_data);
+void for_each_file_action(const fs::path &path, const Config &config,
+                          FileActionCallback cb, void *user_data);
 
 std::vector<ui::Item> get_global_actions(const Config &config);
 
-std::expected<std::optional<Effect>, std::string> process_command(const Command &command,
-                                                                  const Config &config);
+std::expected<std::optional<Effect>, std::string>
+process_command(const Command &command, const Config &config);

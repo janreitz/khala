@@ -225,6 +225,12 @@ void State::clear_errors()
     };
 }
 
+static bool collect_items(const Item* item, void* user_data) {
+    auto* items = static_cast<std::vector<ui::Item>*>(user_data);
+    items->push_back(*item);
+    return true;
+}
+
 // Try to open context menu for the currently selected file item
 // Returns true if context menu was opened, false otherwise
 static bool try_open_context_menu(State &state, const Config &config)
@@ -251,7 +257,8 @@ static bool try_open_context_menu(State &state, const Config &config)
     state.mode = ContextMenu{.title = file_item->title,
                              .selected_file = file_item->path.value()};
     state.selected_item_index = 0;
-    state.items = make_file_actions(file_item->path.value(), config);
+    state.items.clear();
+    for_each_file_action(file_item->path.value(), config, collect_items, &state.items);
     return true;
 }
 
@@ -295,6 +302,22 @@ static bool hotkey_matches(const KeyboardEvent &ev, const KeyboardEvent &hotkey)
     return ev.key == hotkey.key && ev.modifiers == hotkey.modifiers;
 }
 
+typedef struct {
+    const KeyboardEvent *kbd_event;
+    Command *matched_command;  // out: set if found
+    bool found;
+} HotkeyMatchContext;
+
+bool find_matching_hotkey(const ui::Item *item, void *user_data) {
+    auto* ctx = static_cast<HotkeyMatchContext *>(user_data);
+    if (item->hotkey && hotkey_matches(*(ctx->kbd_event), *(item->hotkey))) {
+        *ctx->matched_command = item->command;
+        ctx->found = true;
+        return false;  // stop iteration
+    }
+    return true;  // continue
+}
+
 std::vector<Event> handle_keyboard_input(State &state,
                                          const KeyboardEvent &kbd_event,
                                          const Config &config)
@@ -331,13 +354,15 @@ std::vector<Event> handle_keyboard_input(State &state,
         const auto selected_item = state.get_selected_item();
         if (selected_item && selected_item->path.has_value()) {
             const auto &path = selected_item->path.value();
-            const auto file_actions = make_file_actions(path, config);
-
-            for (const auto &action : file_actions) {
-                if (action.hotkey.has_value() &&
-                    hotkey_matches(kbd_event, *action.hotkey)) {
-                    return {ActionRequested{action.command}};
-                }
+            Command matched;
+            HotkeyMatchContext ctx = {
+                .kbd_event = &kbd_event,
+                .matched_command = &matched,
+                .found = false
+            };
+            for_each_file_action(path, config, find_matching_hotkey, &ctx);
+            if (ctx.found) {
+                return { ActionRequested{matched} };
             }
         }
     } else {
