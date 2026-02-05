@@ -41,7 +41,17 @@ void vec_pop(Vec* vec, void* out_element) {
     memcpy(out_element, (char*)vec->data + (vec->count * vec->element_size), vec->element_size);
 }
 
-void vec_at(Vec* vec, size_t idx, void* out_element) {
+void* vec_at_mut(Vec* vec, size_t idx) {
+    assert(idx < vec->count);
+    return (char*)vec->data + (idx * vec->element_size);
+}
+
+const void* vec_at(const Vec* vec, size_t idx) {
+    assert(idx < vec->count);
+    return (char*)vec->data + (idx * vec->element_size);
+}
+
+void vec_cp_at(const Vec* vec, size_t idx, void* out_element) {
     assert(idx < vec->count);
     memcpy(out_element, (char*)vec->data + (idx * vec->element_size), vec->element_size);
 }

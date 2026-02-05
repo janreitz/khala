@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include "vector.h"
 
 namespace fs = std::filesystem;
 
@@ -104,7 +105,7 @@ struct Config {
         ".hg",  "__pycache__",  ".vscode", ".idea"};
 
     // Custom Actions
-    std::vector<CustomActionDef> custom_actions;
+    Vec custom_action_defs;
 
     // Paths
     static fs::path default_path();

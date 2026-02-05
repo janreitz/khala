@@ -61,23 +61,25 @@ void for_each_file_action(const fs::path &path, const Config &config,
         EMIT(cp_to_clipboard);
 
         // Append custom directory actions
-        for (const auto &action_def : config.custom_actions) {
-            if (action_def.action_type != ActionType::Directory)
+        for (size_t i = 0; i < config.custom_action_defs.count; i++) {
+            const auto *action_def = static_cast<const CustomActionDef *>(
+                vec_at(&config.custom_action_defs, i));
+            if (action_def->action_type != ActionType::Directory)
                 continue;
 
             const ui::Item custom_action{
-                .title = action_def.title,
-                .description = action_def.description,
+                .title = action_def->title,
+                .description = action_def->description,
                 .path = std::nullopt,
                 .command =
                     CustomCommand{
                         .path = path,
-                        .shell_cmd = action_def.shell_cmd,
+                        .shell_cmd = action_def->shell_cmd,
                         .shell =
-                            action_def.shell.value_or(config.default_shell),
-                        .stdout_to_clipboard = action_def.stdout_to_clipboard,
+                            action_def->shell.value_or(config.default_shell),
+                        .stdout_to_clipboard = action_def->stdout_to_clipboard,
                     },
-                .hotkey = action_def.hotkey,
+                .hotkey = action_def->hotkey,
             };
             EMIT(custom_action);
         }
@@ -129,23 +131,25 @@ void for_each_file_action(const fs::path &path, const Config &config,
         }
 
         // Append custom file actions, filling in the path
-        for (const auto &action_def : config.custom_actions) {
-            if (action_def.action_type != ActionType::File)
+        for (size_t i = 0; i < config.custom_action_defs.count; i++) {
+            const auto *action_def = static_cast<const CustomActionDef *>(
+                vec_at(&config.custom_action_defs, i));
+            if (action_def->action_type != ActionType::File)
                 continue;
 
             const ui::Item custom_action = {
-                .title = action_def.title,
-                .description = action_def.description,
+                .title = action_def->title,
+                .description = action_def->description,
                 .path = std::nullopt,
                 .command =
                     CustomCommand{
                         .path = path,
-                        .shell_cmd = action_def.shell_cmd,
+                        .shell_cmd = action_def->shell_cmd,
                         .shell =
-                            action_def.shell.value_or(config.default_shell),
-                        .stdout_to_clipboard = action_def.stdout_to_clipboard,
+                            action_def->shell.value_or(config.default_shell),
+                        .stdout_to_clipboard = action_def->stdout_to_clipboard,
                     },
-                .hotkey = action_def.hotkey,
+                .hotkey = action_def->hotkey,
             };
             EMIT(custom_action);
         }
@@ -183,22 +187,24 @@ void for_each_global_action(const Config &config, ActionCallback cb,
                               .hotkey = std::nullopt};
     EMIT(cp_uuid);
 
-    for (const auto &action_def : config.custom_actions) {
-        if (action_def.action_type != ActionType::Utility)
+    for (size_t i = 0; i < config.custom_action_defs.count; i++) {
+        const auto *action_def = static_cast<const CustomActionDef *>(
+            vec_at(&config.custom_action_defs, i));
+        if (action_def->action_type != ActionType::Utility)
             continue;
 
         const ui::Item custom_action = {
-            .title = action_def.title,
-            .description = action_def.description,
+            .title = action_def->title,
+            .description = action_def->description,
             .path = std::nullopt,
             .command =
                 CustomCommand{
                     .path = std::nullopt,
-                    .shell_cmd = action_def.shell_cmd,
-                    .shell = action_def.shell.value_or(config.default_shell),
-                    .stdout_to_clipboard = action_def.stdout_to_clipboard,
+                    .shell_cmd = action_def->shell_cmd,
+                    .shell = action_def->shell.value_or(config.default_shell),
+                    .stdout_to_clipboard = action_def->stdout_to_clipboard,
                 },
-            .hotkey = action_def.hotkey,
+            .hotkey = action_def->hotkey,
         };
         EMIT(custom_action);
     }

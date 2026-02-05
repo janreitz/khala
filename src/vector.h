@@ -21,7 +21,9 @@ void vec_clear(Vec *v);
 void vec_free(Vec *v);
 int vec_push(Vec*, const void*);
 void vec_pop(Vec*, void*);
-void vec_at(Vec*, size_t, void*);
+void* vec_at_mut(Vec*, size_t);
+const void* vec_at(const Vec*, size_t);
+void vec_cp_at(const Vec*, size_t, void*);
 int vec_reserve(Vec*, size_t);
 
 #ifdef __cplusplus

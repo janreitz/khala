@@ -263,6 +263,7 @@ add_executable(indexer_benchmark
     src/utility.cpp
     ${PLATFORM_UTILITY_SOURCE}
     src/fuzzy.cpp
+    src/vector.c
 )
 
 if(OpenMP_CXX_FOUND)
