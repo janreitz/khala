@@ -57,7 +57,8 @@ int main()
     for (const auto &warning : config_warnings) {
         state.push_error(warning);
     }
-    const auto global_actions = get_global_actions(config);
+    std::vector<ui::Item> global_actions;
+    for_each_global_action(config, ui::collect_items, &global_actions);
 
     PlatformWindow window(
         ui::RelScreenCoord{

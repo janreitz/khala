@@ -44,6 +44,8 @@ struct Item {
     Command command;
     std::optional<KeyboardEvent> hotkey;
 };
+// Collects items into a std::vector<ui::Item> which is passed user_data.
+bool collect_items(const Item* item, void* user_data);
 
 struct FileSearch {
     std::string query;

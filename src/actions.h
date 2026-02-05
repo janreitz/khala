@@ -7,7 +7,6 @@
 #include <optional>
 #include <string>
 #include <variant>
-#include <vector>
 
 namespace ui
 {
@@ -74,12 +73,12 @@ using Command =
                  CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
 /// @brief Return false to short-circuit iteration
-typedef bool (*FileActionCallback)(const ui::Item *file_action,
+typedef bool (*ActionCallback)(const ui::Item *file_action,
                                    void *user_data);
 void for_each_file_action(const fs::path &path, const Config &config,
-                          FileActionCallback cb, void *user_data);
+                          ActionCallback cb, void *user_data);
 
-std::vector<ui::Item> get_global_actions(const Config &config);
+void for_each_global_action(const Config &config, ActionCallback cb, void *user_data);
 
 std::expected<std::optional<Effect>, std::string>
 process_command(const Command &command, const Config &config);

@@ -225,7 +225,7 @@ void State::clear_errors()
     };
 }
 
-static bool collect_items(const Item* item, void* user_data) {
+bool collect_items(const Item* item, void* user_data) {
     auto* items = static_cast<std::vector<ui::Item>*>(user_data);
     items->push_back(*item);
     return true;

@@ -3,7 +3,6 @@
 #include "types.h"
 #include "ui.h"
 #include "utility.h"
-#include "vector.h"
 
 #include <chrono>
 #include <ctime>
@@ -20,10 +19,14 @@
 #include <iomanip>
 #include <variant>
 
-#define EMIT(item) do { if (!cb(&(item), user_data)) return; } while(0)
+#define EMIT(item)                                                             \
+    do {                                                                       \
+        if (!cb(&(item), user_data))                                           \
+            return;                                                            \
+    } while (0)
 
 void for_each_file_action(const fs::path &path, const Config &config,
-                          FileActionCallback cb, void *user_data)
+                          ActionCallback cb, void *user_data)
 {
     if (fs::is_directory(path)) {
         const ui::Item open_dir{.title = "Open Directory",
@@ -149,37 +152,42 @@ void for_each_file_action(const fs::path &path, const Config &config,
     }
 }
 
-std::vector<ui::Item> get_global_actions(const Config &config)
+void for_each_global_action(const Config &config, ActionCallback cb,
+                            void *user_data)
 {
-    std::vector<ui::Item> items = {
-        ui::Item{.title = "Reload Index",
-                 .description = "Start a fresh filesystem scan",
-                 .path = std::nullopt,
-                 .command = ReloadIndex{},
-                 .hotkey = std::nullopt},
-        ui::Item{.title = "Copy ISO Timestamp",
-                 .description = "Copy current time in ISO 8601 format",
-                 .path = std::nullopt,
-                 .command = CopyISOTimestamp{},
-                 .hotkey = std::nullopt},
-        ui::Item{.title = "Copy Unix Timestamp",
-                 .description =
-                     "Copy current Unix timestamp (seconds since epoch)",
-                 .path = std::nullopt,
-                 .command = CopyUnixTimestamp{},
-                 .hotkey = std::nullopt},
-        ui::Item{.title = "Copy UUID",
-                 .description = "Generate and copy a new UUID v4",
-                 .path = std::nullopt,
-                 .command = CopyUUID{},
-                 .hotkey = std::nullopt},
-    };
+    const ui::Item reload_index = {.title = "Reload Index",
+                                   .description =
+                                       "Start a fresh filesystem scan",
+                                   .path = std::nullopt,
+                                   .command = ReloadIndex{},
+                                   .hotkey = std::nullopt};
+    EMIT(reload_index);
+    const ui::Item cp_iso_timestamp = {
+        .title = "Copy ISO Timestamp",
+        .description = "Copy current time in ISO 8601 format",
+        .path = std::nullopt,
+        .command = CopyISOTimestamp{},
+        .hotkey = std::nullopt};
+    EMIT(cp_iso_timestamp);
+    const ui::Item cp_unix_timestamp = {
+        .title = "Copy Unix Timestamp",
+        .description = "Copy current Unix timestamp (seconds since epoch)",
+        .path = std::nullopt,
+        .command = CopyUnixTimestamp{},
+        .hotkey = std::nullopt};
+    EMIT(cp_unix_timestamp);
+    const ui::Item cp_uuid = {.title = "Copy UUID",
+                              .description = "Generate and copy a new UUID v4",
+                              .path = std::nullopt,
+                              .command = CopyUUID{},
+                              .hotkey = std::nullopt};
+    EMIT(cp_uuid);
 
     for (const auto &action_def : config.custom_actions) {
         if (action_def.action_type != ActionType::Utility)
             continue;
 
-        items.push_back(ui::Item{
+        const ui::Item custom_action = {
             .title = action_def.title,
             .description = action_def.description,
             .path = std::nullopt,
@@ -191,10 +199,12 @@ std::vector<ui::Item> get_global_actions(const Config &config)
                     .stdout_to_clipboard = action_def.stdout_to_clipboard,
                 },
             .hotkey = action_def.hotkey,
-        });
+        };
+        EMIT(custom_action);
     }
-    return items;
 }
+
+#undef EMIT
 
 std::expected<std::optional<Effect>, std::string>
 process_command(const Command &cmd, const Config &)
