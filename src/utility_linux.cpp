@@ -309,10 +309,8 @@ parse_desktop_file(const fs::path &desktop_file_path)
     return entries;
 }
 
-std::vector<ApplicationInfo> scan_app_infos()
+void scan_app_infos(Vec* out_apps)
 {
-    std::vector<ApplicationInfo> apps;
-
     // Standard desktop file locations
     const std::vector<fs::path> search_paths = {
         "/usr/share/applications", "/usr/local/share/applications",
@@ -371,18 +369,15 @@ std::vector<ApplicationInfo> scan_app_infos()
                     exec_command = exec_command.substr(0, space_pos);
                 }
 
-                apps.push_back(ApplicationInfo{.name = name_it->second,
-                                               .description = description,
-                                               .exec_command = exec_command,
-                                               .app_info_path = entry.path()});
+                ApplicationInfo app = app_info_create(
+                    name_it->second, description, exec_command, entry.path());
+                vec_push(out_apps, &app);
             }
         } catch (const fs::filesystem_error &) {
             // Skip directories we can't read
             continue;
         }
     }
-
-    return apps;
 }
 
 } // namespace platform

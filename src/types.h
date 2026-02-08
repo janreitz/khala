@@ -80,6 +80,12 @@ struct KeyboardEvent {
     std::optional<char> character; // For KeyCode::Character events
 };
 
+// Check if keyboard event matches an item's hotkey
+inline bool hotkey_matches(const KeyboardEvent &ev, const KeyboardEvent &hotkey)
+{
+    return ev.key == hotkey.key && ev.modifiers == hotkey.modifiers;
+}
+
 struct MousePositionEvent {
     WindowCoord position;
 };

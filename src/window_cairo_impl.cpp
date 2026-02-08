@@ -169,7 +169,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     // Draw search prompt and buffer
     std::string display_text;
     if (std::holds_alternative<ui::ErrorMode>(state.mode)) {
-        display_text = "Encountered " + std::to_string(state.items.size()) +
+        display_text = "Encountered " + std::to_string(state.items.count) +
                        " error(s). Press any key to dismiss.";
     } else if (const auto *context_menu =
                    std::get_if<ui::ContextMenu>(&state.mode)) {
@@ -225,7 +225,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         } else {
             indicator_text = ui::create_pagination_text(
                 state.visible_range_offset, max_visible_items,
-                state.items.size(), update.total_available_results);
+                state.items.count, update.total_available_results);
         }
 
         pango_layout_set_text(layout, indicator_text.c_str(), -1);
@@ -292,15 +292,15 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
     const auto query_opt = ui::get_query(state.mode);
     const auto query_lower = to_lower(query_opt.value_or(""));
-    dropdown_items.reserve(state.items.size());
-    for (size_t idx = 0; idx < state.items.size(); ++idx) {
-        const auto &item = state.items[idx];
+    dropdown_items.reserve(state.items.count);
+    for (size_t idx = 0; idx < state.items.count; ++idx) {
+        const auto* item = static_cast<const ui::Item*>(vec_at(&state.items, idx));
 
         // Determine hotkey hint: use item's hotkey if set, otherwise show
         // Ctrl+1-0 for visible items at positions 0-9
         std::string hotkey_hint;
-        if (item.hotkey.has_value()) {
-            hotkey_hint = to_string(*item.hotkey);
+        if (item->hotkey.has_value()) {
+            hotkey_hint = to_string(*item->hotkey);
         } else if (idx >= state.visible_range_offset &&
                    idx < state.visible_range_offset + 10 &&
                    !state.has_errors()) {
@@ -310,14 +310,14 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         }
 
         dropdown_items.push_back(DropdownItem{
-            .title = item.title,
-            .description = item.description,
+            .title = item->title.data,
+            .description = item->description.data,
             .title_match_positions =
-                query_opt ? fuzzy::fuzzy_match_optimal(item.title, query_lower)
+                query_opt ? fuzzy::fuzzy_match_optimal(item->title.data, query_lower)
                           : std::vector<size_t>{},
             .description_match_positions =
                 query_opt
-                    ? fuzzy::fuzzy_match_optimal(item.description, query_lower)
+                    ? fuzzy::fuzzy_match_optimal(item->description.data, query_lower)
                     : std::vector<size_t>{},
             .hotkey_hint = hotkey_hint});
     }

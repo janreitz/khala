@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vector.h"
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -50,8 +52,8 @@ struct ResultUpdate {
 };
 
 // Sequential ranking using min-heap
-template <typename ContainerT, typename ScoreFn>
-std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
+template <typename ScoreFn>
+std::vector<RankResult> rank(const Vec* data, ScoreFn scoring_function,
                              size_t n)
 {
     std::vector<RankResult> top_n;
@@ -59,8 +61,8 @@ std::vector<RankResult> rank(const ContainerT &data, ScoreFn scoring_function,
 
     // Manual heap instead of priority_queue to avoid creating a new vector for return.
     constexpr auto MinHeapCompare = std::greater<>{};
-    for (size_t i = 0; i < data.size(); ++i) {
-        const float s = scoring_function(data.at(i));
+    for (size_t i = 0; i < data->count; ++i) {
+        const float s = scoring_function(vec_at(data, i));
         if (top_n.size() < n && 0.0F < s) {
             top_n.push_back({i, s});
             std::push_heap(top_n.begin(), top_n.end(), MinHeapCompare);

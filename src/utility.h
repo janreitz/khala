@@ -1,7 +1,9 @@
 #pragma once
 
 #include "packed_strings.h"
+#include "str.h"
 #include "types.h"
+#include "vector.h"
 
 #include <filesystem>
 #include <string>
@@ -60,12 +62,24 @@ size_t simd_find_all(const char *data, size_t len, char target,
 
 std::optional<std::filesystem::path> get_dir(std::string_view path);
 
-struct ApplicationInfo {
-    std::string name;
-    std::string description;
-    std::string exec_command;
-    std::filesystem::path app_info_path;
-};
+typedef struct {
+    Str name;
+    Str description;
+    Str exec_command;
+    Str app_info_path;  // Store path as string
+} ApplicationInfo;
+
+// ApplicationInfo lifecycle functions
+ApplicationInfo app_info_create(
+    const std::string& name,
+    const std::string& description,
+    const std::string& exec_command,
+    const std::filesystem::path& app_info_path);
+
+void app_info_free(ApplicationInfo* app);
+
+// Callback for vec_for_each_mut
+bool app_info_free_cb(void* item, void* unused);
 
 // Platform specific helpers
 namespace platform
@@ -87,7 +101,7 @@ void run_custom_command(const std::string &cmd,
 void open_file(const std::filesystem::path &path);
 void open_directory(const std::filesystem::path &path);
 
-std::vector<ApplicationInfo> scan_app_infos();
+void scan_app_infos(Vec* out_apps);
 
 // Registers/unregisters app to start on system boot
 // Windows: HKCU\Software\Microsoft\Windows\CurrentVersion\Run

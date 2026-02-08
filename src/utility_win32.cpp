@@ -405,10 +405,8 @@ std::optional<ApplicationInfo> parse_shortcut(const fs::path &lnk_path)
         return result;
     };
 
-    ApplicationInfo app{.name = name,
-                        .description = wide_to_utf8(description),
-                        .exec_command = wide_to_utf8(target_path),
-                        .app_info_path = lnk_path};
+    ApplicationInfo app = app_info_create(
+        name, wide_to_utf8(description), wide_to_utf8(target_path), lnk_path);
 
     persist_file->Release();
     shell_link->Release();
@@ -416,10 +414,8 @@ std::optional<ApplicationInfo> parse_shortcut(const fs::path &lnk_path)
     return app;
 }
 
-std::vector<ApplicationInfo> scan_app_infos()
+void scan_app_infos(Vec* out_apps)
 {
-    std::vector<ApplicationInfo> apps;
-
     // Get Start Menu paths
     std::vector<fs::path> search_paths;
 
@@ -451,9 +447,9 @@ std::vector<ApplicationInfo> scan_app_infos()
                     continue;
                 }
 
-                auto app = parse_shortcut(entry.path());
-                if (app) {
-                    apps.push_back(std::move(*app));
+                auto app_opt = parse_shortcut(entry.path());
+                if (app_opt) {
+                    vec_push(out_apps, &app_opt.value());
                 }
             }
         } catch (const fs::filesystem_error &) {
@@ -462,7 +458,6 @@ std::vector<ApplicationInfo> scan_app_infos()
     }
 
     CoUninitialize();
-    return apps;
 }
 
 } // namespace platform

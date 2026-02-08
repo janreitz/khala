@@ -577,3 +577,31 @@ std::optional<std::filesystem::path> get_dir(std::string_view path)
                ? std::optional<fs::path>(dir)
                : std::optional<fs::path>(std::nullopt);
 }
+
+ApplicationInfo app_info_create(
+    const std::string& name,
+    const std::string& description,
+    const std::string& exec_command,
+    const std::filesystem::path& app_info_path)
+{
+    ApplicationInfo app;
+    app.name = str_from_std_string(name);
+    app.description = str_from_std_string(description);
+    app.exec_command = str_from_std_string(exec_command);
+    app.app_info_path = str_from_std_string(app_info_path.string());
+    return app;
+}
+
+void app_info_free(ApplicationInfo* app)
+{
+    str_free(&app->name);
+    str_free(&app->description);
+    str_free(&app->exec_command);
+    str_free(&app->app_info_path);
+}
+
+bool app_info_free_cb(void* item, void*)
+{
+    app_info_free(static_cast<ApplicationInfo*>(item));
+    return true;
+}

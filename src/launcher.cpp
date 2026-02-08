@@ -9,6 +9,7 @@
 #include "types.h"
 #include "ui.h"
 #include "utility.h"
+#include "vector.h"
 #include "window.h"
 
 #include <chrono>
@@ -38,6 +39,7 @@ int main()
     LOG_INFO("Khala launcher starting up");
 
     ui::State state;
+    vec_init(&state.items, sizeof(ui::Item));
     load_history(state.file_search_history);
     const defer save_hist([&state]() noexcept {
         try {
@@ -57,8 +59,9 @@ int main()
     for (const auto &warning : config_warnings) {
         state.push_error(warning);
     }
-    std::vector<ui::Item> global_actions;
-    for_each_global_action(config, ui::collect_items, &global_actions);
+    Vec global_actions;
+    vec_init(&global_actions, sizeof(ui::Item));
+    for_each_global_action(config, ui::ui_item_collect, &global_actions);
 
     PlatformWindow window(
         ui::RelScreenCoord{
@@ -96,8 +99,10 @@ int main()
 
     // Shared state
     StreamingIndex streaming_index;
-    std::vector<ApplicationInfo> desktop_apps = platform::scan_app_infos();
-    LOG_INFO("Loaded %zu desktop apps", desktop_apps.size());
+    Vec desktop_apps;
+    vec_init(&desktop_apps, sizeof(ApplicationInfo));
+    platform::scan_app_infos(&desktop_apps);
+    LOG_INFO("Loaded %zu desktop apps", desktop_apps.count);
 
     // Communication channels
     LastWriterWinsSlot<ResultUpdate> result_updates;
@@ -221,8 +226,18 @@ int main()
 
                             // Restore items (re-process from cached
                             // FileResults)
-                            state.items = ui::convert_file_results_to_items(
-                                cached.results);
+
+                            vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                            vec_clear(&state.items);
+
+                            for (size_t i = 0; i < cached.results.size(); i++) {
+                                ui::Item item;
+                                if (ui::convert_file_result_to_item(
+                                        cached.results[i], &item)) {
+                                    vec_push(&state.items, &item);
+                                }
+                            }
+
                             state.selected_item_index = 0;
                             state.visible_range_offset = 0;
                         }
@@ -246,18 +261,23 @@ int main()
                             // dataset)
                             const auto query_lower = to_lower(query);
                             auto ranked = rank(
-                                global_actions,
-                                [&query_lower](const ui::Item &item) {
+                                &global_actions,
+                                [&query_lower](const void* elem) {
+                                    const auto* item = static_cast<const ui::Item*>(elem);
                                     return fuzzy::fuzzy_score_5_simd(
-                                        item.title + item.description,
+                                        std::string(item->title.data) + std::string(item->description.data),
                                         query_lower);
                                 },
-                                global_actions.size());
+                                global_actions.count);
 
-                            state.items.clear();
+                            vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                            vec_clear(&state.items);
                             for (const auto &result : ranked) {
-                                state.items.push_back(
-                                    global_actions[result.index]);
+                                const auto* action_item = static_cast<const ui::Item*>(vec_at(&global_actions, result.index));
+                                ui::Item item{};
+                                if (ui::ui_item_copy(&item, action_item)) {
+                                    vec_push(&state.items, &item);
+                                }
                             }
                             // App search mode - search desktop applications
                             // only
@@ -271,28 +291,38 @@ int main()
                             // For app search, rank all (usually small dataset)
                             const auto query_lower = to_lower(query);
                             auto ranked = rank(
-                                desktop_apps,
-                                [&query_lower](const ApplicationInfo &app) {
+                                &desktop_apps,
+                                [&query_lower](const void* elem) {
+                                    const auto* app = static_cast<const ApplicationInfo*>(elem);
+                                    // Concatenate Str fields for scoring
+                                    std::string search_text(app->name.data, app->name.len);
+                                    search_text.append(app->description.data, app->description.len);
                                     return fuzzy::fuzzy_score_5_simd(
-                                        app.name + app.description,
+                                        search_text,
                                         query_lower);
                                 },
-                                desktop_apps.size());
+                                desktop_apps.count);
 
-                            state.items.clear();
+                            vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                            vec_clear(&state.items);
                             for (const auto &result : ranked) {
-                                const auto &app = desktop_apps[result.index];
-                                state.items.push_back(ui::Item{
-                                    .title = app.name,
-                                    .description = app.description,
+                                const auto* app = static_cast<const ApplicationInfo*>(
+                                    vec_at(&desktop_apps, result.index));
+                                ui::Item item{
+                                    .title = str_from_std_string(
+                                        std::string(app->name.data, app->name.len)),
+                                    .description = str_from_std_string(
+                                        std::string(app->description.data, app->description.len)),
                                     .path = std::nullopt,
                                     .command =
                                         CustomCommand{
                                             .path = std::nullopt,
-                                            .shell_cmd = app.exec_command,
+                                            .shell_cmd = std::string(
+                                                app->exec_command.data, app->exec_command.len),
                                             .shell = config.default_shell},
                                     .hotkey = std::nullopt,
-                                });
+                                };
+                                vec_push(&state.items, &item);
                             }
                         } else {
                             // File search mode - activate streaming ranker
@@ -346,7 +376,8 @@ int main()
                         }
                         // Clear the index and restart
                         streaming_index.clear();
-                        state.items.clear();
+                        vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                        vec_clear(&state.items);
                         state.cached_file_search_update.reset();
                         current_file_results.clear();
                         // Launch new indexer
@@ -380,8 +411,16 @@ int main()
 
                 // Convert results to UI items (keep all ranked results for
                 // scrolling)
-                state.items =
-                    ui::convert_file_results_to_items(current_file_results);
+                vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                vec_clear(&state.items);
+
+                for (size_t i = 0; i < current_file_results.size(); i++) {
+                    ui::Item item;
+                    if (ui::convert_file_result_to_item(current_file_results[i],
+                                                        &item)) {
+                        vec_push(&state.items, &item);
+                    }
+                }
                 redraw = true;
             }
         }
@@ -394,7 +433,7 @@ int main()
             const size_t current_max_visible_items =
                 ui::calculate_max_visible_items(max_height, config.font_size);
             const unsigned int new_height = ui::calculate_window_height(
-                config.font_size, state.items.size(),
+                config.font_size, state.items.count,
                 current_max_visible_items);
 
             if (new_height != window.get_height()) {
@@ -421,5 +460,7 @@ int main()
     if (index_future.valid()) {
         index_future.wait();
     }
+    vec_for_each_mut(&desktop_apps, app_info_free_cb, NULL);
+    vec_free(&desktop_apps);
     return 0;
 }

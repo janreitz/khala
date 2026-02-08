@@ -19,46 +19,40 @@
 #include <iomanip>
 #include <variant>
 
-#define EMIT(item)                                                             \
-    do {                                                                       \
-        if (!cb(&(item), user_data))                                           \
-            return;                                                            \
-    } while (0)
-
 void for_each_file_action(const fs::path &path, const Config &config,
                           ActionCallback cb, void *user_data)
 {
     if (fs::is_directory(path)) {
-        const ui::Item open_dir{.title = "Open Directory",
-                                .description = config.file_manager,
+        const ui::Item open_dir{.title = str_from_literal("Open Directory"),
+                                .description = str_from_std_string(config.file_manager),
                                 .path = std::nullopt,
                                 .command = OpenDirectory{path},
                                 .hotkey = std::nullopt};
-        EMIT(open_dir);
+        if (!cb(&open_dir, user_data)) return;
 
-        const ui::Item rm_dir{.title = "Remove Directory",
-                              .description = "",
+        const ui::Item rm_dir{.title = str_from_literal("Remove Directory"),
+                              .description = str_from_literal(""),
                               .path = std::nullopt,
                               .command = RemoveFile{path},
                               .hotkey = std::nullopt};
-        EMIT(rm_dir);
+        if (!cb(&rm_dir, user_data)) return;
 
-        const ui::Item rm_dir_recursive{.title = "Remove Directory Recursive",
-                                        .description = "",
+        const ui::Item rm_dir_recursive{.title = str_from_literal("Remove Directory Recursive"),
+                                        .description = str_from_literal(""),
                                         .path = std::nullopt,
                                         .command = RemoveFileRecursive{path},
                                         .hotkey = std::nullopt};
-        EMIT(rm_dir_recursive);
+        if (!cb(&rm_dir_recursive, user_data)) return;
 
         const ui::Item cp_to_clipboard{
-            .title = "Copy Path to Clipboard",
-            .description = "",
+            .title = str_from_literal("Copy Path to Clipboard"),
+            .description = str_from_literal(""),
             .path = std::nullopt,
             .command = CopyPathToClipboard{path},
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl,
                                         .character = std::nullopt}};
-        EMIT(cp_to_clipboard);
+        if (!cb(&cp_to_clipboard, user_data)) return;
 
         // Append custom directory actions
         for (size_t i = 0; i < config.custom_action_defs.count; i++) {
@@ -68,8 +62,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
                 continue;
 
             const ui::Item custom_action{
-                .title = action_def->title,
-                .description = action_def->description,
+                .title = str_from_std_string(action_def->title),
+                .description = str_from_std_string(action_def->description),
                 .path = std::nullopt,
                 .command =
                     CustomCommand{
@@ -81,53 +75,53 @@ void for_each_file_action(const fs::path &path, const Config &config,
                     },
                 .hotkey = action_def->hotkey,
             };
-            EMIT(custom_action);
+            if (!cb(&custom_action, user_data)) return;
         }
         return;
     } else {
-        const ui::Item open_file = {.title = "Open File",
-                                    .description = config.editor,
+        const ui::Item open_file = {.title = str_from_literal("Open File"),
+                                    .description = str_from_std_string(config.editor),
                                     .path = std::nullopt,
                                     .command = OpenFileCommand{path},
                                     .hotkey = std::nullopt};
-        EMIT(open_file);
-        const ui::Item rm_file = {.title = "Remove File",
-                                  .description = "",
+        if (!cb(&open_file, user_data)) return;
+        const ui::Item rm_file = {.title = str_from_literal("Remove File"),
+                                  .description = str_from_literal(""),
                                   .path = std::nullopt,
                                   .command = RemoveFile{path},
                                   .hotkey = std::nullopt};
-        EMIT(rm_file);
+        if (!cb(&rm_file, user_data)) return;
         const ui::Item cp_path = {
-            .title = "Copy Path to Clipboard",
-            .description = "",
+            .title = str_from_literal("Copy Path to Clipboard"),
+            .description = str_from_literal(""),
             .path = std::nullopt,
             .command = CopyPathToClipboard{path},
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl,
                                         .character = std::nullopt}};
-        EMIT(cp_path);
+        if (!cb(&cp_path, user_data)) return;
         const ui::Item cp_content = {
-            .title = "Copy Content to Clipboard",
-            .description = "",
+            .title = str_from_literal("Copy Content to Clipboard"),
+            .description = str_from_literal(""),
             .path = std::nullopt,
             .command = CopyContentToClipboard{path},
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl |
                                                      ui::KeyModifier::Shift,
                                         .character = std::nullopt}};
-        EMIT(cp_content);
+        if (!cb(&cp_content, user_data)) return;
 
         if (path.has_parent_path()) {
             const ui::Item open_folder = {
-                .title = "Open Containing Folder",
-                .description = "",
+                .title = str_from_literal("Open Containing Folder"),
+                .description = str_from_literal(""),
                 .path = std::nullopt,
                 .command = OpenDirectory{path.parent_path()},
                 .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::Return,
                                             .modifiers = ui::KeyModifier::Ctrl,
                                             .character = std::nullopt},
             };
-            EMIT(open_folder);
+            if (!cb(&open_folder, user_data)) return;
         }
 
         // Append custom file actions, filling in the path
@@ -138,8 +132,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
                 continue;
 
             const ui::Item custom_action = {
-                .title = action_def->title,
-                .description = action_def->description,
+                .title = str_from_std_string(action_def->title),
+                .description = str_from_std_string(action_def->description),
                 .path = std::nullopt,
                 .command =
                     CustomCommand{
@@ -151,7 +145,7 @@ void for_each_file_action(const fs::path &path, const Config &config,
                     },
                 .hotkey = action_def->hotkey,
             };
-            EMIT(custom_action);
+            if (!cb(&custom_action, user_data)) return;
         }
     }
 }
@@ -159,33 +153,33 @@ void for_each_file_action(const fs::path &path, const Config &config,
 void for_each_global_action(const Config &config, ActionCallback cb,
                             void *user_data)
 {
-    const ui::Item reload_index = {.title = "Reload Index",
+    const ui::Item reload_index = {.title = str_from_literal("Reload Index"),
                                    .description =
-                                       "Start a fresh filesystem scan",
+                                       str_from_literal("Start a fresh filesystem scan"),
                                    .path = std::nullopt,
                                    .command = ReloadIndex{},
                                    .hotkey = std::nullopt};
-    EMIT(reload_index);
+    if (!cb(&reload_index, user_data)) return;
     const ui::Item cp_iso_timestamp = {
-        .title = "Copy ISO Timestamp",
-        .description = "Copy current time in ISO 8601 format",
+        .title = str_from_literal("Copy ISO Timestamp"),
+        .description = str_from_literal("Copy current time in ISO 8601 format"),
         .path = std::nullopt,
         .command = CopyISOTimestamp{},
         .hotkey = std::nullopt};
-    EMIT(cp_iso_timestamp);
+    if (!cb(&cp_iso_timestamp, user_data)) return;
     const ui::Item cp_unix_timestamp = {
-        .title = "Copy Unix Timestamp",
-        .description = "Copy current Unix timestamp (seconds since epoch)",
+        .title = str_from_literal("Copy Unix Timestamp"),
+        .description = str_from_literal("Copy current Unix timestamp (seconds since epoch)"),
         .path = std::nullopt,
         .command = CopyUnixTimestamp{},
         .hotkey = std::nullopt};
-    EMIT(cp_unix_timestamp);
-    const ui::Item cp_uuid = {.title = "Copy UUID",
-                              .description = "Generate and copy a new UUID v4",
+    if (!cb(&cp_unix_timestamp, user_data)) return;
+    const ui::Item cp_uuid = {.title = str_from_literal("Copy UUID"),
+                              .description = str_from_literal("Generate and copy a new UUID v4"),
                               .path = std::nullopt,
                               .command = CopyUUID{},
                               .hotkey = std::nullopt};
-    EMIT(cp_uuid);
+    if (!cb(&cp_uuid, user_data)) return;
 
     for (size_t i = 0; i < config.custom_action_defs.count; i++) {
         const auto *action_def = static_cast<const CustomActionDef *>(
@@ -194,8 +188,8 @@ void for_each_global_action(const Config &config, ActionCallback cb,
             continue;
 
         const ui::Item custom_action = {
-            .title = action_def->title,
-            .description = action_def->description,
+            .title = str_from_std_string(action_def->title),
+            .description = str_from_std_string(action_def->description),
             .path = std::nullopt,
             .command =
                 CustomCommand{
@@ -206,7 +200,7 @@ void for_each_global_action(const Config &config, ActionCallback cb,
                 },
             .hotkey = action_def->hotkey,
         };
-        EMIT(custom_action);
+        if (!cb(&custom_action, user_data)) return;
     }
 }
 

@@ -6,6 +6,7 @@
 #include "ranker.h"
 #include "types.h"
 #include "utility.h"
+#include "str.h"
 
 #include <optional>
 #include <string>
@@ -38,14 +39,19 @@ unsigned int calculate_window_height(int font_size, size_t item_count,
                                      size_t max_visible_items);
 
 struct Item {
-    std::string title;
-    std::string description;
+    Str title;
+    Str description;
     std::optional<fs::path> path;
     Command command;
     std::optional<KeyboardEvent> hotkey;
 };
-// Collects items into a std::vector<ui::Item> which is passed user_data.
-bool collect_items(const Item* item, void* user_data);
+bool ui_item_free(void* item, void* null);
+bool ui_item_copy(Item* dst, const Item* src);
+
+// Callback for collecting ui::Items into a Vec with deep copying
+// Pass a Vec* initialized with sizeof(ui::Item) as user_data
+// Compatible with ActionCallback signature
+bool ui_item_collect(const void* item, void* user_data);
 
 struct FileSearch {
     std::string query;
@@ -74,7 +80,7 @@ struct State {
     AppMode mode;
 
     // Results
-    std::vector<Item> items;
+    Vec items;
     size_t visible_range_offset = 0;
     size_t selected_item_index = 0; // Absolute index in items
     size_t max_visible_items = 0;
@@ -95,7 +101,7 @@ struct State {
     std::string saved_input_buffer;  // Saved when entering history navigation
     bool navigating_history = false;
 
-    std::optional<Item> get_selected_item() const;
+    bool has_selected_item() const;
 
     // Error mode management - switches to ErrorMode if not already there
     void push_error(const std::string &error);
@@ -140,7 +146,7 @@ bool adjust_visible_range(State &state, size_t max_visible_items);
 size_t required_item_count(const State &state, size_t max_visible_items);
 
 // Convert FileResults from ranker to UI Items
-std::vector<Item> convert_file_results_to_items(
-    const std::vector<FileResult> &file_results);
+bool convert_file_result_to_item(
+    const FileResult &file_results, Item* out_item);
 
 } // namespace ui

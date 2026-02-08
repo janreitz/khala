@@ -65,3 +65,28 @@ int vec_reserve(Vec* vec, size_t count) {
     }
     return 0;
 }
+
+void vec_for_each(const Vec* v, ElementCallback cb, void* user_data) {
+    for (size_t i = 0; i < v->count; i++) {
+        if (!cb(vec_at(v, i), user_data)) return;
+    }
+}
+
+void vec_for_each_mut(Vec* v, ElementCallbackMut cb, void* user_data) {
+    for (size_t i = 0; i < v->count; i++) {
+        if (!cb(vec_at_mut(v, i), user_data)) return;
+    }
+}
+
+const void* vec_find_if(const Vec* v, VecFindIfCallback cb, const void* user_data) {
+    for (size_t i = 0; i < v->count; i++) {
+        const void * element = vec_at(v, i);
+        if (!cb(element, user_data)) return element;
+    }
+    return NULL;
+}
+
+bool vec_collect_elements(const void* element, void* vec) {
+    Vec* v = (Vec*)vec;
+    return vec_push(v, element) == 0;
+}

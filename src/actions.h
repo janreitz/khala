@@ -73,7 +73,7 @@ using Command =
                  CopyUnixTimestamp, CopyUUID, CustomCommand>;
 
 /// @brief Return false to short-circuit iteration
-typedef bool (*ActionCallback)(const ui::Item *file_action,
+typedef bool (*ActionCallback)(const void *file_action,
                                    void *user_data);
 void for_each_file_action(const fs::path &path, const Config &config,
                           ActionCallback cb, void *user_data);

@@ -231,6 +231,7 @@ add_executable(khala
     ${PLATFORM_UTILITY_SOURCE}
     src/utility.cpp
     src/vector.c
+    src/str.cpp
 )
 
 if(PLATFORM STREQUAL "win32")
@@ -264,6 +265,7 @@ add_executable(indexer_benchmark
     ${PLATFORM_UTILITY_SOURCE}
     src/fuzzy.cpp
     src/vector.c
+    src/str.cpp
 )
 
 if(OpenMP_CXX_FOUND)
