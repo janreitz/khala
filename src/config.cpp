@@ -23,6 +23,16 @@
 #include <utility>
 #include <vector>
 
+bool custom_action_def_free(void *item, void *)
+{
+    auto *def = static_cast<CustomActionDef *>(item);
+    str_free(&def->title);
+    str_free(&def->description);
+    str_free(&def->shell_cmd);
+    str_free(&def->shell);
+    return true;
+}
+
 namespace
 {
 

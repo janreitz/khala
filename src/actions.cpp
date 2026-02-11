@@ -100,37 +100,43 @@ void for_each_file_action(const fs::path &path, const Config &config,
                           ActionCallback cb, void *user_data)
 {
     if (fs::is_directory(path)) {
-        const ui::Item open_dir{
+        ui::Item open_dir{
             .title = str_from_literal("Open Directory"),
             .description = str_from_std_string(config.file_manager),
             .path = {nullptr, 0, 0},
             .command = {.type = CMD_OPEN_DIRECTORY,
                         .path = str_from_std_string(path.string())},
             .hotkey = std::nullopt};
-        if (!cb(&open_dir, user_data))
+        bool cont = cb(&open_dir, user_data);
+        ui::ui_item_free(&open_dir, nullptr);
+        if (!cont)
             return;
 
-        const ui::Item rm_dir{
+        ui::Item rm_dir{
             .title = str_from_literal("Remove Directory"),
             .description = str_from_literal(""),
             .path = {nullptr, 0, 0},
             .command = {.type = CMD_REMOVE_FILE,
                         .path = str_from_std_string(path.string())},
             .hotkey = std::nullopt};
-        if (!cb(&rm_dir, user_data))
+        cont = cb(&rm_dir, user_data);
+        ui::ui_item_free(&rm_dir, nullptr);
+        if (!cont)
             return;
 
-        const ui::Item rm_dir_recursive{
+        ui::Item rm_dir_recursive{
             .title = str_from_literal("Remove Directory Recursive"),
             .description = str_from_literal(""),
             .path = {nullptr, 0, 0},
             .command = {.type = CMD_REMOVE_FILE_RECURSIVE,
                         .path = str_from_std_string(path.string())},
             .hotkey = std::nullopt};
-        if (!cb(&rm_dir_recursive, user_data))
+        cont = cb(&rm_dir_recursive, user_data);
+        ui::ui_item_free(&rm_dir_recursive, nullptr);
+        if (!cont)
             return;
 
-        const ui::Item cp_to_clipboard{
+        ui::Item cp_to_clipboard{
             .title = str_from_literal("Copy Path to Clipboard"),
             .description = str_from_literal(""),
             .path = {nullptr, 0, 0},
@@ -139,7 +145,9 @@ void for_each_file_action(const fs::path &path, const Config &config,
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl,
                                         .character = std::nullopt}};
-        if (!cb(&cp_to_clipboard, user_data))
+        cont = cb(&cp_to_clipboard, user_data);
+        ui::ui_item_free(&cp_to_clipboard, nullptr);
+        if (!cont)
             return;
 
         // Append custom directory actions
@@ -149,7 +157,7 @@ void for_each_file_action(const fs::path &path, const Config &config,
             if (action_def->action_type != ActionType::Directory)
                 continue;
 
-            const ui::Item custom_action{
+            ui::Item custom_action{
                 .title = action_def->title,
                 .description = action_def->description,
                 .path = {nullptr, 0, 0},
@@ -164,30 +172,40 @@ void for_each_file_action(const fs::path &path, const Config &config,
                                 }},
                 .hotkey = action_def->hotkey,
             };
-            if (!cb(&custom_action, user_data))
+            cont = cb(&custom_action, user_data);
+            // Only free the owned path; title/description/shell fields are
+            // borrowed from config
+            str_free(&custom_action.command.custom.path);
+            if (!cont)
                 return;
         }
         return;
     } else {
-        const ui::Item open_file = {
+        ui::Item open_file = {
             .title = str_from_literal("Open File"),
             .description = str_from_std_string(config.editor),
             .path = {nullptr, 0, 0},
             .command = {.type = CMD_OPEN_FILE,
                         .path = str_from_std_string(path.string())},
             .hotkey = std::nullopt};
-        if (!cb(&open_file, user_data))
+        bool cont = cb(&open_file, user_data);
+        ui::ui_item_free(&open_file, nullptr);
+        if (!cont)
             return;
-        const ui::Item rm_file = {
+
+        ui::Item rm_file = {
             .title = str_from_literal("Remove File"),
             .description = str_from_literal(""),
             .path = {nullptr, 0, 0},
             .command = {.type = CMD_REMOVE_FILE,
                         .path = str_from_std_string(path.string())},
             .hotkey = std::nullopt};
-        if (!cb(&rm_file, user_data))
+        cont = cb(&rm_file, user_data);
+        ui::ui_item_free(&rm_file, nullptr);
+        if (!cont)
             return;
-        const ui::Item cp_path = {
+
+        ui::Item cp_path = {
             .title = str_from_literal("Copy Path to Clipboard"),
             .description = str_from_literal(""),
             .path = {nullptr, 0, 0},
@@ -196,9 +214,12 @@ void for_each_file_action(const fs::path &path, const Config &config,
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl,
                                         .character = std::nullopt}};
-        if (!cb(&cp_path, user_data))
+        cont = cb(&cp_path, user_data);
+        ui::ui_item_free(&cp_path, nullptr);
+        if (!cont)
             return;
-        const ui::Item cp_content = {
+
+        ui::Item cp_content = {
             .title = str_from_literal("Copy Content to Clipboard"),
             .description = str_from_literal(""),
             .path = {nullptr, 0, 0},
@@ -208,11 +229,13 @@ void for_each_file_action(const fs::path &path, const Config &config,
                                         .modifiers = ui::KeyModifier::Ctrl |
                                                      ui::KeyModifier::Shift,
                                         .character = std::nullopt}};
-        if (!cb(&cp_content, user_data))
+        cont = cb(&cp_content, user_data);
+        ui::ui_item_free(&cp_content, nullptr);
+        if (!cont)
             return;
 
         if (path.has_parent_path()) {
-            const ui::Item open_folder = {
+            ui::Item open_folder = {
                 .title = str_from_literal("Open Containing Folder"),
                 .description = str_from_literal(""),
                 .path = {nullptr, 0, 0},
@@ -223,7 +246,9 @@ void for_each_file_action(const fs::path &path, const Config &config,
                                             .modifiers = ui::KeyModifier::Ctrl,
                                             .character = std::nullopt},
             };
-            if (!cb(&open_folder, user_data))
+            cont = cb(&open_folder, user_data);
+            ui::ui_item_free(&open_folder, nullptr);
+            if (!cont)
                 return;
         }
 
@@ -234,7 +259,7 @@ void for_each_file_action(const fs::path &path, const Config &config,
             if (action_def->action_type != ActionType::File)
                 continue;
 
-            const ui::Item custom_action = {
+            ui::Item custom_action = {
                 .title = action_def->title,
                 .description = action_def->description,
                 .path = {nullptr, 0, 0},
@@ -242,16 +267,20 @@ void for_each_file_action(const fs::path &path, const Config &config,
                             .custom =
                                 {
                                     .path = str_from_std_string(path.string()),
-                                    .shell_cmd = 
+                                    .shell_cmd =
                                         action_def->shell_cmd,
-                                    .shell = 
+                                    .shell =
                                         action_def->shell,
                                     .stdout_to_clipboard =
                                         action_def->stdout_to_clipboard,
                                 }},
                 .hotkey = action_def->hotkey,
             };
-            if (!cb(&custom_action, user_data))
+            cont = cb(&custom_action, user_data);
+            // Only free the owned path; title/description/shell fields are
+            // borrowed from config
+            str_free(&custom_action.command.custom.path);
+            if (!cont)
                 return;
         }
     }
@@ -260,40 +289,53 @@ void for_each_file_action(const fs::path &path, const Config &config,
 void for_each_global_action(const Config &config, ActionCallback cb,
                             void *user_data)
 {
-    const ui::Item reload_index = {
+    ui::Item reload_index = {
         .title = str_from_literal("Reload Index"),
         .description = str_from_literal("Start a fresh filesystem scan"),
         .path = {nullptr, 0, 0},
         .command = {.type = CMD_RELOAD_INDEX, .path = {nullptr, 0, 0}},
         .hotkey = std::nullopt};
-    if (!cb(&reload_index, user_data))
+    bool cont = cb(&reload_index, user_data);
+    ui::ui_item_free(&reload_index, nullptr);
+    if (!cont)
         return;
-    const ui::Item cp_iso_timestamp = {
+
+    ui::Item cp_iso_timestamp = {
         .title = str_from_literal("Copy ISO Timestamp"),
         .description = str_from_literal("Copy current time in ISO 8601 format"),
         .path = {nullptr, 0, 0},
         .command = {.type = CMD_COPY_ISO_TIMESTAMP, .path = {nullptr, 0, 0}},
         .hotkey = std::nullopt};
-    if (!cb(&cp_iso_timestamp, user_data))
+    cont = cb(&cp_iso_timestamp, user_data);
+    ui::ui_item_free(&cp_iso_timestamp, nullptr);
+    if (!cont)
         return;
-    const ui::Item cp_unix_timestamp = {
+
+    ui::Item cp_unix_timestamp = {
         .title = str_from_literal("Copy Unix Timestamp"),
         .description = str_from_literal(
             "Copy current Unix timestamp (seconds since epoch)"),
         .path = {nullptr, 0, 0},
         .command = {.type = CMD_COPY_UNIX_TIMESTAMP, .path = {nullptr, 0, 0}},
         .hotkey = std::nullopt};
-    if (!cb(&cp_unix_timestamp, user_data))
+    cont = cb(&cp_unix_timestamp, user_data);
+    ui::ui_item_free(&cp_unix_timestamp, nullptr);
+    if (!cont)
         return;
-    const ui::Item cp_uuid = {
+
+    ui::Item cp_uuid = {
         .title = str_from_literal("Copy UUID"),
         .description = str_from_literal("Generate and copy a new UUID v4"),
         .path = {nullptr, 0, 0},
         .command = {.type = CMD_COPY_UUID, .path = {nullptr, 0, 0}},
         .hotkey = std::nullopt};
-    if (!cb(&cp_uuid, user_data))
+    cont = cb(&cp_uuid, user_data);
+    ui::ui_item_free(&cp_uuid, nullptr);
+    if (!cont)
         return;
 
+    // Custom utility actions — all fields are borrowed from config, nothing to
+    // free
     for (size_t i = 0; i < config.custom_action_defs.count; i++) {
         const auto *action_def = static_cast<const CustomActionDef *>(
             vec_at(&config.custom_action_defs, i));
@@ -311,7 +353,7 @@ void for_each_global_action(const Config &config, ActionCallback cb,
                          .path = {nullptr, 0, 0},
                          .shell_cmd =
                              action_def->shell_cmd,
-                         .shell = 
+                         .shell =
                              action_def->shell,
                          .stdout_to_clipboard = action_def->stdout_to_clipboard,
                      }},

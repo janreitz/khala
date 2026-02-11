@@ -18,8 +18,6 @@ enum class ActionType {
     Utility    // Global action (no file/dir context)
 };
 
-// These are loaded at program start and stay in memory until program exit. 
-// No explicit cleanup needed.
 struct CustomActionDef {
     Str title;
     Str description;
@@ -29,6 +27,8 @@ struct CustomActionDef {
     Str shell;      // override default_shell if specified
     std::optional<ui::KeyboardEvent> hotkey;
 };
+
+bool custom_action_def_free(void *item, void *unused);
 
 struct Color {
     double r = 0.0;

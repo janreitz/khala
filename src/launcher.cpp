@@ -483,5 +483,11 @@ int main()
     }
     vec_for_each_mut(&desktop_apps, app_info_free_cb, NULL);
     vec_free(&desktop_apps);
+    vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+    vec_free(&state.items);
+    vec_for_each_mut(&global_actions, ui::ui_item_free, NULL);
+    vec_free(&global_actions);
+    vec_for_each_mut(&config.custom_action_defs, custom_action_def_free, NULL);
+    vec_free(&config.custom_action_defs);
     return 0;
 }
