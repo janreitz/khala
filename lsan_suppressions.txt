@@ -1,0 +1,9 @@
+# Third-party library leaks (internal caches, not bugs in our code)
+leak:libfontconfig
+leak:libpango
+leak:libpangocairo
+leak:libpangoft2
+leak:libcairo
+leak:libexpat
+leak:libglib
+leak:libgobject
