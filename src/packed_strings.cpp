@@ -1,7 +1,8 @@
 #include "packed_strings.h"
+#include "str.h"
+#include <cassert>
 #include <cstddef>
 #include <string>
-#include <string_view>
 
 void PackedStrings::reserve(size_t string_count,
                             size_t expected_avg_string_length)
@@ -37,10 +38,16 @@ void PackedStrings::merge(PackedStrings &&other)
     }
 }
 
-std::string_view PackedStrings::at(size_t idx) const
+StrView PackedStrings::at(size_t idx) const
 {
-    const char *ptr = data_.data() + indices_[idx];
-    return std::string_view(ptr);
+    assert(idx < indices_.size());
+
+    const size_t start = indices_[idx];
+    const size_t end = idx < (indices_.size() - 1) ? indices_[idx + 1] - 1 : data_.size() - 1;
+    return {
+        .data = data_.data() + start,
+        .len = end - start,
+    };
 }
 
 void PackedStrings::shrink_to_fit()
@@ -64,12 +71,12 @@ PackedStrings::iterator::iterator(const PackedStrings *container, size_t idx)
 {
 }
 
-std::string_view PackedStrings::iterator::operator*() const
+StrView PackedStrings::iterator::operator*() const
 {
     return container_->at(idx_);
 }
 
-std::string_view PackedStrings::iterator::operator[](difference_type n) const
+StrView PackedStrings::iterator::operator[](difference_type n) const
 {
     auto new_idx = static_cast<difference_type>(idx_) + n;
     return container_->at(static_cast<size_t>(new_idx));

@@ -564,7 +564,7 @@ void save_history(const PackedStrings &history)
     const size_t start =
         history.size() > MAX_HISTORY ? history.size() - MAX_HISTORY : 0;
     for (size_t i = start; i < history.size(); i++) {
-        file << history.at(i) << '\n';
+        file << std::string(history.at(i).data, history.at(i).len) << '\n';
     }
     LOG_INFO("Saved %zu history entries to %s", history.size() - start,
              path.c_str());

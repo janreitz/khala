@@ -8,9 +8,13 @@
 #include "types.h"
 #include "utility.h"
 
+#include <cstddef>
+#include <limits>
 #include <optional>
 #include <string>
 #include <variant>
+
+class StreamingIndex;
 
 namespace ui
 {
@@ -40,10 +44,12 @@ size_t calculate_max_visible_items(unsigned int window_height, int font_size);
 unsigned int calculate_window_height(int font_size, size_t item_count,
                                      size_t max_visible_items);
 
+constexpr size_t NO_PATH_INDEX = std::numeric_limits<size_t>::max();
+
 struct Item {
     Str title;
     Str description;
-    Str path;
+    size_t path_idx; // Index into StreamingIndex, or NO_STREAM_INDEX
     Command command;
     std::optional<KeyboardEvent> hotkey;
 };
@@ -88,6 +94,9 @@ struct State {
     size_t selected_item_index = 0; // Absolute index in items
     size_t max_visible_items = 0;
 
+    // Pointer to the streaming index for resolving stream_index → path
+    const StreamingIndex *index = nullptr;
+
     // Mouse state
     bool mouse_inside_window = false;
 
@@ -121,6 +130,7 @@ struct CursorPositionChanged {
 };
 struct ActionRequested {
     Command command;
+    // size_t stream_index = NO_STREAM_INDEX;
 };
 struct ContextMenuToggled {
 };
@@ -148,8 +158,8 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
 bool adjust_visible_range(State &state, size_t max_visible_items);
 size_t required_item_count(const State &state, size_t max_visible_items);
 
-// Convert FileResults from ranker to UI Items
-bool convert_file_result_to_item(const FileResult &file_results,
-                                 Item *out_item);
+// Convert RankResult from ranker to UI Item using StreamingIndex
+bool populate_file_item(const StreamingIndex &index, const RankResult &result,
+                        Item *out_item);
 
 } // namespace ui

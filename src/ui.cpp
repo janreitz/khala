@@ -3,11 +3,13 @@
 #include "config.h"
 #include "logger.h"
 #include "ranker.h"
+#include "streamingindex.h"
 #include "types.h"
 #include "utility.h"
 #include "vector.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <exception>
@@ -206,8 +208,8 @@ void State::push_error(const std::string &error)
     const ui::Item error_item{
         .title = str_from_std_string(std::string("⚠ ") + error),
         .description = str_from_literal(""),
-        .path = {nullptr, 0, 0},
-        .command = {.type = CMD_NOOP, .path = {nullptr, 0, 0}},
+        .path_idx = NO_PATH_INDEX,
+        .command = {.type = CMD_NOOP, .path_idx = NO_PATH_INDEX},
         .hotkey = std::nullopt,
     };
     vec_push(&items, &error_item);
@@ -229,8 +231,8 @@ void ui_item_init(Item *item)
 {
     item->title = {.data = nullptr, .len = 0, .cap = 0};
     item->description = {.data = nullptr, .len = 0, .cap = 0};
-    item->path = {.data = nullptr, .len = 0, .cap = 0};
-    item->command = {.type = CMD_NOOP, .path = {nullptr, 0, 0}};
+    item->path_idx = NO_PATH_INDEX;
+    item->command = {.type = CMD_NOOP, .path_idx = NO_PATH_INDEX};
     item->hotkey = std::nullopt;
 }
 
@@ -239,7 +241,7 @@ bool ui_item_free(void *item, void *)
     auto *it = static_cast<Item *>(item);
     str_free(&it->title);
     str_free(&it->description);
-    str_free(&it->path);
+    it->path_idx = NO_PATH_INDEX;
     cmd_free(&it->command);
     it->hotkey = std::nullopt;
     return true;
@@ -269,7 +271,6 @@ bool ui_item_collect(const void *item_ptr, void *user_data)
     // share pointers.
     temp_item.title.data = nullptr;
     temp_item.description.data = nullptr;
-    temp_item.path.data = nullptr;
     temp_item.command.type = CMD_NOOP;
 
     return true;
@@ -279,7 +280,6 @@ bool ui_item_copy(Item *dst, const Item *src)
 {
     Str temp_title = {nullptr, 0, 0};
     Str temp_desc = {nullptr, 0, 0};
-    Str temp_path = {nullptr, 0, 0};
 
     if (!str_copy(&temp_title, &src->title)) {
         return false;
@@ -288,23 +288,15 @@ bool ui_item_copy(Item *dst, const Item *src)
         str_free(&temp_title);
         return false;
     }
-    if (src->path.data != nullptr) {
-        if (!str_copy(&temp_path, &src->path)) {
-            str_free(&temp_title);
-            str_free(&temp_desc);
-            return false;
-        }
-    }
 
     // Free old dst resources
     str_free(&dst->title);
     str_free(&dst->description);
-    str_free(&dst->path);
     cmd_free(&dst->command);
 
     dst->title = temp_title;
     dst->description = temp_desc;
-    dst->path = temp_path;
+    dst->path_idx = src->path_idx;
     cmd_copy(&dst->command, &src->command);
     dst->hotkey = src->hotkey;
 
@@ -339,18 +331,27 @@ static bool try_open_context_menu(State &state, const Config &config)
 
     const auto *selected_item = static_cast<const Item *>(
         vec_at(&state.items, state.selected_item_index));
-    if (selected_item->path.data == nullptr) {
+    if (selected_item->path_idx == NO_PATH_INDEX) {
         return false;
     }
 
-    // Open context menu
-    const fs::path file_path(selected_item->path.data);
-    state.mode = ContextMenu{.title = selected_item->title.data,
-                             .selected_file = file_path};
+    // Resolve path from streaming index
+    assert(state.index != nullptr);
+    const auto path_sv = state.index->at(selected_item->path_idx);
+    const fs::path file_path{std::string{path_sv.data, path_sv.len}};
+
+    // Compose title: emoji + path (same as render time)
+    const char *emoji =
+        selected_item->command.type == CMD_OPEN_DIRECTORY ? "📁 " : "📄 ";
+    const std::string title = std::string(emoji) +
+                              platform::path_to_string(file_path);
+
+    state.mode = ContextMenu{.title = title, .selected_file = file_path};
     state.selected_item_index = 0;
     vec_for_each_mut(&state.items, ui_item_free, NULL);
     vec_clear(&state.items);
-    for_each_file_action(file_path, config, ui_item_collect, &state.items);
+    for_each_file_action(file_path, selected_item->path_idx, config,
+                         ui_item_collect, &state.items);
     return true;
 }
 
@@ -433,7 +434,8 @@ std::vector<Event> handle_keyboard_input(State &state,
             state.selected_item_index = absolute_index;
             const auto *item =
                 static_cast<const Item *>(vec_at(&state.items, absolute_index));
-            return {SelectionChanged{}, ActionRequested{item->command}};
+            return {SelectionChanged{},
+                    ActionRequested{.command = item->command}};
         }
     }
 
@@ -443,15 +445,19 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (state.has_selected_item()) {
             const auto *selected_item = static_cast<const Item *>(
                 vec_at(&state.items, state.selected_item_index));
-            if (selected_item->path.data != nullptr) {
-                const fs::path path(selected_item->path.data);
-                Command matched = {.type = CMD_NOOP, .path = {nullptr, 0, 0}};
+            if (selected_item->path_idx != NO_PATH_INDEX) {
+                assert(state.index != nullptr);
+                const auto path_sv =
+                    state.index->at(selected_item->path_idx);
+                const fs::path path{std::string{path_sv.data, path_sv.len}};
+                Command matched = {.type = CMD_NOOP, .path_idx = NO_PATH_INDEX};
                 HotkeyMatchContext ctx = {.kbd_event = &kbd_event,
                                           .matched_command = &matched,
                                           .found = false};
-                for_each_file_action(path, config, find_matching_hotkey, &ctx);
+                for_each_file_action(path, selected_item->path_idx, config,
+                                     find_matching_hotkey, &ctx);
                 if (ctx.found) {
-                    return {ActionRequested{matched}};
+                    return {ActionRequested{.command = matched}};
                 }
             }
         }
@@ -460,7 +466,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         const auto *matching_item = static_cast<const Item *>(
             vec_find_if(&state.items, ui_item_hotkey_matches, &kbd_event));
         if (matching_item != NULL) {
-            return {ActionRequested{matching_item->command}};
+            return {ActionRequested{.command = matching_item->command}};
         }
     }
 
@@ -493,8 +499,8 @@ std::vector<Event> handle_keyboard_input(State &state,
                 }
                 if (state.history_position > 0) {
                     state.history_position--;
-                    state.input_buffer = std::string(
-                        state.file_search_history.at(state.history_position));
+                    const auto sv = state.file_search_history.at(state.history_position);
+                    state.input_buffer = std::string(sv.data, sv.len);
                     state.cursor_position = state.input_buffer.size();
                     return {InputChanged{}};
                 }
@@ -514,8 +520,8 @@ std::vector<Event> handle_keyboard_input(State &state,
                 state.saved_input_buffer.clear();
                 return {InputChanged{}};
             }
-            state.input_buffer = std::string(
-                state.file_search_history.at(state.history_position));
+            const auto sv = state.file_search_history.at(state.history_position);
+            state.input_buffer = std::string(sv.data, sv.len);
             state.cursor_position = state.input_buffer.size();
             return {InputChanged{}};
         }
@@ -583,7 +589,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (state.has_selected_item()) {
             const auto *item = static_cast<const Item *>(
                 vec_at(&state.items, state.selected_item_index));
-            return {ActionRequested{item->command}};
+            return {ActionRequested{.command = item->command}};
         }
         break;
 
@@ -673,10 +679,10 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
 
                 if (ev.button == MouseButtonEvent::Button::Left) {
                     // Left-click: execute the action
+                    const auto *clicked_item = static_cast<const Item *>(
+                        vec_at(&state.items, *item_index));
                     events.push_back(
-                        ActionRequested{static_cast<const Item *>(
-                                            vec_at(&state.items, *item_index))
-                                            ->command});
+                        ActionRequested{.command = clicked_item->command});
                 } else if (ev.button == MouseButtonEvent::Button::Right) {
                     // Right-click: open context menu (only in FileSearch mode)
                     if (try_open_context_menu(state, config)) {
@@ -781,33 +787,25 @@ size_t required_item_count(const State &state, size_t max_visible_items)
     return state.visible_range_offset + (max_visible_items * 2);
 }
 
-bool convert_file_result_to_item(const FileResult &file_result, Item *out_item)
+bool populate_file_item(const StreamingIndex &index, const RankResult &result,
+                        Item *out_item)
 {
     try {
-        const auto file_path = fs::canonical(file_result.path);
+        const auto path_sv = index.at(result.index);
+        const fs::path file_path{std::string{path_sv.data, path_sv.len}};
+        const bool is_dir = fs::is_directory(file_path);
+
+        out_item->title = {nullptr, 0, 0}; // Composed at render time
+        out_item->description =
+            str_from_std_string(serialize_file_info(file_path));
+        out_item->path_idx = result.index;
+        out_item->command = {.type = is_dir ? CMD_OPEN_DIRECTORY : CMD_OPEN_FILE,
+                             .path_idx = result.index};
         out_item->hotkey = std::nullopt;
-        out_item->path = str_from_std_string(file_path.string());
-        if (fs::is_directory(file_path)) {
-            out_item->title = str_from_std_string(
-                std::string("📁 ") + platform::path_to_string(file_path));
-            out_item->description =
-                str_from_std_string(serialize_file_info(file_path));
-            out_item->command = {.type = CMD_OPEN_DIRECTORY,
-                                 .path =
-                                     str_from_std_string(file_path.string())};
-        } else {
-            out_item->title = str_from_std_string(
-                std::string("📄 ") + platform::path_to_string(file_path));
-            out_item->description =
-                str_from_std_string(serialize_file_info(file_path));
-            out_item->command = {.type = CMD_OPEN_FILE,
-                                 .path =
-                                     str_from_std_string(file_path.string())};
-        }
         return true;
     } catch (const std::exception &e) {
-        LOG_WARNING("Could not make canonical path for %s: %s",
-                    file_result.path.c_str(), e.what());
+        LOG_WARNING("Could not stat path at index %zu: %s", result.index,
+                    e.what());
         return false;
     }
 }

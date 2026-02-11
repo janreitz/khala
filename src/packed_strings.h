@@ -1,7 +1,8 @@
 #pragma once
 
+#include "str.h"
+
 #include <string>
-#include <string_view>
 #include <vector>
 
 
@@ -21,7 +22,7 @@ struct PackedStrings {
 
     void prefix(size_t count, char c);
 
-    std::string_view at(size_t idx) const;
+    StrView at(size_t idx) const;
     bool empty() const noexcept;
     size_t size() const noexcept;
 
@@ -32,16 +33,16 @@ struct PackedStrings {
 
       public:
         using iterator_category = std::random_access_iterator_tag;
-        using value_type = std::string_view;
+        using value_type = StrView;
         using difference_type = std::ptrdiff_t;
-        using pointer = const std::string_view *;
-        using reference = std::string_view;
+        using pointer = const StrView *;
+        using reference = StrView;
 
         iterator(const PackedStrings *container, size_t idx);
 
-        std::string_view operator*() const;
+        StrView operator*() const;
 
-        std::string_view operator[](difference_type n) const;
+        StrView operator[](difference_type n) const;
         iterator &operator++();
         iterator operator++(int);
         iterator &operator--();

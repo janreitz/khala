@@ -28,27 +28,13 @@ struct RankResult {
     }
 };
 
-// File search result with actual path and score
-struct FileResult {
-    std::string path;
-    float score;
-
-    bool operator>(const FileResult &other) const {
-        return score > other.score;
-    }
-};
-
 // Update message from ranker to UI
 struct ResultUpdate {
-    std::vector<FileResult> results;
+    std::vector<RankResult> results;
     bool scan_complete = false;
     size_t total_files = 0;
     size_t processed_chunks = 0;
     size_t total_available_results = 0; // Total number of results with score > 0
-
-    ResultUpdate() = default;
-    ResultUpdate(std::vector<FileResult> &&results_)
-        : results(std::move(results_)) {}
 };
 
 // Sequential ranking using min-heap
@@ -77,11 +63,6 @@ std::vector<RankResult> rank(const Vec* data, ScoreFn scoring_function,
     std::sort(top_n.begin(), top_n.end(), std::greater<>{}); // descending
     return top_n;
 }
-
-// Merge two sorted FileResult vectors, keeping top max_results
-std::vector<FileResult> merge_top_results(const std::vector<FileResult> &existing,
-                                         const std::vector<FileResult> &new_results,
-                                         size_t max_results);
 
 // Ranker request state
 struct RankerRequest {
@@ -128,7 +109,6 @@ private:
     // Internal state
     size_t processed_chunks_ = 0;
     size_t global_offset_ = 0; // Cumulative size of all processed chunks
-    std::vector<FileResult> accumulated_results_;
     RankerRequest current_request_;
     std::vector<RankResult> scored_results_; // Flattened, only score > 0
 

@@ -52,7 +52,7 @@ typedef struct {
 typedef struct {
     CommandType type;
     union {
-        Str path; // CMD_OPEN_FILE .. CMD_COPY_CONTENT_TO_CLIPBOARD
+        size_t path_idx; // CMD_OPEN_FILE .. CMD_COPY_CONTENT_TO_CLIPBOARD
         CustomCommandData custom; // CMD_CUSTOM
     };
 } Command;
@@ -62,11 +62,14 @@ void cmd_copy(Command *dst, const Command *src);
 
 /// @brief Return false to short-circuit iteration
 typedef bool (*ActionCallback)(const void *file_action, void *user_data);
-void for_each_file_action(const fs::path &path, const Config &config,
-                          ActionCallback cb, void *user_data);
+void for_each_file_action(const fs::path &path, size_t path_idx,
+                          const Config &config, ActionCallback cb,
+                          void *user_data);
 
 void for_each_global_action(const Config &config, ActionCallback cb,
                             void *user_data);
 
+class StreamingIndex;
 std::expected<std::optional<Effect>, std::string>
-process_command(const Command &cmd, const Config &config);
+process_command(const Command &cmd, const StreamingIndex *index,
+                const Config &config);

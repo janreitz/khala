@@ -11,38 +11,9 @@
 #include <chrono>
 #include <cstddef>
 #include <mutex>
-#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
-
-// TODO we could merge into the existing results without creating a copy?
-std::vector<FileResult>
-merge_top_results(const std::vector<FileResult> &existing,
-                  const std::vector<FileResult> &new_results,
-                  size_t max_results)
-{
-    std::vector<FileResult> merged;
-    merged.reserve(existing.size() + new_results.size());
-
-    // Merge sorted results
-    auto it1 = existing.begin(), end1 = existing.end();
-    auto it2 = new_results.begin(), end2 = new_results.end();
-
-    while (merged.size() < max_results && (it1 != end1 || it2 != end2)) {
-        if (it1 == end1) {
-            merged.push_back(*it2++);
-        } else if (it2 == end2) {
-            merged.push_back(*it1++);
-        } else if (it1->score >= it2->score) {
-            merged.push_back(*it1++);
-        } else {
-            merged.push_back(*it2++);
-        }
-    }
-
-    return merged;
-}
 
 StreamingRanker::StreamingRanker(StreamingIndex &index,
                                  LastWriterWinsSlot<ResultUpdate> &results)
@@ -165,7 +136,6 @@ void StreamingRanker::reset_state()
 {
     processed_chunks_ = 0;
     global_offset_ = 0;
-    accumulated_results_.clear();
     scored_results_.clear();
 }
 
@@ -229,8 +199,9 @@ void StreamingRanker::process_chunks()
                                       4); // estimate ~25% match rate
 
                 for (size_t i = 0; i < info.size; ++i) {
+                    const auto sv = chunk->at(i);
                     const auto score = fuzzy::fuzzy_score_5_simd(
-                        chunk->at(i), current_request_.query);
+                        std::string_view(sv.data, sv.len), current_request_.query);
 
                     if (score > 0.0F) {
                         local_results.push_back(
@@ -266,51 +237,30 @@ void StreamingRanker::report_results()
 {
     const size_t n =
         std::min(current_request_.requested_count, scored_results_.size());
-    // Sort all scored results to get top requested_count
+    // Partial sort to get top requested_count by score descending
     std::partial_sort(scored_results_.begin(),
                       scored_results_.begin() + static_cast<std::ptrdiff_t>(n),
                       scored_results_.end(), [](const auto &a, const auto &b) {
                           return a.score > b.score;
                       });
 
-    // Convert top n to FileResult
-    accumulated_results_.clear();
-    accumulated_results_.reserve(n);
-
-    for (size_t i = 0; i < n; ++i) {
-        const auto &result = scored_results_[i];
-
-        // Find the file path from chunk and global index
-        size_t global_index = result.index;
-        for (size_t chunk_idx = 0;
-             chunk_idx < streaming_index_.get_available_chunks(); ++chunk_idx) {
-            auto chunk = streaming_index_.get_chunk(chunk_idx);
-            if (!chunk)
-                break;
-
-            if (global_index < chunk->size()) {
-                accumulated_results_.push_back(
-                    FileResult{.path = std::string(chunk->at(global_index)),
-                               .score = result.score});
-                break;
-            }
-            global_index -= chunk->size();
-        }
-    }
-
     send_update();
 }
 
 void StreamingRanker::send_update(bool is_final)
 {
+    const size_t n =
+        std::min(current_request_.requested_count, scored_results_.size());
+
     ResultUpdate update;
-    update.results = accumulated_results_;
+    update.results.assign(scored_results_.begin(),
+                          scored_results_.begin() +
+                              static_cast<std::ptrdiff_t>(n));
     update.scan_complete =
         is_final ? true : streaming_index_.is_scan_complete();
     update.total_files = streaming_index_.get_total_files();
     update.processed_chunks = processed_chunks_;
-    update.total_available_results =
-        scored_results_.size(); // Use flattened results size
+    update.total_available_results = scored_results_.size();
 
     result_updates_.write(std::move(update));
 }

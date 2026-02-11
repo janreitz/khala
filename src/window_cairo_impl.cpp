@@ -3,6 +3,7 @@
 #include "glib-object.h"
 #include "glib.h"
 #include "logger.h"
+#include "streamingindex.h"
 #include "ui.h"
 #include "utility.h"
 #include "window.h"
@@ -17,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -309,15 +311,30 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             hotkey_hint = "Ctrl+" + std::to_string((visible_pos + 1) % 10);
         }
 
+        // Compose title: for file items (stream_index set), build from index;
+        // otherwise use the stored title
+        std::string title;
+        if (item->path_idx != ui::NO_PATH_INDEX && state.index != nullptr) {
+            const auto path_sv = state.index->at(item->path_idx);
+            const char *emoji =
+                item->command.type == CMD_OPEN_DIRECTORY ? "📁 " : "📄 ";
+            title = std::string(emoji) +
+                    platform::path_to_string(fs::path(std::string(path_sv.data, path_sv.len)));
+        } else {
+            title = item->title.data;
+        }
+
+        const std::string &description = item->description.data;
+
         dropdown_items.push_back(DropdownItem{
-            .title = item->title.data,
-            .description = item->description.data,
+            .title = title,
+            .description = description,
             .title_match_positions =
-                query_opt ? fuzzy::fuzzy_match_optimal(item->title.data, query_lower)
+                query_opt ? fuzzy::fuzzy_match_optimal(title, query_lower)
                           : std::vector<size_t>{},
             .description_match_positions =
                 query_opt
-                    ? fuzzy::fuzzy_match_optimal(item->description.data, query_lower)
+                    ? fuzzy::fuzzy_match_optimal(description, query_lower)
                     : std::vector<size_t>{},
             .hotkey_hint = hotkey_hint});
     }

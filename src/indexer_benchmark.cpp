@@ -100,7 +100,8 @@ int main()
 
                 size_t scored_paths = 0;
                 for (const auto &path : paths) {
-                    const float score = scoring_func(path, test_query);
+                    const float score = scoring_func(
+                        std::string_view(path.data, path.len), test_query);
                     if (score > 0.0F) {
                         scored_paths++;
                     }
@@ -132,8 +133,9 @@ int main()
             auto seq_start = std::chrono::steady_clock::now();
             std::vector<RankResult> sequential_results(paths.size());
             for (size_t i = 0; i < paths.size(); ++i) {
-                const auto score =
-                    fuzzy::fuzzy_score_5_simd(paths.at(i), test_query);
+                const auto sv = paths.at(i);
+                const auto score = fuzzy::fuzzy_score_5_simd(
+                    std::string_view(sv.data, sv.len), test_query);
                 sequential_results[i] = RankResult{i, score};
             }
             auto seq_end = std::chrono::steady_clock::now();
@@ -148,8 +150,9 @@ int main()
             auto custom_start = std::chrono::steady_clock::now();
             std::vector<RankResult> custom_results(paths.size());
             parallel::parallel_for(0, paths.size(), [&](size_t i) {
-                const auto score =
-                    fuzzy::fuzzy_score_5_simd(paths.at(i), test_query);
+                const auto sv = paths.at(i);
+                const auto score = fuzzy::fuzzy_score_5_simd(
+                    std::string_view(sv.data, sv.len), test_query);
                 custom_results[i] = RankResult{i, score};
             });
             auto custom_end = std::chrono::steady_clock::now();
@@ -171,8 +174,9 @@ int main()
             std::vector<RankResult> omp_results(paths.size());
 #pragma omp parallel for schedule(static)
             for (int64_t i = 0; i < static_cast<int64_t>(paths.size()); ++i) {
+                const auto sv = paths.at(static_cast<size_t>(i));
                 const auto score = fuzzy::fuzzy_score_5_simd(
-                    paths.at(static_cast<size_t>(i)), test_query);
+                    std::string_view(sv.data, sv.len), test_query);
                 omp_results[static_cast<size_t>(i)] =
                     RankResult{static_cast<size_t>(i), score};
             }
@@ -201,8 +205,9 @@ int main()
 
             std::transform(std::execution::par, indices.begin(), indices.end(),
                            exec_results.begin(), [&](size_t i) {
+                               const auto sv = paths.at(i);
                                const auto score = fuzzy::fuzzy_score_5_simd(
-                                   paths.at(i), test_query);
+                                   std::string_view(sv.data, sv.len), test_query);
                                return RankResult{i, score};
                            });
             auto exec_end = std::chrono::steady_clock::now();

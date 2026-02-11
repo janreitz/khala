@@ -1,5 +1,6 @@
 #include "actions.h"
 #include "config.h"
+#include "streamingindex.h"
 #include "types.h"
 #include "ui.h"
 #include "utility.h"
@@ -27,7 +28,6 @@ void cmd_free(Command *cmd)
     case CMD_REMOVE_FILE_RECURSIVE:
     case CMD_COPY_PATH_TO_CLIPBOARD:
     case CMD_COPY_CONTENT_TO_CLIPBOARD:
-        str_free(&cmd->path);
         break;
     case CMD_CUSTOM:
         str_free(&cmd->custom.path);
@@ -55,11 +55,8 @@ void cmd_copy(Command *dst, const Command *src)
     case CMD_REMOVE_FILE_RECURSIVE:
     case CMD_COPY_PATH_TO_CLIPBOARD:
     case CMD_COPY_CONTENT_TO_CLIPBOARD: {
-        Str temp_path = {nullptr, 0, 0};
-        if (!str_copy(&temp_path, &src->path))
-            return;
         dst->type = src->type;
-        dst->path = temp_path;
+        dst->path_idx = src->path_idx;
         break;
     }
     case CMD_CUSTOM: {
@@ -96,16 +93,16 @@ void cmd_copy(Command *dst, const Command *src)
     }
 }
 
-void for_each_file_action(const fs::path &path, const Config &config,
-                          ActionCallback cb, void *user_data)
+void for_each_file_action(const fs::path &path, size_t path_idx,
+                          const Config &config, ActionCallback cb,
+                          void *user_data)
 {
     if (fs::is_directory(path)) {
         ui::Item open_dir{
             .title = str_from_literal("Open Directory"),
             .description = str_from_std_string(config.file_manager),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_OPEN_DIRECTORY,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_OPEN_DIRECTORY, .path_idx = path_idx},
             .hotkey = std::nullopt};
         bool cont = cb(&open_dir, user_data);
         ui::ui_item_free(&open_dir, nullptr);
@@ -115,9 +112,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item rm_dir{
             .title = str_from_literal("Remove Directory"),
             .description = str_from_literal(""),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_REMOVE_FILE,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_REMOVE_FILE, .path_idx = path_idx},
             .hotkey = std::nullopt};
         cont = cb(&rm_dir, user_data);
         ui::ui_item_free(&rm_dir, nullptr);
@@ -127,9 +123,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item rm_dir_recursive{
             .title = str_from_literal("Remove Directory Recursive"),
             .description = str_from_literal(""),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_REMOVE_FILE_RECURSIVE,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_REMOVE_FILE_RECURSIVE, .path_idx = path_idx},
             .hotkey = std::nullopt};
         cont = cb(&rm_dir_recursive, user_data);
         ui::ui_item_free(&rm_dir_recursive, nullptr);
@@ -139,9 +134,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item cp_to_clipboard{
             .title = str_from_literal("Copy Path to Clipboard"),
             .description = str_from_literal(""),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_COPY_PATH_TO_CLIPBOARD,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_COPY_PATH_TO_CLIPBOARD, .path_idx = path_idx},
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl,
                                         .character = std::nullopt}};
@@ -160,7 +154,7 @@ void for_each_file_action(const fs::path &path, const Config &config,
             ui::Item custom_action{
                 .title = action_def->title,
                 .description = action_def->description,
-                .path = {nullptr, 0, 0},
+                .path_idx = path_idx,
                 .command = {.type = CMD_CUSTOM,
                             .custom =
                                 {
@@ -184,9 +178,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item open_file = {
             .title = str_from_literal("Open File"),
             .description = str_from_std_string(config.editor),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_OPEN_FILE,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_OPEN_FILE, .path_idx = path_idx},
             .hotkey = std::nullopt};
         bool cont = cb(&open_file, user_data);
         ui::ui_item_free(&open_file, nullptr);
@@ -196,9 +189,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item rm_file = {
             .title = str_from_literal("Remove File"),
             .description = str_from_literal(""),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_REMOVE_FILE,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_REMOVE_FILE, .path_idx = path_idx},
             .hotkey = std::nullopt};
         cont = cb(&rm_file, user_data);
         ui::ui_item_free(&rm_file, nullptr);
@@ -208,9 +200,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item cp_path = {
             .title = str_from_literal("Copy Path to Clipboard"),
             .description = str_from_literal(""),
-            .path = {nullptr, 0, 0},
-            .command = {.type = CMD_COPY_PATH_TO_CLIPBOARD,
-                        .path = str_from_std_string(path.string())},
+            .path_idx = path_idx,
+            .command = {.type = CMD_COPY_PATH_TO_CLIPBOARD, .path_idx = path_idx},
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl,
                                         .character = std::nullopt}};
@@ -222,9 +213,9 @@ void for_each_file_action(const fs::path &path, const Config &config,
         ui::Item cp_content = {
             .title = str_from_literal("Copy Content to Clipboard"),
             .description = str_from_literal(""),
-            .path = {nullptr, 0, 0},
+            .path_idx = path_idx,
             .command = {.type = CMD_COPY_CONTENT_TO_CLIPBOARD,
-                        .path = str_from_std_string(path.string())},
+                        .path_idx = path_idx},
             .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::C,
                                         .modifiers = ui::KeyModifier::Ctrl |
                                                      ui::KeyModifier::Shift,
@@ -238,10 +229,8 @@ void for_each_file_action(const fs::path &path, const Config &config,
             ui::Item open_folder = {
                 .title = str_from_literal("Open Containing Folder"),
                 .description = str_from_literal(""),
-                .path = {nullptr, 0, 0},
-                .command = {.type = CMD_OPEN_DIRECTORY,
-                            .path = str_from_std_string(
-                                path.parent_path().string())},
+                .path_idx = ui::NO_PATH_INDEX,
+                .command = {.type = CMD_OPEN_DIRECTORY, .path_idx = ui::NO_PATH_INDEX},
                 .hotkey = ui::KeyboardEvent{.key = ui::KeyCode::Return,
                                             .modifiers = ui::KeyModifier::Ctrl,
                                             .character = std::nullopt},
@@ -262,7 +251,7 @@ void for_each_file_action(const fs::path &path, const Config &config,
             ui::Item custom_action = {
                 .title = action_def->title,
                 .description = action_def->description,
-                .path = {nullptr, 0, 0},
+                .path_idx = path_idx,
                 .command = {.type = CMD_CUSTOM,
                             .custom =
                                 {
@@ -292,8 +281,8 @@ void for_each_global_action(const Config &config, ActionCallback cb,
     ui::Item reload_index = {
         .title = str_from_literal("Reload Index"),
         .description = str_from_literal("Start a fresh filesystem scan"),
-        .path = {nullptr, 0, 0},
-        .command = {.type = CMD_RELOAD_INDEX, .path = {nullptr, 0, 0}},
+        .path_idx = ui::NO_PATH_INDEX,
+        .command = {.type = CMD_RELOAD_INDEX, .path_idx = ui::NO_PATH_INDEX},
         .hotkey = std::nullopt};
     bool cont = cb(&reload_index, user_data);
     ui::ui_item_free(&reload_index, nullptr);
@@ -303,8 +292,9 @@ void for_each_global_action(const Config &config, ActionCallback cb,
     ui::Item cp_iso_timestamp = {
         .title = str_from_literal("Copy ISO Timestamp"),
         .description = str_from_literal("Copy current time in ISO 8601 format"),
-        .path = {nullptr, 0, 0},
-        .command = {.type = CMD_COPY_ISO_TIMESTAMP, .path = {nullptr, 0, 0}},
+        .path_idx = ui::NO_PATH_INDEX,
+        .command = {.type = CMD_COPY_ISO_TIMESTAMP,
+                    .path_idx = ui::NO_PATH_INDEX},
         .hotkey = std::nullopt};
     cont = cb(&cp_iso_timestamp, user_data);
     ui::ui_item_free(&cp_iso_timestamp, nullptr);
@@ -315,8 +305,9 @@ void for_each_global_action(const Config &config, ActionCallback cb,
         .title = str_from_literal("Copy Unix Timestamp"),
         .description = str_from_literal(
             "Copy current Unix timestamp (seconds since epoch)"),
-        .path = {nullptr, 0, 0},
-        .command = {.type = CMD_COPY_UNIX_TIMESTAMP, .path = {nullptr, 0, 0}},
+        .path_idx = ui::NO_PATH_INDEX,
+        .command = {.type = CMD_COPY_UNIX_TIMESTAMP,
+                    .path_idx = ui::NO_PATH_INDEX},
         .hotkey = std::nullopt};
     cont = cb(&cp_unix_timestamp, user_data);
     ui::ui_item_free(&cp_unix_timestamp, nullptr);
@@ -326,8 +317,8 @@ void for_each_global_action(const Config &config, ActionCallback cb,
     ui::Item cp_uuid = {
         .title = str_from_literal("Copy UUID"),
         .description = str_from_literal("Generate and copy a new UUID v4"),
-        .path = {nullptr, 0, 0},
-        .command = {.type = CMD_COPY_UUID, .path = {nullptr, 0, 0}},
+        .path_idx = ui::NO_PATH_INDEX,
+        .command = {.type = CMD_COPY_UUID, .path_idx = ui::NO_PATH_INDEX},
         .hotkey = std::nullopt};
     cont = cb(&cp_uuid, user_data);
     ui::ui_item_free(&cp_uuid, nullptr);
@@ -345,7 +336,7 @@ void for_each_global_action(const Config &config, ActionCallback cb,
         const ui::Item custom_action = {
             .title = action_def->title,
             .description = action_def->description,
-            .path = {nullptr, 0, 0},
+            .path_idx = ui::NO_PATH_INDEX,
             .command =
                 {.type = CMD_CUSTOM,
                  .custom =
@@ -365,7 +356,8 @@ void for_each_global_action(const Config &config, ActionCallback cb,
 }
 
 std::expected<std::optional<Effect>, std::string>
-process_command(const Command &cmd, const Config &)
+process_command(const Command &cmd, const StreamingIndex *index,
+                const Config &)
 {
     std::optional<Effect> effect;
     try {
@@ -373,23 +365,45 @@ process_command(const Command &cmd, const Config &)
         case CMD_NOOP:
             break;
         case CMD_OPEN_FILE:
-            platform::open_file(fs::path(cmd.path.data));
-            break;
         case CMD_OPEN_DIRECTORY:
-            platform::open_directory(fs::path(cmd.path.data));
-            break;
         case CMD_REMOVE_FILE:
-            fs::remove(fs::path(cmd.path.data));
-            break;
         case CMD_REMOVE_FILE_RECURSIVE:
-            fs::remove_all(fs::path(cmd.path.data));
-            break;
         case CMD_COPY_PATH_TO_CLIPBOARD:
-            platform::copy_to_clipboard(fs::path(cmd.path.data).string());
+        case CMD_COPY_CONTENT_TO_CLIPBOARD: {
+            // Resolve path from index
+            if (cmd.path_idx == ui::NO_PATH_INDEX) {
+                return std::unexpected("Command has no path index");
+            }
+            if (index == nullptr) {
+                return std::unexpected("No StreamingIndex available to resolve path");
+            }
+            const auto path_sv = index->at(cmd.path_idx);
+            const fs::path file_path{std::string{path_sv.data, path_sv.len}};
+
+            switch (cmd.type) {
+            case CMD_OPEN_FILE:
+                platform::open_file(file_path);
+                break;
+            case CMD_OPEN_DIRECTORY:
+                platform::open_directory(file_path);
+                break;
+            case CMD_REMOVE_FILE:
+                fs::remove(file_path);
+                break;
+            case CMD_REMOVE_FILE_RECURSIVE:
+                fs::remove_all(file_path);
+                break;
+            case CMD_COPY_PATH_TO_CLIPBOARD:
+                platform::copy_to_clipboard(file_path.string());
+                break;
+            case CMD_COPY_CONTENT_TO_CLIPBOARD:
+                platform::copy_to_clipboard(read_file(file_path));
+                break;
+            default:
+                break;
+            }
             break;
-        case CMD_COPY_CONTENT_TO_CLIPBOARD:
-            platform::copy_to_clipboard(read_file(fs::path(cmd.path.data)));
-            break;
+        }
         case CMD_RELOAD_INDEX:
             effect = ReloadIndexEffect{};
             break;

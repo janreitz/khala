@@ -1,5 +1,7 @@
 #include "streamingindex.h"
 #include "packed_strings.h"
+#include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -13,6 +15,7 @@ void StreamingIndex::add_chunk(PackedStrings &&chunk)
     auto shared_chunk = std::make_shared<const PackedStrings>(std::move(chunk));
     {
         const std::lock_guard lock(mutex_);
+        chunk_offsets_.push_back(total_files_);
         total_files_ += shared_chunk->size();
         chunks_.push_back(std::move(shared_chunk));
     }
@@ -63,10 +66,27 @@ void StreamingIndex::wait_for_chunks(size_t min_chunks) const
     });
 }
 
+StrView StreamingIndex::at(size_t global_index) const
+{
+    const std::lock_guard lock(mutex_);
+    assert(!chunks_.empty());
+    assert(global_index < total_files_);
+
+    // Binary search: find the last chunk whose offset <= global_index
+    auto it = std::upper_bound(chunk_offsets_.begin(), chunk_offsets_.end(),
+                               global_index);
+    assert(it != chunk_offsets_.begin());
+    --it;
+    const size_t chunk_idx = static_cast<size_t>(it - chunk_offsets_.begin());
+    const size_t local_index = global_index - *it;
+    return chunks_[chunk_idx]->at(local_index);
+}
+
 void StreamingIndex::clear()
 {
     const std::lock_guard lock(mutex_);
     chunks_.clear();
+    chunk_offsets_.clear();
     total_files_ = 0;
     scan_complete_ = false;
 }

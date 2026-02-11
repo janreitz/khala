@@ -124,8 +124,7 @@ int main()
     ranker.update_requested_count(
         ui::required_item_count(state, max_visible_items));
 
-    // Current file search state
-    std::vector<FileResult> current_file_results;
+    state.index = &streaming_index;
     bool redraw = true;
 
     while (true) {
@@ -189,15 +188,15 @@ int main()
                             ui::required_item_count(state, max_visible_items);
                         ranker.update_requested_count(required_item_count);
                     },
-                    [&state, &config,
-                     &effects](const ui::ActionRequested &req) {
+                    [&state, &config, &effects,
+                     &streaming_index](const ui::ActionRequested &req) {
                         if (std::holds_alternative<ui::FileSearch>(
                                 state.mode) &&
                             !state.input_buffer.empty()) {
                             state.file_search_history.push(state.input_buffer);
                         }
                         const auto cmd_result =
-                            process_command(req.command, config);
+                            process_command(req.command, &streaming_index, config);
                         if (!cmd_result.has_value()) {
                             state.push_error(cmd_result.error());
                             return;
@@ -214,7 +213,7 @@ int main()
                             }
                         }
                     },
-                    [&state](ui::ContextMenuToggled) {
+                    [&state, &streaming_index](ui::ContextMenuToggled) {
                         // Restore file search results when toggling back from
                         // context menu
                         if (std::holds_alternative<ui::FileSearch>(
@@ -224,17 +223,16 @@ int main()
                             const auto &cached =
                                 *state.cached_file_search_update;
 
-                            // Restore items (re-process from cached
-                            // FileResults)
-
+                            // Restore items from cached RankResults
                             vec_for_each_mut(&state.items, ui::ui_item_free,
                                              NULL);
                             vec_clear(&state.items);
 
                             for (size_t i = 0; i < cached.results.size(); i++) {
                                 ui::Item item;
-                                if (ui::convert_file_result_to_item(
-                                        cached.results[i], &item)) {
+                                if (ui::populate_file_item(
+                                        streaming_index, cached.results[i],
+                                        &item)) {
                                     vec_push(&state.items, &item);
                                 }
                             }
@@ -325,7 +323,7 @@ int main()
                                     .description = str_from_std_string(
                                         std::string(app->description.data,
                                                     app->description.len)),
-                                    .path = {nullptr, 0, 0},
+                                    .path_idx = ui::NO_PATH_INDEX,
                                     .command =
                                         {.type = CMD_CUSTOM,
                                          .custom =
@@ -396,12 +394,12 @@ int main()
                         if (index_future.valid()) {
                             index_future.wait();
                         }
-                        // Clear the index and restart
-                        streaming_index.clear();
+                        // Clear items and cache BEFORE clearing index
+                        // (items may reference stream indices)
                         vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
                         vec_clear(&state.items);
                         state.cached_file_search_update.reset();
-                        current_file_results.clear();
+                        streaming_index.clear();
                         // Launch new indexer
                         index_future = std::async(std::launch::async, [&]() {
                             indexer::scan_filesystem_streaming(
@@ -429,17 +427,14 @@ int main()
                 // Cache the update for quick restoration from ContextMenu
                 state.cached_file_search_update = update;
 
-                current_file_results = std::move(update.results);
-
-                // Convert results to UI items (keep all ranked results for
-                // scrolling)
+                // Convert RankResults to UI items
                 vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
                 vec_clear(&state.items);
 
-                for (size_t i = 0; i < current_file_results.size(); i++) {
+                for (size_t i = 0; i < update.results.size(); i++) {
                     ui::Item item;
-                    if (ui::convert_file_result_to_item(current_file_results[i],
-                                                        &item)) {
+                    if (ui::populate_file_item(streaming_index,
+                                               update.results[i], &item)) {
                         vec_push(&state.items, &item);
                     }
                 }
