@@ -4,9 +4,9 @@
 #include "config.h"
 #include "packed_strings.h"
 #include "ranker.h"
+#include "str.h"
 #include "types.h"
 #include "utility.h"
-#include "str.h"
 
 #include <optional>
 #include <string>
@@ -22,16 +22,18 @@ constexpr double CORNER_RADIUS = 4.0;
 constexpr double TEXT_MARGIN = 15.0;
 constexpr double INPUT_TEXT_MARGIN = 10.0;
 constexpr double DESCRIPTION_SPACING = 10.0;
-constexpr double INPUT_VERTICAL_PADDING = 12.0;  // Vertical padding for input area
-constexpr double ITEM_VERTICAL_PADDING = 8.0;    // Vertical padding for each item
+constexpr double INPUT_VERTICAL_PADDING =
+    12.0;                                     // Vertical padding for input area
+constexpr double ITEM_VERTICAL_PADDING = 8.0; // Vertical padding for each item
 
 std::string format_file_count(size_t count);
 std::string create_pagination_text(size_t visible_offset,
                                    size_t max_visible_items,
                                    size_t total_results,
                                    size_t total_available_results);
-std::string create_highlighted_markup(const std::string &text,
-                                      const std::vector<size_t> &match_positions);
+std::string
+create_highlighted_markup(const std::string &text,
+                          const std::vector<size_t> &match_positions);
 int calculate_abs_input_height(int font_size);
 int calculate_abs_item_height(int font_size);
 size_t calculate_max_visible_items(unsigned int window_height, int font_size);
@@ -41,17 +43,17 @@ unsigned int calculate_window_height(int font_size, size_t item_count,
 struct Item {
     Str title;
     Str description;
-    std::optional<fs::path> path;
+    Str path;
     Command command;
     std::optional<KeyboardEvent> hotkey;
 };
-bool ui_item_free(void* item, void* null);
-bool ui_item_copy(Item* dst, const Item* src);
+bool ui_item_free(void *item, void *null);
+bool ui_item_copy(Item *dst, const Item *src);
 
 // Callback for collecting ui::Items into a Vec with deep copying
 // Pass a Vec* initialized with sizeof(ui::Item) as user_data
 // Compatible with ActionCallback signature
-bool ui_item_collect(const void* item, void* user_data);
+bool ui_item_collect(const void *item, void *user_data);
 
 struct FileSearch {
     std::string query;
@@ -70,7 +72,8 @@ struct CommandSearch {
 struct ErrorMode {
 };
 
-using AppMode = std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch, ErrorMode>;
+using AppMode =
+    std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch, ErrorMode>;
 
 std::optional<std::string> get_query(const AppMode &mode);
 
@@ -88,7 +91,8 @@ struct State {
     // Mouse state
     bool mouse_inside_window = false;
 
-    // Runtime state for background mode (may differ from config if hotkey registration failed)
+    // Runtime state for background mode (may differ from config if hotkey
+    // registration failed)
     bool background_mode_active = false;
 
     // Cache of last file search update for restoration when leaving ContextMenu
@@ -97,8 +101,8 @@ struct State {
 
     // History for file search queries
     PackedStrings file_search_history;
-    size_t history_position = 0;  // size() = "current input" (not navigating)
-    std::string saved_input_buffer;  // Saved when entering history navigation
+    size_t history_position = 0;    // size() = "current input" (not navigating)
+    std::string saved_input_buffer; // Saved when entering history navigation
     bool navigating_history = false;
 
     bool has_selected_item() const;
@@ -132,10 +136,9 @@ using Event =
                  ActionRequested, ContextMenuToggled, ViewportChanged,
                  ExitRequested, VisibilityToggleRequested>;
 
-std::optional<size_t> window_pos_to_item_index(
-    const WindowCoord& position,
-    const State& state,
-    int font_size);
+std::optional<size_t> window_pos_to_item_index(const WindowCoord &position,
+                                               const State &state,
+                                               int font_size);
 
 // Process keyboard events and update state, returning high-level events
 std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
@@ -146,7 +149,7 @@ bool adjust_visible_range(State &state, size_t max_visible_items);
 size_t required_item_count(const State &state, size_t max_visible_items);
 
 // Convert FileResults from ranker to UI Items
-bool convert_file_result_to_item(
-    const FileResult &file_results, Item* out_item);
+bool convert_file_result_to_item(const FileResult &file_results,
+                                 Item *out_item);
 
 } // namespace ui

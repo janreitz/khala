@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "str.h"
 
 #include <expected>
 #include <filesystem>
@@ -26,59 +27,46 @@ struct ReloadIndexEffect {
 
 using Effect = std::variant<QuitApplication, HideWindow, ReloadIndexEffect>;
 
-struct Noop {
-};
+typedef enum {
+    CMD_NOOP,
+    CMD_OPEN_FILE,
+    CMD_OPEN_DIRECTORY,
+    CMD_REMOVE_FILE,
+    CMD_REMOVE_FILE_RECURSIVE,
+    CMD_COPY_PATH_TO_CLIPBOARD,
+    CMD_COPY_CONTENT_TO_CLIPBOARD,
+    CMD_RELOAD_INDEX,
+    CMD_COPY_ISO_TIMESTAMP,
+    CMD_COPY_UNIX_TIMESTAMP,
+    CMD_COPY_UUID,
+    CMD_CUSTOM,
+} CommandType;
 
-// File commands
-struct OpenFileCommand {
-    fs::path path;
-};
-struct OpenDirectory {
-    fs::path path;
-};
-struct RemoveFile {
-    fs::path path;
-};
-struct RemoveFileRecursive {
-    fs::path path;
-};
-struct CopyPathToClipboard {
-    fs::path path;
-};
-struct CopyContentToClipboard {
-    fs::path path;
-};
+typedef struct {
+    Str path; // nullable (data=NULL = no path)
+    Str shell_cmd;
+    Str shell;
+    bool stdout_to_clipboard;
+} CustomCommandData;
 
-// Utility commands (not file-specific)
-struct ReloadIndex {
-};
-struct CopyISOTimestamp {
-};
-struct CopyUnixTimestamp {
-};
-struct CopyUUID {
-};
+typedef struct {
+    CommandType type;
+    union {
+        Str path; // CMD_OPEN_FILE .. CMD_COPY_CONTENT_TO_CLIPBOARD
+        CustomCommandData custom; // CMD_CUSTOM
+    };
+} Command;
 
-struct CustomCommand {
-    std::optional<fs::path> path;
-    std::string shell_cmd;
-    std::string shell; // shell to use for execution
-    bool stdout_to_clipboard = false;
-};
-
-using Command =
-    std::variant<Noop, OpenFileCommand, OpenDirectory, RemoveFile,
-                 RemoveFileRecursive, CopyPathToClipboard,
-                 CopyContentToClipboard, ReloadIndex, CopyISOTimestamp,
-                 CopyUnixTimestamp, CopyUUID, CustomCommand>;
+void cmd_free(Command *cmd);
+void cmd_copy(Command *dst, const Command *src);
 
 /// @brief Return false to short-circuit iteration
-typedef bool (*ActionCallback)(const void *file_action,
-                                   void *user_data);
+typedef bool (*ActionCallback)(const void *file_action, void *user_data);
 void for_each_file_action(const fs::path &path, const Config &config,
                           ActionCallback cb, void *user_data);
 
-void for_each_global_action(const Config &config, ActionCallback cb, void *user_data);
+void for_each_global_action(const Config &config, ActionCallback cb,
+                            void *user_data);
 
 std::expected<std::optional<Effect>, std::string>
-process_command(const Command &command, const Config &config);
+process_command(const Command &cmd, const Config &config);

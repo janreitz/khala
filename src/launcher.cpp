@@ -227,7 +227,8 @@ int main()
                             // Restore items (re-process from cached
                             // FileResults)
 
-                            vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                            vec_for_each_mut(&state.items, ui::ui_item_free,
+                                             NULL);
                             vec_clear(&state.items);
 
                             for (size_t i = 0; i < cached.results.size(); i++) {
@@ -262,18 +263,23 @@ int main()
                             const auto query_lower = to_lower(query);
                             auto ranked = rank(
                                 &global_actions,
-                                [&query_lower](const void* elem) {
-                                    const auto* item = static_cast<const ui::Item*>(elem);
+                                [&query_lower](const void *elem) {
+                                    const auto *item =
+                                        static_cast<const ui::Item *>(elem);
                                     return fuzzy::fuzzy_score_5_simd(
-                                        std::string(item->title.data) + std::string(item->description.data),
+                                        std::string(item->title.data) +
+                                            std::string(item->description.data),
                                         query_lower);
                                 },
                                 global_actions.count);
 
-                            vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                            vec_for_each_mut(&state.items, ui::ui_item_free,
+                                             NULL);
                             vec_clear(&state.items);
                             for (const auto &result : ranked) {
-                                const auto* action_item = static_cast<const ui::Item*>(vec_at(&global_actions, result.index));
+                                const auto *action_item =
+                                    static_cast<const ui::Item *>(
+                                        vec_at(&global_actions, result.index));
                                 ui::Item item{};
                                 if (ui::ui_item_copy(&item, action_item)) {
                                     vec_push(&state.items, &item);
@@ -292,34 +298,50 @@ int main()
                             const auto query_lower = to_lower(query);
                             auto ranked = rank(
                                 &desktop_apps,
-                                [&query_lower](const void* elem) {
-                                    const auto* app = static_cast<const ApplicationInfo*>(elem);
+                                [&query_lower](const void *elem) {
+                                    const auto *app =
+                                        static_cast<const ApplicationInfo *>(
+                                            elem);
                                     // Concatenate Str fields for scoring
-                                    std::string search_text(app->name.data, app->name.len);
-                                    search_text.append(app->description.data, app->description.len);
+                                    std::string search_text(app->name.data,
+                                                            app->name.len);
+                                    search_text.append(app->description.data,
+                                                       app->description.len);
                                     return fuzzy::fuzzy_score_5_simd(
-                                        search_text,
-                                        query_lower);
+                                        search_text, query_lower);
                                 },
                                 desktop_apps.count);
 
-                            vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                            vec_for_each_mut(&state.items, ui::ui_item_free,
+                                             NULL);
                             vec_clear(&state.items);
                             for (const auto &result : ranked) {
-                                const auto* app = static_cast<const ApplicationInfo*>(
-                                    vec_at(&desktop_apps, result.index));
+                                const auto *app =
+                                    static_cast<const ApplicationInfo *>(
+                                        vec_at(&desktop_apps, result.index));
                                 ui::Item item{
-                                    .title = str_from_std_string(
-                                        std::string(app->name.data, app->name.len)),
+                                    .title = str_from_std_string(std::string(
+                                        app->name.data, app->name.len)),
                                     .description = str_from_std_string(
-                                        std::string(app->description.data, app->description.len)),
-                                    .path = std::nullopt,
+                                        std::string(app->description.data,
+                                                    app->description.len)),
+                                    .path = {nullptr, 0, 0},
                                     .command =
-                                        CustomCommand{
-                                            .path = std::nullopt,
-                                            .shell_cmd = std::string(
-                                                app->exec_command.data, app->exec_command.len),
-                                            .shell = config.default_shell},
+                                        {.type = CMD_CUSTOM,
+                                         .custom =
+                                             {
+                                                 .path = {nullptr, 0, 0},
+                                                 .shell_cmd =
+                                                     str_from_std_string(
+                                                         std::string(
+                                                             app->exec_command
+                                                                 .data,
+                                                             app->exec_command
+                                                                 .len)),
+                                                 .shell = str_from_std_string(
+                                                     config.default_shell),
+                                                 .stdout_to_clipboard = false,
+                                             }},
                                     .hotkey = std::nullopt,
                                 };
                                 vec_push(&state.items, &item);
@@ -433,8 +455,7 @@ int main()
             const size_t current_max_visible_items =
                 ui::calculate_max_visible_items(max_height, config.font_size);
             const unsigned int new_height = ui::calculate_window_height(
-                config.font_size, state.items.count,
-                current_max_visible_items);
+                config.font_size, state.items.count, current_max_visible_items);
 
             if (new_height != window.get_height()) {
                 window.resize(ui::WindowDimension{.height = new_height,

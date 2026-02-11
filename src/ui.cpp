@@ -206,8 +206,8 @@ void State::push_error(const std::string &error)
     const ui::Item error_item{
         .title = str_from_std_string(std::string("⚠ ") + error),
         .description = str_from_literal(""),
-        .path = std::nullopt,
-        .command = Noop{},
+        .path = {nullptr, 0, 0},
+        .command = {.type = CMD_NOOP, .path = {nullptr, 0, 0}},
         .hotkey = std::nullopt,
     };
     vec_push(&items, &error_item);
@@ -229,8 +229,8 @@ void ui_item_init(Item *item)
 {
     item->title = {.data = nullptr, .len = 0, .cap = 0};
     item->description = {.data = nullptr, .len = 0, .cap = 0};
-    item->path = std::nullopt;
-    item->command = Noop{};
+    item->path = {.data = nullptr, .len = 0, .cap = 0};
+    item->command = {.type = CMD_NOOP, .path = {nullptr, 0, 0}};
     item->hotkey = std::nullopt;
 }
 
@@ -239,8 +239,8 @@ bool ui_item_free(void *item, void *)
     auto *it = static_cast<Item *>(item);
     str_free(&it->title);
     str_free(&it->description);
-    it->path = std::nullopt;
-    it->command = Noop{};
+    str_free(&it->path);
+    cmd_free(&it->command);
     it->hotkey = std::nullopt;
     return true;
 }
@@ -254,8 +254,7 @@ bool ui_item_collect(const void *item_ptr, void *user_data)
     Item temp_item;
     ui_item_init(&temp_item);
 
-    if (!ui_item_copy(&temp_item, item))
-    {
+    if (!ui_item_copy(&temp_item, item)) {
         return false;
     }
 
@@ -265,42 +264,49 @@ bool ui_item_collect(const void *item_ptr, void *user_data)
         return false;
     }
 
-    // CRITICAL: Clear temp_item's heap-owning members to prevent double-free
-    // vec_push did a shallow copy, so temp_item and the Vec entry now share
-    // pointers. When temp_item goes out of scope, we must prevent its
-    // destructor from freeing the shared heap memory.
+    // CRITICAL: Neutralize temp_item's heap-owning members to prevent
+    // double-free. vec_push did a memcpy, so temp_item and the Vec entry now
+    // share pointers.
     temp_item.title.data = nullptr;
     temp_item.description.data = nullptr;
-    temp_item.path = std::nullopt;
-    temp_item.command = Noop{}; // Empty variant alternative with no heap data
+    temp_item.path.data = nullptr;
+    temp_item.command.type = CMD_NOOP;
 
     return true;
 }
 
 bool ui_item_copy(Item *dst, const Item *src)
 {
-    // Initialize temporary strings to avoid garbage data
-    Str temp_title = {.data = nullptr, .len = 0, .cap = 0};
-    Str temp_desc = {.data = nullptr, .len = 0, .cap = 0};
+    Str temp_title = {nullptr, 0, 0};
+    Str temp_desc = {nullptr, 0, 0};
+    Str temp_path = {nullptr, 0, 0};
 
     if (!str_copy(&temp_title, &src->title)) {
         return false;
     }
-
     if (!str_copy(&temp_desc, &src->description)) {
-        free(temp_title.data);
+        str_free(&temp_title);
         return false;
     }
+    if (src->path.data != nullptr) {
+        if (!str_copy(&temp_path, &src->path)) {
+            str_free(&temp_title);
+            str_free(&temp_desc);
+            return false;
+        }
+    }
 
-    // Only modify dst after all allocations succeed
-    free(dst->title.data);
-    free(dst->description.data);
+    // Free old dst resources
+    str_free(&dst->title);
+    str_free(&dst->description);
+    str_free(&dst->path);
+    cmd_free(&dst->command);
 
     dst->title = temp_title;
     dst->description = temp_desc;
-    dst->path = src->path;
-    dst->command = src->command;
-    dst->hotkey = src->hotkey; // POD type, shallow copy is fine
+    dst->path = temp_path;
+    cmd_copy(&dst->command, &src->command);
+    dst->hotkey = src->hotkey;
 
     return true;
 }
@@ -333,18 +339,18 @@ static bool try_open_context_menu(State &state, const Config &config)
 
     const auto *selected_item = static_cast<const Item *>(
         vec_at(&state.items, state.selected_item_index));
-    if (!selected_item->path.has_value()) {
+    if (selected_item->path.data == nullptr) {
         return false;
     }
 
     // Open context menu
+    const fs::path file_path(selected_item->path.data);
     state.mode = ContextMenu{.title = selected_item->title.data,
-                             .selected_file = selected_item->path.value()};
+                             .selected_file = file_path};
     state.selected_item_index = 0;
     vec_for_each_mut(&state.items, ui_item_free, NULL);
     vec_clear(&state.items);
-    for_each_file_action(selected_item->path.value(), config, ui_item_collect,
-                         &state.items);
+    for_each_file_action(file_path, config, ui_item_collect, &state.items);
     return true;
 }
 
@@ -437,9 +443,9 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (state.has_selected_item()) {
             const auto *selected_item = static_cast<const Item *>(
                 vec_at(&state.items, state.selected_item_index));
-            if (selected_item->path.has_value()) {
-                const auto &path = selected_item->path.value();
-                Command matched;
+            if (selected_item->path.data != nullptr) {
+                const fs::path path(selected_item->path.data);
+                Command matched = {.type = CMD_NOOP, .path = {nullptr, 0, 0}};
                 HotkeyMatchContext ctx = {.kbd_event = &kbd_event,
                                           .matched_command = &matched,
                                           .found = false};
@@ -780,19 +786,23 @@ bool convert_file_result_to_item(const FileResult &file_result, Item *out_item)
     try {
         const auto file_path = fs::canonical(file_result.path);
         out_item->hotkey = std::nullopt;
-        out_item->path = file_path;
+        out_item->path = str_from_std_string(file_path.string());
         if (fs::is_directory(file_path)) {
             out_item->title = str_from_std_string(
                 std::string("📁 ") + platform::path_to_string(file_path));
             out_item->description =
                 str_from_std_string(serialize_file_info(file_path));
-            out_item->command = OpenDirectory{.path = file_path};
+            out_item->command = {.type = CMD_OPEN_DIRECTORY,
+                                 .path =
+                                     str_from_std_string(file_path.string())};
         } else {
             out_item->title = str_from_std_string(
                 std::string("📄 ") + platform::path_to_string(file_path));
             out_item->description =
                 str_from_std_string(serialize_file_info(file_path));
-            out_item->command = OpenFileCommand{.path = file_path};
+            out_item->command = {.type = CMD_OPEN_FILE,
+                                 .path =
+                                     str_from_std_string(file_path.string())};
         }
         return true;
     } catch (const std::exception &e) {
