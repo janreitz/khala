@@ -150,18 +150,15 @@ void for_each_file_action(const fs::path &path, const Config &config,
                 continue;
 
             const ui::Item custom_action{
-                .title = str_from_std_string(action_def->title),
-                .description = str_from_std_string(action_def->description),
+                .title = action_def->title,
+                .description = action_def->description,
                 .path = {nullptr, 0, 0},
                 .command = {.type = CMD_CUSTOM,
                             .custom =
                                 {
                                     .path = str_from_std_string(path.string()),
-                                    .shell_cmd = str_from_std_string(
-                                        action_def->shell_cmd),
-                                    .shell = str_from_std_string(
-                                        action_def->shell.value_or(
-                                            config.default_shell)),
+                                    .shell_cmd = action_def->shell_cmd,
+                                    .shell = action_def->shell,
                                     .stdout_to_clipboard =
                                         action_def->stdout_to_clipboard,
                                 }},
@@ -238,18 +235,17 @@ void for_each_file_action(const fs::path &path, const Config &config,
                 continue;
 
             const ui::Item custom_action = {
-                .title = str_from_std_string(action_def->title),
-                .description = str_from_std_string(action_def->description),
+                .title = action_def->title,
+                .description = action_def->description,
                 .path = {nullptr, 0, 0},
                 .command = {.type = CMD_CUSTOM,
                             .custom =
                                 {
                                     .path = str_from_std_string(path.string()),
-                                    .shell_cmd = str_from_std_string(
-                                        action_def->shell_cmd),
-                                    .shell = str_from_std_string(
-                                        action_def->shell.value_or(
-                                            config.default_shell)),
+                                    .shell_cmd = 
+                                        action_def->shell_cmd,
+                                    .shell = 
+                                        action_def->shell,
                                     .stdout_to_clipboard =
                                         action_def->stdout_to_clipboard,
                                 }},
@@ -305,8 +301,8 @@ void for_each_global_action(const Config &config, ActionCallback cb,
             continue;
 
         const ui::Item custom_action = {
-            .title = str_from_std_string(action_def->title),
-            .description = str_from_std_string(action_def->description),
+            .title = action_def->title,
+            .description = action_def->description,
             .path = {nullptr, 0, 0},
             .command =
                 {.type = CMD_CUSTOM,
@@ -314,9 +310,9 @@ void for_each_global_action(const Config &config, ActionCallback cb,
                      {
                          .path = {nullptr, 0, 0},
                          .shell_cmd =
-                             str_from_std_string(action_def->shell_cmd),
-                         .shell = str_from_std_string(
-                             action_def->shell.value_or(config.default_shell)),
+                             action_def->shell_cmd,
+                         .shell = 
+                             action_def->shell,
                          .stdout_to_clipboard = action_def->stdout_to_clipboard,
                      }},
             .hotkey = action_def->hotkey,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "str.h"
 #include "types.h"
 
 #include <filesystem>
@@ -17,13 +18,15 @@ enum class ActionType {
     Utility    // Global action (no file/dir context)
 };
 
+// These are loaded at program start and stay in memory until program exit. 
+// No explicit cleanup needed.
 struct CustomActionDef {
-    std::string title;
-    std::string description;
-    std::string shell_cmd;
+    Str title;
+    Str description;
+    Str shell_cmd;
     ActionType action_type;
     bool stdout_to_clipboard = false;      // true = capture stdout to clipboard
-    std::optional<std::string> shell;      // override default_shell if specified
+    Str shell;      // override default_shell if specified
     std::optional<ui::KeyboardEvent> hotkey;
 };
 

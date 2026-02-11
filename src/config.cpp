@@ -1,6 +1,7 @@
 // config.cpp
 #include "config.h"
 #include "logger.h"
+#include "str.h"
 #include "types.h"
 #include "utility.h"
 #include "vector.h"
@@ -551,14 +552,12 @@ ConfigLoadResult load_config(const fs::path &path)
                 actions_by_stem.insert_or_assign(
                     platform::path_to_string(entry.path().stem()),
                     CustomActionDef{
-                        .title = title,
-                        .description = description,
-                        .shell_cmd = shell_cmd,
+                        .title = str_from_std_string(title),
+                        .description = str_from_std_string(description),
+                        .shell_cmd = str_from_std_string(shell_cmd),
                         .action_type = action_type,
                         .stdout_to_clipboard = stdout_to_clipboard,
-                        .shell = shell.empty()
-                                     ? std::nullopt
-                                     : std::optional<std::string>(shell),
+                        .shell = str_from_std_string(shell),
                         .hotkey = hotkey,
                     });
             }
@@ -586,7 +585,7 @@ ConfigLoadResult load_config(const fs::path &path)
         if (is_reserved_hotkey(hk)) {
             LOG_WARNING("Hotkey for '%s' is reserved "
                         "(navigation/quick-select), ignoring",
-                        action->title.c_str());
+                        action->title.data);
             action->hotkey = std::nullopt;
             continue;
         }
@@ -595,13 +594,13 @@ ConfigLoadResult load_config(const fs::path &path)
         if (hotkeys_match(hk, cfg.hotkey)) {
             LOG_WARNING(
                 "Hotkey for '%s' conflicts with global hotkey, ignoring",
-                action->title.c_str());
+                action->title.data);
             action->hotkey = std::nullopt;
             continue;
         }
         if (hotkeys_match(hk, cfg.quit_hotkey)) {
             LOG_WARNING("Hotkey for '%s' conflicts with quit hotkey, ignoring",
-                        action->title.c_str());
+                        action->title.data);
             action->hotkey = std::nullopt;
             continue;
         }
@@ -610,7 +609,7 @@ ConfigLoadResult load_config(const fs::path &path)
         const std::string hardcoded_conflict = get_hardcoded_conflict(hk);
         if (!hardcoded_conflict.empty()) {
             LOG_WARNING("Hotkey for '%s' overrides hardcoded '%s'",
-                        action->title.c_str(), hardcoded_conflict.c_str());
+                        action->title.data, hardcoded_conflict.c_str());
         }
 
         // Check for duplicate custom command hotkeys
@@ -618,14 +617,14 @@ ConfigLoadResult load_config(const fs::path &path)
         for (const auto &[existing_title, existing_hk] : used_hotkeys) {
             if (hotkeys_match(hk, existing_hk)) {
                 LOG_WARNING("Hotkey for '%s' duplicates '%s', ignoring",
-                            action->title.c_str(), existing_title.c_str());
+                            action->title.data, existing_title.c_str());
                 action->hotkey = std::nullopt;
                 duplicate = true;
                 break;
             }
         }
         if (!duplicate) {
-            used_hotkeys.emplace_back(action->title, hk);
+            used_hotkeys.emplace_back(std::string(action->title.data, action->title.len), hk);
         }
     }
     return {.config = cfg, .warnings = std::move(warnings)};
