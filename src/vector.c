@@ -81,7 +81,7 @@ void vec_for_each_mut(Vec* v, ElementCallbackMut cb, void* user_data) {
 const void* vec_find_if(const Vec* v, VecFindIfCallback cb, const void* user_data) {
     for (size_t i = 0; i < v->count; i++) {
         const void * element = vec_at(v, i);
-        if (!cb(element, user_data)) return element;
+        if (cb(element, user_data)) return element;
     }
     return NULL;
 }
