@@ -128,6 +128,7 @@ void scan_subtree_streaming(const fs::path &root,
                 if (current_chunk.size() >= chunk_size) {
                     index.add_chunk(std::move(current_chunk));
                     current_chunk = PackedStrings{};
+                    current_chunk.prefix(16, 'F');
                 }
             }
         }
