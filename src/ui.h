@@ -61,28 +61,19 @@ bool ui_item_copy(Item *dst, const Item *src);
 // Compatible with ActionCallback signature
 bool ui_item_collect(const void *item, void *user_data);
 
-struct FileSearch {
+enum class AppMode {
+    FileSearch,
+    ContextMenu,
+    AppSearch,
+    CommandSearch,
+    Error,
 };
-struct ContextMenu {
-    std::string title;
-};
-struct AppSearch {
-};
-struct CommandSearch {
-};
-
-struct ErrorMode {
-};
-
-using AppMode =
-    std::variant<FileSearch, ContextMenu, AppSearch, CommandSearch, ErrorMode>;
-
-std::optional<std::string> get_query(const AppMode &mode);
 
 struct State {
     std::string input_buffer;
     size_t cursor_position = 0;
-    AppMode mode;
+    AppMode mode = AppMode::FileSearch;
+    std::string context_menu_title;
 
     // Results
     Vec items;

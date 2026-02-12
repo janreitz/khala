@@ -479,9 +479,9 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         display_text =
             utf8_to_wide("Encountered " + std::to_string(state.items.size()) +
                          " error(s). Press any key to dismiss.");
-    } else if (std::holds_alternative<ui::ContextMenu>(state.mode)) {
-        display_text = utf8_to_wide(
-            std::get<ui::ContextMenu>(state.mode).title + " › Actions");
+    } else if (state.mode == ui::AppMode::ContextMenu) {
+        display_text =
+            utf8_to_wide(state.context_menu_title + " › Actions");
     } else if (state.input_buffer.empty()) {
         const size_t total_files =
             state.cached_file_search_update.has_value()
@@ -516,8 +516,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
         inputLayout.Get(), inputTextBrush);
 
     // Draw cursor (when not in context menu or error mode)
-    if (!std::holds_alternative<ui::ContextMenu>(state.mode) &&
-        !state.has_errors()) {
+    if (state.mode != ui::AppMode::ContextMenu && !state.has_errors()) {
         std::wstring text_before_cursor =
             utf8_to_wide(state.input_buffer.substr(0, state.cursor_position));
 
@@ -534,7 +533,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     }
 
     // Draw progress indicator (file search mode)
-    if (std::holds_alternative<ui::FileSearch>(state.mode) &&
+    if (state.mode == ui::AppMode::FileSearch &&
         state.cached_file_search_update.has_value() &&
         state.cached_file_search_update->total_files > 0) {
 
@@ -578,8 +577,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     const float item_height =
         static_cast<float>(ui::calculate_abs_item_height(config.font_size));
 
-    const auto query_opt = get_query(state.mode);
-    const std::string query_lower = to_lower(query_opt.value_or(""));
+    const std::string query_lower = to_lower(state.input_buffer);
 
     const size_t range_end = std::min(
         state.visible_range_offset + max_visible_items, state.items.size());

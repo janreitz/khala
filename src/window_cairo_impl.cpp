@@ -170,13 +170,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
     // Draw search prompt and buffer
     std::string display_text;
-    if (std::holds_alternative<ui::ErrorMode>(state.mode)) {
+    if (state.mode == ui::AppMode::Error) {
         display_text = "Encountered " + std::to_string(state.items.count) +
                        " error(s). Press any key to dismiss.";
-    } else if (const auto *context_menu =
-                   std::get_if<ui::ContextMenu>(&state.mode)) {
-        // Show selected item title when in context menu
-        display_text = context_menu->title + " › Actions";
+    } else if (state.mode == ui::AppMode::ContextMenu) {
+        display_text = state.context_menu_title + " › Actions";
     } else {
         display_text = state.input_buffer;
         if (state.input_buffer.empty()) {
@@ -213,7 +211,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     pango_cairo_show_layout(cr, layout);
 
     // Draw progress indicator in file search mode, right-aligned
-    if (std::holds_alternative<ui::FileSearch>(state.mode) &&
+    if (state.mode == ui::AppMode::FileSearch &&
         state.cached_file_search_update.has_value() &&
         state.cached_file_search_update->total_files > 0) {
 
@@ -260,8 +258,8 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
     }
 
     // Draw cursor at cursor position when not in context menu or error mode
-    if (!std::holds_alternative<ui::ContextMenu>(state.mode) &&
-        !std::holds_alternative<ui::ErrorMode>(state.mode)) {
+    if (state.mode != ui::AppMode::ContextMenu &&
+        state.mode != ui::AppMode::Error) {
         // Get width of text up to cursor position
         const std::string text_before_cursor =
             state.input_buffer.substr(0, state.cursor_position);
@@ -292,8 +290,7 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
 
     std::vector<DropdownItem> dropdown_items;
 
-    const auto query_opt = ui::get_query(state.mode);
-    const auto query_lower = to_lower(query_opt.value_or(""));
+    const auto query_lower = to_lower(state.input_buffer);
     dropdown_items.reserve(state.items.count);
     for (size_t idx = 0; idx < state.items.count; ++idx) {
         const auto* item = static_cast<const ui::Item*>(vec_at(&state.items, idx));
@@ -330,10 +327,11 @@ void PlatformWindow::draw(const Config &config, const ui::State &state)
             .title = title,
             .description = description,
             .title_match_positions =
-                query_opt ? fuzzy::fuzzy_match_optimal(title, query_lower)
-                          : std::vector<size_t>{},
+                !query_lower.empty()
+                    ? fuzzy::fuzzy_match_optimal(title, query_lower)
+                    : std::vector<size_t>{},
             .description_match_positions =
-                query_opt
+                !query_lower.empty()
                     ? fuzzy::fuzzy_match_optimal(description, query_lower)
                     : std::vector<size_t>{},
             .hotkey_hint = hotkey_hint});

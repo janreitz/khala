@@ -190,8 +190,7 @@ int main()
                     },
                     [&state, &config, &effects,
                      &streaming_index](const ui::ActionRequested &req) {
-                        if (std::holds_alternative<ui::FileSearch>(
-                                state.mode) &&
+                        if (state.mode == ui::AppMode::FileSearch &&
                             !state.input_buffer.empty()) {
                             state.file_search_history.push(state.input_buffer);
                         }
@@ -216,8 +215,7 @@ int main()
                     [&state, &streaming_index](ui::ContextMenuToggled) {
                         // Restore file search results when toggling back from
                         // context menu
-                        if (std::holds_alternative<ui::FileSearch>(
-                                state.mode) &&
+                        if (state.mode == ui::AppMode::FileSearch &&
                             state.cached_file_search_update.has_value()) {
 
                             const auto &cached =
@@ -254,7 +252,7 @@ int main()
                             ranker.pause();
 
                             const auto query = state.input_buffer.substr(1);
-                            state.mode = ui::CommandSearch{};
+                            state.mode = ui::AppMode::CommandSearch;
 
                             // For command search, rank all (usually small
                             // dataset)
@@ -290,7 +288,7 @@ int main()
                             ranker.pause();
 
                             const auto query = state.input_buffer.substr(1);
-                            state.mode = ui::AppSearch{};
+                            state.mode = ui::AppMode::AppSearch;
 
                             // For app search, rank all (usually small dataset)
                             const auto query_lower = to_lower(query);
@@ -346,8 +344,7 @@ int main()
                             }
                         } else {
                             // File search mode - activate streaming ranker
-                            state.mode =
-                                ui::FileSearch{};
+                            state.mode = ui::AppMode::FileSearch;
 
                             ranker.update_query(to_lower(state.input_buffer));
                             ranker.update_requested_count(
@@ -374,7 +371,7 @@ int main()
                         state.cursor_position = 0;
                         state.selected_item_index = 0;
                         state.visible_range_offset = 0;
-                        state.mode = ui::FileSearch{};
+                        state.mode = ui::AppMode::FileSearch;
 
                         // Reset history navigation state
                         state.navigating_history = false;
@@ -423,7 +420,7 @@ int main()
         // Process streaming result updates
         ResultUpdate update;
         if (result_updates.try_read(update)) {
-            if (std::holds_alternative<ui::FileSearch>(state.mode)) {
+            if (state.mode == ui::AppMode::FileSearch) {
                 // Cache the update for quick restoration from ContextMenu
                 state.cached_file_search_update = update;
 

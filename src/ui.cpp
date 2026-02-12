@@ -23,18 +23,6 @@
 namespace ui
 {
 
-std::optional<std::string> get_query(const AppMode &mode)
-{
-    return std::visit(
-        [](auto &m) -> std::optional<std::string> {
-            if constexpr (requires { m.query; }) {
-                return m.query;
-            } else {
-                return std::nullopt;
-            }
-        },
-        mode);
-};
 
 std::string format_file_count(size_t count)
 {
@@ -198,8 +186,8 @@ bool State::has_selected_item() const
 
 void State::push_error(const std::string &error)
 {
-    if (!std::holds_alternative<ErrorMode>(mode)) {
-        mode = ErrorMode{};
+    if (mode != AppMode::Error) {
+        mode = AppMode::Error;
         vec_for_each_mut(&items, ui_item_free, NULL);
         vec_clear(&items);
     }
@@ -217,12 +205,12 @@ void State::push_error(const std::string &error)
 
 bool State::has_errors() const
 {
-    return std::holds_alternative<ErrorMode>(mode);
+    return mode == AppMode::Error;
 }
 
 void State::clear_errors()
 {
-    mode = ui::FileSearch{};
+    mode = AppMode::FileSearch;
 }
 
 void ui_item_init(Item *item)
@@ -314,7 +302,7 @@ static bool ui_item_hotkey_matches(const void *item, const void *user_data)
 static bool try_open_context_menu(State &state, const Config &config)
 {
     // Only open context menu in FileSearch mode
-    if (!std::holds_alternative<FileSearch>(state.mode)) {
+    if (state.mode != AppMode::FileSearch) {
         return false;
     }
 
@@ -344,7 +332,8 @@ static bool try_open_context_menu(State &state, const Config &config)
     const std::string title = std::string(emoji) +
                               platform::path_to_string(file_path);
 
-    state.mode = ContextMenu{.title = title};
+    state.mode = AppMode::ContextMenu;
+    state.context_menu_title = title;
     state.selected_item_index = 0;
     vec_for_each_mut(&state.items, ui_item_free, NULL);
     vec_clear(&state.items);
@@ -437,7 +426,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         }
     }
 
-    if (std::holds_alternative<ui::FileSearch>(state.mode)) {
+    if (state.mode == AppMode::FileSearch) {
         // Check for context menu action hotkeys on the selected file
         // (e.g., Ctrl+Enter for Open Containing Folder while in FileSearch)
         if (state.has_selected_item()) {
@@ -485,7 +474,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         }
         // History navigation in FileSearch mode when at top of results or
         // already navigating
-        if (std::holds_alternative<FileSearch>(state.mode) &&
+        if (state.mode == AppMode::FileSearch &&
             (state.selected_item_index == 0 || state.items.count == 0 ||
              state.navigating_history)) {
             if (!state.file_search_history.empty()) {
@@ -535,7 +524,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Tab:
-        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+        if (state.mode != AppMode::ContextMenu) {
             if (try_open_context_menu(state, config)) {
                 return {ContextMenuToggled{}};
             }
@@ -543,8 +532,8 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Left:
-        if (std::holds_alternative<ContextMenu>(state.mode)) {
-            state.mode = FileSearch{};
+        if (state.mode == AppMode::ContextMenu) {
+            state.mode = AppMode::FileSearch;
             return {ContextMenuToggled{}};
         } else {
             if (state.cursor_position > 0) {
@@ -555,7 +544,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Right:
-        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+        if (state.mode != AppMode::ContextMenu) {
             if (state.cursor_position < state.input_buffer.size()) {
                 // Cursor is not at end, just move it right
                 state.cursor_position++;
@@ -570,14 +559,14 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Home:
-        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+        if (state.mode != AppMode::ContextMenu) {
             state.cursor_position = 0;
             return {CursorPositionChanged{}};
         }
         break;
 
     case KeyCode::End:
-        if (!std::holds_alternative<ContextMenu>(state.mode)) {
+        if (state.mode != AppMode::ContextMenu) {
             state.cursor_position = state.input_buffer.size();
             return {CursorPositionChanged{}};
         }
