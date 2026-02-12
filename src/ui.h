@@ -62,17 +62,13 @@ bool ui_item_copy(Item *dst, const Item *src);
 bool ui_item_collect(const void *item, void *user_data);
 
 struct FileSearch {
-    std::string query;
 };
 struct ContextMenu {
     std::string title;
-    fs::path selected_file;
 };
 struct AppSearch {
-    std::string query;
 };
 struct CommandSearch {
-    std::string query;
 };
 
 struct ErrorMode {

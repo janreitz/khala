@@ -254,7 +254,7 @@ int main()
                             ranker.pause();
 
                             const auto query = state.input_buffer.substr(1);
-                            state.mode = ui::CommandSearch{.query = query};
+                            state.mode = ui::CommandSearch{};
 
                             // For command search, rank all (usually small
                             // dataset)
@@ -290,7 +290,7 @@ int main()
                             ranker.pause();
 
                             const auto query = state.input_buffer.substr(1);
-                            state.mode = ui::AppSearch{.query = query};
+                            state.mode = ui::AppSearch{};
 
                             // For app search, rank all (usually small dataset)
                             const auto query_lower = to_lower(query);
@@ -347,7 +347,7 @@ int main()
                         } else {
                             // File search mode - activate streaming ranker
                             state.mode =
-                                ui::FileSearch{.query = state.input_buffer};
+                                ui::FileSearch{};
 
                             ranker.update_query(to_lower(state.input_buffer));
                             ranker.update_requested_count(
@@ -374,7 +374,7 @@ int main()
                         state.cursor_position = 0;
                         state.selected_item_index = 0;
                         state.visible_range_offset = 0;
-                        state.mode = ui::FileSearch{.query = ""};
+                        state.mode = ui::FileSearch{};
 
                         // Reset history navigation state
                         state.navigating_history = false;

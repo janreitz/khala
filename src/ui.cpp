@@ -222,9 +222,7 @@ bool State::has_errors() const
 
 void State::clear_errors()
 {
-    mode = ui::FileSearch{
-        .query = input_buffer,
-    };
+    mode = ui::FileSearch{};
 }
 
 void ui_item_init(Item *item)
@@ -346,7 +344,7 @@ static bool try_open_context_menu(State &state, const Config &config)
     const std::string title = std::string(emoji) +
                               platform::path_to_string(file_path);
 
-    state.mode = ContextMenu{.title = title, .selected_file = file_path};
+    state.mode = ContextMenu{.title = title};
     state.selected_item_index = 0;
     vec_for_each_mut(&state.items, ui_item_free, NULL);
     vec_clear(&state.items);
@@ -546,7 +544,7 @@ std::vector<Event> handle_keyboard_input(State &state,
 
     case KeyCode::Left:
         if (std::holds_alternative<ContextMenu>(state.mode)) {
-            state.mode = FileSearch{.query = state.input_buffer};
+            state.mode = FileSearch{};
             return {ContextMenuToggled{}};
         } else {
             if (state.cursor_position > 0) {
