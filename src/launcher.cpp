@@ -155,206 +155,190 @@ int main()
         std::vector<Effect> effects;
         for (const auto &event : events) {
             redraw = true;
-            std::visit(
-                overloaded{
-                    [&state, &effects, &window](ui::VisibilityToggleRequested) {
-                        if (!state.background_mode_active) {
-                            return;
-                        }
-                        if (window.is_visible()) {
-                            effects.push_back(HideWindow{});
-                        } else {
-                            window.show();
-                            LOG_DEBUG("Window shown via hotkey");
-                        }
-                    },
-                    [&effects](ui::ExitRequested) {
+            switch (event) {
+            case ui::Event::VisibilityToggleRequested: {
+                if (!state.background_mode_active) {
+                    break;
+                }
+                if (window.is_visible()) {
+                    effects.push_back(HideWindow{});
+                } else {
+                    window.show();
+                    LOG_DEBUG("Window shown via hotkey");
+                }
+            } break;
+            case ui::Event::ExitRequested: {
+                effects.push_back(QuitApplication{});
+            } break;
+            case ui::Event::SelectionChanged: {
+                // Adjust visible range to keep selected item visible
+                const bool adjusted =
+                    ui::adjust_visible_range(state, max_visible_items);
+                if (adjusted) {
+                    const auto required_item_count =
+                        ui::required_item_count(state, max_visible_items);
+                    ranker.update_requested_count(required_item_count);
+                }
+            } break;
+            case ui::Event::ViewportChanged: {
+                // Viewport was scrolled, update required item count
+                const auto required_item_count =
+                    ui::required_item_count(state, max_visible_items);
+                ranker.update_requested_count(required_item_count);
+            } break;
+            case ui::Event::ActionRequested: {
+                if (state.mode == ui::AppMode::FileSearch &&
+                    !state.input_buffer.empty()) {
+                    state.file_search_history.push(state.input_buffer);
+                }
+                const auto cmd_result =
+                    process_command(state.command, &streaming_index, config);
+                if (!cmd_result.has_value()) {
+                    state.push_error(cmd_result.error());
+                    break;
+                }
+                if (cmd_result->has_value()) {
+                    // Command returned an effect - process it
+                    effects.push_back(*cmd_result.value());
+                } else if (config.quit_on_action) {
+                    // External action completed - apply quit_on_action
+                    if (state.background_mode_active) {
+                        effects.push_back(HideWindow{});
+                    } else {
                         effects.push_back(QuitApplication{});
-                    },
-                    [&state, &ranker, max_visible_items](ui::SelectionChanged) {
-                        // Adjust visible range to keep selected item visible
-                        const bool adjusted =
-                            ui::adjust_visible_range(state, max_visible_items);
-                        if (adjusted) {
-                            const auto required_item_count =
-                                ui::required_item_count(state,
-                                                        max_visible_items);
-                            ranker.update_requested_count(required_item_count);
+                    }
+                }
+            } break;
+            case ui::Event::ContextMenuToggled: {
+                // Restore file search results when toggling back from
+                // context menu
+                if (state.mode == ui::AppMode::FileSearch &&
+                    state.cached_file_search_update.has_value()) {
+
+                    const auto &cached = *state.cached_file_search_update;
+
+                    // Restore items from cached RankResults
+                    vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                    vec_clear(&state.items);
+
+                    for (size_t i = 0; i < cached.results.size(); i++) {
+                        ui::Item item;
+                        if (ui::populate_file_item(streaming_index,
+                                                   cached.results[i], &item)) {
+                            vec_push(&state.items, &item);
                         }
-                    },
-                    [&state, &ranker, max_visible_items](ui::ViewportChanged) {
-                        // Viewport was scrolled, update required item count
-                        const auto required_item_count =
-                            ui::required_item_count(state, max_visible_items);
-                        ranker.update_requested_count(required_item_count);
-                    },
-                    [&state, &config, &effects,
-                     &streaming_index](const ui::ActionRequested &req) {
-                        if (state.mode == ui::AppMode::FileSearch &&
-                            !state.input_buffer.empty()) {
-                            state.file_search_history.push(state.input_buffer);
+                    }
+
+                    state.selected_item_index = 0;
+                    state.visible_range_offset = 0;
+                }
+            } break;
+            case ui::Event::CursorPositionChanged: {
+            } break;
+            case ui::Event::InputChanged: {
+                state.selected_item_index =
+                    0; // Reset selection when search changes
+                state.visible_range_offset = 0; // Reset scroll position
+
+                // Command palette mode - search utility commands
+                if (!state.input_buffer.empty() &&
+                    state.input_buffer[0] == '>') {
+                    ranker.pause();
+
+                    const auto query = state.input_buffer.substr(1);
+                    state.mode = ui::AppMode::CommandSearch;
+
+                    // For command search, rank all (usually small
+                    // dataset)
+                    const auto query_lower = to_lower(query);
+                    auto ranked = rank(
+                        &global_actions,
+                        [&query_lower](const void *elem) {
+                            const auto *item =
+                                static_cast<const ui::Item *>(elem);
+                            return fuzzy::fuzzy_score_5_simd(
+                                std::string(item->title.data) +
+                                    std::string(item->description.data),
+                                query_lower);
+                        },
+                        global_actions.count);
+
+                    vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                    vec_clear(&state.items);
+                    for (const auto &result : ranked) {
+                        const auto *action_item = static_cast<const ui::Item *>(
+                            vec_at(&global_actions, result.index));
+                        ui::Item item{};
+                        if (ui::ui_item_copy(&item, action_item)) {
+                            vec_push(&state.items, &item);
                         }
-                        const auto cmd_result =
-                            process_command(req.command, &streaming_index, config);
-                        if (!cmd_result.has_value()) {
-                            state.push_error(cmd_result.error());
-                            return;
-                        }
-                        if (cmd_result->has_value()) {
-                            // Command returned an effect - process it
-                            effects.push_back(*cmd_result.value());
-                        } else if (config.quit_on_action) {
-                            // External action completed - apply quit_on_action
-                            if (state.background_mode_active) {
-                                effects.push_back(HideWindow{});
-                            } else {
-                                effects.push_back(QuitApplication{});
-                            }
-                        }
-                    },
-                    [&state, &streaming_index](ui::ContextMenuToggled) {
-                        // Restore file search results when toggling back from
-                        // context menu
-                        if (state.mode == ui::AppMode::FileSearch &&
-                            state.cached_file_search_update.has_value()) {
+                    }
+                    // App search mode - search desktop applications
+                    // only
+                } else if (!state.input_buffer.empty() &&
+                           state.input_buffer[0] == '!') {
+                    ranker.pause();
 
-                            const auto &cached =
-                                *state.cached_file_search_update;
+                    const auto query = state.input_buffer.substr(1);
+                    state.mode = ui::AppMode::AppSearch;
 
-                            // Restore items from cached RankResults
-                            vec_for_each_mut(&state.items, ui::ui_item_free,
-                                             NULL);
-                            vec_clear(&state.items);
+                    // For app search, rank all (usually small dataset)
+                    const auto query_lower = to_lower(query);
+                    auto ranked = rank(
+                        &desktop_apps,
+                        [&query_lower](const void *elem) {
+                            const auto *app =
+                                static_cast<const ApplicationInfo *>(elem);
+                            // Concatenate Str fields for scoring
+                            std::string search_text(app->name.data,
+                                                    app->name.len);
+                            search_text.append(app->description.data,
+                                               app->description.len);
+                            return fuzzy::fuzzy_score_5_simd(search_text,
+                                                             query_lower);
+                        },
+                        desktop_apps.count);
 
-                            for (size_t i = 0; i < cached.results.size(); i++) {
-                                ui::Item item;
-                                if (ui::populate_file_item(
-                                        streaming_index, cached.results[i],
-                                        &item)) {
-                                    vec_push(&state.items, &item);
-                                }
-                            }
+                    vec_for_each_mut(&state.items, ui::ui_item_free, NULL);
+                    vec_clear(&state.items);
+                    for (const auto &result : ranked) {
+                        const auto *app = static_cast<const ApplicationInfo *>(
+                            vec_at(&desktop_apps, result.index));
+                        ui::Item item{
+                            .title = str_from_std_string(
+                                std::string(app->name.data, app->name.len)),
+                            .description = str_from_std_string(std::string(
+                                app->description.data, app->description.len)),
+                            .path_idx = ui::NO_PATH_INDEX,
+                            .command =
+                                {.type = CMD_CUSTOM,
+                                 .custom =
+                                     {
+                                         .path = {nullptr, 0, 0},
+                                         .shell_cmd =
+                                             str_from_std_string(std::string(
+                                                 app->exec_command.data,
+                                                 app->exec_command.len)),
+                                         .shell = str_from_std_string(
+                                             config.default_shell),
+                                         .stdout_to_clipboard = false,
+                                     }},
+                            .hotkey = std::nullopt,
+                        };
+                        vec_push(&state.items, &item);
+                    }
+                } else {
+                    // File search mode - activate streaming ranker
+                    state.mode = ui::AppMode::FileSearch;
 
-                            state.selected_item_index = 0;
-                            state.visible_range_offset = 0;
-                        }
-                    },
-                    [](ui::CursorPositionChanged) {},
-                    [&state, &ranker, &global_actions, &desktop_apps, &config,
-                     max_visible_items](ui::InputChanged) {
-                        state.selected_item_index =
-                            0; // Reset selection when search changes
-                        state.visible_range_offset = 0; // Reset scroll position
-
-                        // Command palette mode - search utility commands
-                        if (!state.input_buffer.empty() &&
-                            state.input_buffer[0] == '>') {
-                            ranker.pause();
-
-                            const auto query = state.input_buffer.substr(1);
-                            state.mode = ui::AppMode::CommandSearch;
-
-                            // For command search, rank all (usually small
-                            // dataset)
-                            const auto query_lower = to_lower(query);
-                            auto ranked = rank(
-                                &global_actions,
-                                [&query_lower](const void *elem) {
-                                    const auto *item =
-                                        static_cast<const ui::Item *>(elem);
-                                    return fuzzy::fuzzy_score_5_simd(
-                                        std::string(item->title.data) +
-                                            std::string(item->description.data),
-                                        query_lower);
-                                },
-                                global_actions.count);
-
-                            vec_for_each_mut(&state.items, ui::ui_item_free,
-                                             NULL);
-                            vec_clear(&state.items);
-                            for (const auto &result : ranked) {
-                                const auto *action_item =
-                                    static_cast<const ui::Item *>(
-                                        vec_at(&global_actions, result.index));
-                                ui::Item item{};
-                                if (ui::ui_item_copy(&item, action_item)) {
-                                    vec_push(&state.items, &item);
-                                }
-                            }
-                            // App search mode - search desktop applications
-                            // only
-                        } else if (!state.input_buffer.empty() &&
-                                   state.input_buffer[0] == '!') {
-                            ranker.pause();
-
-                            const auto query = state.input_buffer.substr(1);
-                            state.mode = ui::AppMode::AppSearch;
-
-                            // For app search, rank all (usually small dataset)
-                            const auto query_lower = to_lower(query);
-                            auto ranked = rank(
-                                &desktop_apps,
-                                [&query_lower](const void *elem) {
-                                    const auto *app =
-                                        static_cast<const ApplicationInfo *>(
-                                            elem);
-                                    // Concatenate Str fields for scoring
-                                    std::string search_text(app->name.data,
-                                                            app->name.len);
-                                    search_text.append(app->description.data,
-                                                       app->description.len);
-                                    return fuzzy::fuzzy_score_5_simd(
-                                        search_text, query_lower);
-                                },
-                                desktop_apps.count);
-
-                            vec_for_each_mut(&state.items, ui::ui_item_free,
-                                             NULL);
-                            vec_clear(&state.items);
-                            for (const auto &result : ranked) {
-                                const auto *app =
-                                    static_cast<const ApplicationInfo *>(
-                                        vec_at(&desktop_apps, result.index));
-                                ui::Item item{
-                                    .title = str_from_std_string(std::string(
-                                        app->name.data, app->name.len)),
-                                    .description = str_from_std_string(
-                                        std::string(app->description.data,
-                                                    app->description.len)),
-                                    .path_idx = ui::NO_PATH_INDEX,
-                                    .command =
-                                        {.type = CMD_CUSTOM,
-                                         .custom =
-                                             {
-                                                 .path = {nullptr, 0, 0},
-                                                 .shell_cmd =
-                                                     str_from_std_string(
-                                                         std::string(
-                                                             app->exec_command
-                                                                 .data,
-                                                             app->exec_command
-                                                                 .len)),
-                                                 .shell = str_from_std_string(
-                                                     config.default_shell),
-                                                 .stdout_to_clipboard = false,
-                                             }},
-                                    .hotkey = std::nullopt,
-                                };
-                                vec_push(&state.items, &item);
-                            }
-                        } else {
-                            // File search mode - activate streaming ranker
-                            state.mode = ui::AppMode::FileSearch;
-
-                            ranker.update_query(to_lower(state.input_buffer));
-                            ranker.update_requested_count(
-                                ui::required_item_count(state,
-                                                        max_visible_items));
-                            ranker.resume();
-                        }
-                    }},
-                event);
-        }
+                    ranker.update_query(to_lower(state.input_buffer));
+                    ranker.update_requested_count(
+                        ui::required_item_count(state, max_visible_items));
+                    ranker.resume();
+                }
+            } break;
+            } // switch
+        } // for events
 
         // Process effects
         bool should_quit = false;
@@ -464,7 +448,7 @@ int main()
             }
             redraw = false;
         }
-    }
+    } // main loop
 
     // Cleanup
     if (state.background_mode_active) {
@@ -481,5 +465,6 @@ int main()
     vec_free(&global_actions);
     vec_for_each_mut(&config.custom_action_defs, custom_action_def_free, NULL);
     vec_free(&config.custom_action_defs);
+    cmd_free(&state.command);
     return 0;
 }

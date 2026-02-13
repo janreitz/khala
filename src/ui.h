@@ -74,6 +74,10 @@ struct State {
     size_t cursor_position = 0;
     AppMode mode = AppMode::FileSearch;
     std::string context_menu_title;
+    Command command {
+        .type = CMD_NOOP,
+        .path_idx = NO_PATH_INDEX,
+    };
 
     // Results
     Vec items;
@@ -109,29 +113,16 @@ struct State {
     void clear_errors();
 };
 
-struct InputChanged {
+enum class Event {
+    InputChanged,
+    SelectionChanged,
+    CursorPositionChanged,
+    ActionRequested,
+    ContextMenuToggled,
+    ViewportChanged,
+    ExitRequested,
+    VisibilityToggleRequested,
 };
-struct SelectionChanged {
-};
-struct CursorPositionChanged {
-};
-struct ActionRequested {
-    Command command;
-    // size_t stream_index = NO_STREAM_INDEX;
-};
-struct ContextMenuToggled {
-};
-struct ViewportChanged {
-};
-struct ExitRequested {
-};
-struct VisibilityToggleRequested {
-};
-
-using Event =
-    std::variant<InputChanged, SelectionChanged, CursorPositionChanged,
-                 ActionRequested, ContextMenuToggled, ViewportChanged,
-                 ExitRequested, VisibilityToggleRequested>;
 
 std::optional<size_t> window_pos_to_item_index(const WindowCoord &position,
                                                const State &state,

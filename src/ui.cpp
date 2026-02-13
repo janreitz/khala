@@ -387,7 +387,7 @@ bool find_matching_hotkey(const void *item, void *user_data)
     auto item_ = static_cast<const Item *>(item);
     auto *ctx = static_cast<HotkeyMatchContext *>(user_data);
     if (item_->hotkey && hotkey_matches(*(ctx->kbd_event), *(item_->hotkey))) {
-        *ctx->matched_command = item_->command;
+        cmd_copy(ctx->matched_command, &item_->command);
         ctx->found = true;
         return false; // stop iteration
     }
@@ -401,13 +401,13 @@ std::vector<Event> handle_keyboard_input(State &state,
     // If in ErrorMode, any input dismisses the errors and returns to FileSearch
     if (state.has_errors()) {
         state.clear_errors();
-        return {InputChanged{}}; // For redraw
+        return {Event::InputChanged}; // For redraw
     }
 
     // Check for quit hotkey first
     if (kbd_event.key == config.quit_hotkey.key &&
         kbd_event.modifiers == config.quit_hotkey.modifiers) {
-        return {ExitRequested{}};
+        return {Event::ExitRequested};
     }
 
     // Check for Ctrl+1-9 quick selection (selects visible item by position)
@@ -421,8 +421,9 @@ std::vector<Event> handle_keyboard_input(State &state,
             state.selected_item_index = absolute_index;
             const auto *item =
                 static_cast<const Item *>(vec_at(&state.items, absolute_index));
-            return {SelectionChanged{},
-                    ActionRequested{.command = item->command}};
+                cmd_copy(&state.command, &item->command);
+            return {Event::SelectionChanged,
+                    Event::ActionRequested};
         }
     }
 
@@ -444,8 +445,11 @@ std::vector<Event> handle_keyboard_input(State &state,
                 for_each_file_action(path, selected_item->path_idx, config,
                                      find_matching_hotkey, &ctx);
                 if (ctx.found) {
-                    return {ActionRequested{.command = matched}};
+                    cmd_free(&state.command);
+                    state.command = matched; // Transfer ownership
+                    return { Event::ActionRequested };
                 }
+                cmd_free(&matched);
             }
         }
     } else {
@@ -453,16 +457,17 @@ std::vector<Event> handle_keyboard_input(State &state,
         const auto *matching_item = static_cast<const Item *>(
             vec_find_if(&state.items, ui_item_hotkey_matches, &kbd_event));
         if (matching_item != NULL) {
-            return {ActionRequested{.command = matching_item->command}};
+            cmd_copy(&state.command, &matching_item->command);
+            return {Event::ActionRequested};
         }
     }
 
     switch (kbd_event.key) {
     case KeyCode::Escape:
         if (state.background_mode_active) {
-            return {VisibilityToggleRequested{}};
+            return {Event::VisibilityToggleRequested};
         } else {
-            return {ExitRequested{}};
+            return {Event::ExitRequested};
         }
         break;
 
@@ -470,7 +475,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         // Normal item navigation first - move up through results
         if (!state.items.count == 0 && state.selected_item_index > 0) {
             state.selected_item_index--;
-            return {SelectionChanged{}};
+            return {Event::SelectionChanged};
         }
         // History navigation in FileSearch mode when at top of results or
         // already navigating
@@ -489,7 +494,7 @@ std::vector<Event> handle_keyboard_input(State &state,
                     const auto sv = state.file_search_history.at(state.history_position);
                     state.input_buffer = std::string(sv.data, sv.len);
                     state.cursor_position = state.input_buffer.size();
-                    return {InputChanged{}};
+                    return {Event::InputChanged};
                 }
             }
         }
@@ -505,12 +510,12 @@ std::vector<Event> handle_keyboard_input(State &state,
                 state.cursor_position = state.input_buffer.size();
                 state.navigating_history = false;
                 state.saved_input_buffer.clear();
-                return {InputChanged{}};
+                return {Event::InputChanged};
             }
             const auto sv = state.file_search_history.at(state.history_position);
             state.input_buffer = std::string(sv.data, sv.len);
             state.cursor_position = state.input_buffer.size();
-            return {InputChanged{}};
+            return {Event::InputChanged};
         }
         // Normal item navigation
         if (!state.items.count == 0) {
@@ -519,14 +524,14 @@ std::vector<Event> handle_keyboard_input(State &state,
             } else {
                 state.selected_item_index = 0;
             }
-            return {SelectionChanged{}};
+            return {Event::SelectionChanged};
         }
         break;
 
     case KeyCode::Tab:
         if (state.mode != AppMode::ContextMenu) {
             if (try_open_context_menu(state, config)) {
-                return {ContextMenuToggled{}};
+                return {Event::ContextMenuToggled};
             }
         }
         break;
@@ -534,11 +539,11 @@ std::vector<Event> handle_keyboard_input(State &state,
     case KeyCode::Left:
         if (state.mode == AppMode::ContextMenu) {
             state.mode = AppMode::FileSearch;
-            return {ContextMenuToggled{}};
+            return {Event::ContextMenuToggled};
         } else {
             if (state.cursor_position > 0) {
                 state.cursor_position--;
-                return {CursorPositionChanged{}};
+                return {Event::CursorPositionChanged};
             }
         }
         break;
@@ -548,11 +553,11 @@ std::vector<Event> handle_keyboard_input(State &state,
             if (state.cursor_position < state.input_buffer.size()) {
                 // Cursor is not at end, just move it right
                 state.cursor_position++;
-                return {CursorPositionChanged{}};
+                return {Event::CursorPositionChanged};
             } else {
                 // Cursor is at end, try to open context menu
                 if (try_open_context_menu(state, config)) {
-                    return {ContextMenuToggled{}};
+                    return {Event::ContextMenuToggled};
                 }
             }
         }
@@ -561,14 +566,14 @@ std::vector<Event> handle_keyboard_input(State &state,
     case KeyCode::Home:
         if (state.mode != AppMode::ContextMenu) {
             state.cursor_position = 0;
-            return {CursorPositionChanged{}};
+            return {Event::CursorPositionChanged};
         }
         break;
 
     case KeyCode::End:
         if (state.mode != AppMode::ContextMenu) {
             state.cursor_position = state.input_buffer.size();
-            return {CursorPositionChanged{}};
+            return {Event::CursorPositionChanged};
         }
         break;
 
@@ -576,7 +581,8 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (state.has_selected_item()) {
             const auto *item = static_cast<const Item *>(
                 vec_at(&state.items, state.selected_item_index));
-            return {ActionRequested{.command = item->command}};
+            cmd_copy(&state.command, &item->command);
+            return {Event::ActionRequested};
         }
         break;
 
@@ -589,7 +595,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.input_buffer.empty() && state.cursor_position > 0) {
             state.input_buffer.erase(state.cursor_position - 1, 1);
             state.cursor_position--;
-            return {InputChanged{}};
+            return {Event::InputChanged};
         }
         break;
 
@@ -597,7 +603,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         if (!state.input_buffer.empty() &&
             state.cursor_position < state.input_buffer.size()) {
             state.input_buffer.erase(state.cursor_position, 1);
-            return {InputChanged{}};
+            return {Event::InputChanged};
         }
         break;
 
@@ -611,7 +617,7 @@ std::vector<Event> handle_keyboard_input(State &state,
             state.input_buffer.insert(state.cursor_position, 1,
                                       *kbd_event.character);
             state.cursor_position++;
-            return {InputChanged{}};
+            return {Event::InputChanged};
         }
         break;
     default:
@@ -642,7 +648,7 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                 // item
                 if (state.selected_item_index != *item_index) {
                     state.selected_item_index = *item_index;
-                    events.push_back(SelectionChanged{});
+                    events.push_back(Event::SelectionChanged);
                 }
             },
             [&](const MouseButtonEvent &ev) {
@@ -661,19 +667,19 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                 // Update selection if clicking on a different item
                 if (state.selected_item_index != *item_index) {
                     state.selected_item_index = *item_index;
-                    events.push_back(SelectionChanged{});
+                    events.push_back(Event::SelectionChanged);
                 }
 
                 if (ev.button == MouseButtonEvent::Button::Left) {
                     // Left-click: execute the action
                     const auto *clicked_item = static_cast<const Item *>(
                         vec_at(&state.items, *item_index));
-                    events.push_back(
-                        ActionRequested{.command = clicked_item->command});
+                    cmd_copy(&state.command, &clicked_item->command);
+                    events.push_back(Event::ActionRequested);
                 } else if (ev.button == MouseButtonEvent::Button::Right) {
                     // Right-click: open context menu (only in FileSearch mode)
                     if (try_open_context_menu(state, config)) {
-                        events.push_back(ContextMenuToggled{});
+                        events.push_back(Event::ContextMenuToggled);
                     }
                 }
             },
@@ -691,7 +697,7 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                 // item
                 if (state.selected_item_index != *item_index) {
                     state.selected_item_index = *item_index;
-                    events.push_back(SelectionChanged{});
+                    events.push_back(Event::SelectionChanged);
                 }
             },
             [&](const CursorLeaveEvent &) {
@@ -712,7 +718,7 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                     // Scroll up - move viewport up
                     if (state.visible_range_offset > 0) {
                         state.visible_range_offset--;
-                        events.push_back(ViewportChanged{});
+                        events.push_back(Event::ViewportChanged);
 
                         // If selection is now below visible range, move it
                         if (state.selected_item_index >=
@@ -721,27 +727,27 @@ std::vector<Event> handle_user_input(State &state, const UserInputEvent &input,
                             state.selected_item_index =
                                 state.visible_range_offset +
                                 state.max_visible_items - 1;
-                            events.push_back(SelectionChanged{});
+                            events.push_back(Event::SelectionChanged);
                         }
                     }
                 } else {
                     // Scroll down - move viewport down
                     if (state.visible_range_offset < max_offset) {
                         state.visible_range_offset++;
-                        events.push_back(ViewportChanged{});
+                        events.push_back(Event::ViewportChanged);
 
                         // If selection is now above visible range, move it
                         if (state.selected_item_index <
                             state.visible_range_offset) {
                             state.selected_item_index =
                                 state.visible_range_offset;
-                            events.push_back(SelectionChanged{});
+                            events.push_back(Event::SelectionChanged);
                         }
                     }
                 }
             },
             [&](const HotkeyEvent &) {
-                events.push_back(VisibilityToggleRequested{});
+                events.push_back(Event::VisibilityToggleRequested);
             }},
         input);
 
