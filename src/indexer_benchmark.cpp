@@ -4,16 +4,12 @@
 #include "parallel.h"
 #include "ranker.h"
 
-#include <algorithm>
-#include <bits/chrono.h>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <exception>
 #include <functional>
 #include <map>
-#include <numeric>
 #include <string>
 #include <string_view>
 #include <thread>

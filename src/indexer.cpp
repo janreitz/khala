@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <bits/fs_dir.h>
 #include <cstdio>
 #include <deque>
 #include <filesystem>
