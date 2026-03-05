@@ -16,6 +16,8 @@ void StreamingIndex::add_chunk(PackedStrings &&chunk)
         total_files_ += shared_chunk->size();
         chunks_.push_back(std::move(shared_chunk));
     }
+    // This signifies a resource becoming available
+    // Only one thread waiting for chunks needs to be notified
     chunk_available_.notify_one();
 }
 
@@ -25,6 +27,8 @@ void StreamingIndex::mark_scan_complete()
         const std::lock_guard lock(mutex_);
         scan_complete_ = true;
     }
+    // This signifies a state change
+    // All threads waiting for chunks need to be notified
     chunk_available_.notify_all();
 }
 
@@ -55,11 +59,11 @@ StreamingIndex::get_chunk(size_t index) const
     return chunks_[index];
 }
 
-void StreamingIndex::wait_for_chunks(size_t min_chunks) const
+void StreamingIndex::wait_for_new_chunks(size_t known_chunks) const
 {
     std::unique_lock lock(mutex_);
-    chunk_available_.wait(lock, [this, min_chunks] {
-        return chunks_.size() >= min_chunks || scan_complete_;
+    chunk_available_.wait(lock, [this, known_chunks] {
+        return chunks_.size() > known_chunks || scan_complete_;
     });
 }
 

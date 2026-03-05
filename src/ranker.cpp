@@ -114,10 +114,10 @@ void StreamingRanker::run()
         }
 
         // Sleep and loop back to check for query changes or new chunks
-        const auto available = streaming_index_.get_available_chunks();
-        if (processed_chunks_ == available &&
+        const auto available_chunks = streaming_index_.get_available_chunks();
+        if (processed_chunks_ == available_chunks &&
             !streaming_index_.is_scan_complete()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            streaming_index_.wait_for_new_chunks(processed_chunks_);
             continue;
         }
 

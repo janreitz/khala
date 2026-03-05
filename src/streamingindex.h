@@ -31,6 +31,6 @@ class StreamingIndex
     [[nodiscard]] size_t get_total_files() const;
     [[nodiscard]] std::shared_ptr<const PackedStrings>
     get_chunk(size_t chunk_index) const;
-    void wait_for_chunks(size_t min_chunks) const;
+    void wait_for_new_chunks(size_t min_chunks) const;
     void clear();
 };
