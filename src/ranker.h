@@ -109,8 +109,9 @@ class StreamingRanker
     // Public API for controlling the ranker
     void pause();
     void resume();
-    void update_query(const std::string &query);
+    void update_query(std::string query);
     void update_requested_count(size_t count);
+    void update_request(std::string query, size_t count);
 
   private:
     // References to shared state

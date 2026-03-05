@@ -112,9 +112,7 @@ int main()
 
     // Launch progressive ranking worker
     StreamingRanker ranker(streaming_index, result_updates);
-    ranker.update_query("");
-    ranker.update_requested_count(
-        ui::required_item_count(state, max_visible_items));
+    ranker.update_request("", ui::required_item_count(state, max_visible_items));
 
     // Current file search state
     std::vector<FileResult> current_file_results;

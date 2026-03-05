@@ -45,10 +45,10 @@ void StreamingRanker::resume()
     state_cv_.notify_one();
 }
 
-void StreamingRanker::update_query(const std::string &query)
+void StreamingRanker::update_query(std::string query)
 {
     const std::lock_guard lock(state_mutex_);
-    ranker_request_.query = query;
+    ranker_request_.query = std::move(query);
     query_changed_.store(true, std::memory_order_release);
     state_cv_.notify_one();
 }
@@ -56,6 +56,15 @@ void StreamingRanker::update_query(const std::string &query)
 void StreamingRanker::update_requested_count(size_t count)
 {
     const std::lock_guard lock(state_mutex_);
+    ranker_request_.requested_count = count;
+    query_changed_.store(true, std::memory_order_release);
+    state_cv_.notify_one();
+}
+
+void StreamingRanker::update_request(std::string query, size_t count)
+{
+    const std::lock_guard lock(state_mutex_);
+    ranker_request_.query = std::move(query);
     ranker_request_.requested_count = count;
     query_changed_.store(true, std::memory_order_release);
     state_cv_.notify_one();
