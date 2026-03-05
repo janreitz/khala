@@ -61,7 +61,7 @@ int main()
         StreamingIndex stream_index;
         indexer::scan_filesystem_streaming(config.index_roots, stream_index,
                                            config.ignore_dirs,
-                                           config.ignore_dir_names, 1000);
+                                           config.ignore_dir_names);
         while (!stream_index.is_scan_complete()) {
             std::this_thread::sleep_for(10ms);
         }

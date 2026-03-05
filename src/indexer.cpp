@@ -99,10 +99,10 @@ scan_filesystem_parallel(const std::set<fs::path> &root_paths,
 void scan_subtree_streaming(const fs::path &root,
                             const std::set<fs::path> &ignore_dirs,
                             const std::set<std::string> &ignore_dir_names,
-                            StreamingIndex &index, size_t chunk_size)
+                            StreamingIndex &index)
 {
     PackedStrings current_chunk;
-    current_chunk.reserve(chunk_size, platform::MAX_PATH_LENGTH);
+    current_chunk.reserve(CHUNK_SIZE, platform::MAX_PATH_LENGTH);
     // Prefix for SIMD operations that scan backwards
     current_chunk.prefix(16, 'F');
 
@@ -124,7 +124,7 @@ void scan_subtree_streaming(const fs::path &root,
             if (it->is_regular_file() || it->is_directory()) {
                 current_chunk.push(platform::path_to_string(it->path()));
 
-                if (current_chunk.size() >= chunk_size) {
+                if (current_chunk.size() >= CHUNK_SIZE) {
                     index.add_chunk(std::move(current_chunk));
                     current_chunk = PackedStrings{};
                     current_chunk.prefix(16, 'F');
@@ -146,8 +146,7 @@ void scan_subtree_streaming(const fs::path &root,
 void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
                                StreamingIndex &index,
                                const std::set<fs::path> &ignore_dirs,
-                               const std::set<std::string> &ignore_dir_names,
-                               size_t chunk_size)
+                               const std::set<std::string> &ignore_dir_names)
 {
     const defer mark_complete(
         [&index]() noexcept { index.mark_scan_complete(); });
@@ -225,7 +224,7 @@ void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
                     break;
 
                 scan_subtree_streaming(work_units[idx], ignore_dirs,
-                                       ignore_dir_names, index, chunk_size);
+                                       ignore_dir_names, index);
             }
         });
     }

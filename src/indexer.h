@@ -2,7 +2,6 @@
 
 #include "packed_strings.h"
 #include "streamingindex.h"
-#include "actions.h"
 
 #include <filesystem>
 #include <vector>
@@ -13,6 +12,8 @@ namespace fs = std::filesystem;
 
 namespace indexer
 {
+constexpr size_t CHUNK_SIZE = 1024;
+
 PackedStrings scan_filesystem_parallel(const std::set<std::filesystem::path> &root_paths,
                                       const std::set<fs::path> &ignore_dirs = {},
                                       const std::set<std::string> &ignore_dir_names = {});
@@ -20,6 +21,5 @@ PackedStrings scan_filesystem_parallel(const std::set<std::filesystem::path> &ro
 void scan_filesystem_streaming(const std::set<std::filesystem::path> &root_paths,
                                StreamingIndex &index,
                                const std::set<fs::path> &ignore_dirs = {},
-                               const std::set<std::string> &ignore_dir_names = {},
-                               size_t chunk_size = 1000);
+                               const std::set<std::string> &ignore_dir_names = {});
 } // namespace indexer

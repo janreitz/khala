@@ -27,8 +27,6 @@
 
 namespace fs = std::filesystem;
 
-// Constants for event loop timing and indexing
-constexpr size_t INDEXER_BATCH_SIZE = 1024;
 constexpr int EVENT_LOOP_SLEEP_MS = 16; // ~60 FPS
 
 int main()
@@ -107,7 +105,7 @@ int main()
     auto index_future = std::async(std::launch::async, [&]() {
         indexer::scan_filesystem_streaming(
             config.index_roots, streaming_index, config.ignore_dirs,
-            config.ignore_dir_names, INDEXER_BATCH_SIZE);
+            config.ignore_dir_names);
         LOG_INFO("Scan complete - %zu total files",
                  streaming_index.get_total_files());
     });
@@ -352,8 +350,7 @@ int main()
                         index_future = std::async(std::launch::async, [&]() {
                             indexer::scan_filesystem_streaming(
                                 config.index_roots, streaming_index,
-                                config.ignore_dirs, config.ignore_dir_names,
-                                INDEXER_BATCH_SIZE);
+                                config.ignore_dirs, config.ignore_dir_names);
                             LOG_INFO("Scan complete - %zu total files",
                                      streaming_index.get_total_files());
                         });

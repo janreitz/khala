@@ -172,7 +172,6 @@ void StreamingRanker::run()
 void StreamingRanker::reset_state()
 {
     processed_chunks_ = 0;
-    global_offset_ = 0;
     total_result_count_ = 0;
     accumulated_results_.clear();
     top_results_.clear();
@@ -191,59 +190,35 @@ void StreamingRanker::process_chunks()
         return;
     }
 
-    // Collect chunk information for parallel processing
-    struct ChunkInfo {
-        size_t chunk_idx;
-        size_t global_offset; // Offset into the complete file list
-        size_t result_offset; // Offset into the results array for this batch
-        size_t size;
-    };
-
-    std::vector<ChunkInfo> chunks_to_process;
-    size_t result_offset = 0;
-
-    for (size_t i = processed_chunks_; i < available_chunks; ++i) {
-        const auto chunk = streaming_index_.get_chunk(i);
-        assert(chunk);
-        const size_t chunk_size = chunk->size();
-
-        chunks_to_process.push_back(ChunkInfo{.chunk_idx = i,
-                                              .global_offset = global_offset_,
-                                              .result_offset = result_offset,
-                                              .size = chunk_size});
-
-        global_offset_ += chunk_size;
-        result_offset += chunk_size;
-    }
+    const size_t chunks_to_process = available_chunks - processed_chunks_;
+    size_t processed_string_count = 0;
 
     // Skip scoring if query is empty, but still update metadata
     if (!current_request_.query.empty()) {
-        // Total strings is the final result_offset value (accumulated size)
-        const size_t total_strings = result_offset;
-
         const auto start_time = std::chrono::steady_clock::now();
-
         // Each thread gets its own results vector
-        std::vector<std::vector<RankResult>> thread_local_results(
-            chunks_to_process.size());
+        std::vector<std::vector<StreamingRankResult>> thread_local_results(chunks_to_process);
 
         parallel::parallel_for(
-            0, chunks_to_process.size(), [&](size_t work_idx) {
-                const auto &info = chunks_to_process[work_idx];
-                auto chunk = streaming_index_.get_chunk(info.chunk_idx);
+            processed_chunks_, available_chunks, [&](size_t chunk_idx) {
+                auto chunk = streaming_index_.get_chunk(chunk_idx);
                 assert(chunk);
-
-                auto &local_results = thread_local_results[work_idx];
-                local_results.reserve(info.size /
+                const auto chunk_size = chunk->size();
+                auto &local_results =
+                    thread_local_results[chunk_idx - processed_chunks_];
+                local_results.reserve(chunk_size /
                                       4); // estimate ~25% match rate
 
-                for (size_t i = 0; i < info.size; ++i) {
+                for (uint16_t i = 0; i < chunk_size; ++i) {
                     const auto score = fuzzy::fuzzy_score_5_simd(
                         chunk->at(i), current_request_.query);
 
                     if (score > 0.0F) {
-                        local_results.push_back(
-                            RankResult{info.global_offset + i, score});
+                        local_results.push_back(StreamingRankResult{
+                            .chunk_idx = static_cast<uint16_t>(chunk_idx),
+                            .local_idx = i,
+                            .score = score,
+                        });
                     }
                 }
             });
@@ -252,36 +227,38 @@ void StreamingRanker::process_chunks()
         const size_t effective_cap =
             std::max(RANKING_HEAP_CAPACITY, current_request_.requested_count);
         for (auto &thread_local_result : thread_local_results) {
-            total_result_count_ += thread_local_result.size();
+            processed_string_count += thread_local_result.size();
             for (auto result : thread_local_result) {
-                constexpr auto MinHeapCmp = std::greater<RankResult>{};
+                constexpr auto MinHeapCmp = std::greater<StreamingRankResult>{};
                 if (top_results_.size() < effective_cap) {
                     top_results_.push_back(result);
-                    std::push_heap(top_results_.begin(),
-                                   top_results_.end(), MinHeapCmp);
+                    std::push_heap(top_results_.begin(), top_results_.end(),
+                                   MinHeapCmp);
                 } else if (result.score > top_results_.front().score) {
-                    std::pop_heap(top_results_.begin(),
-                                  top_results_.end(), MinHeapCmp);
+                    std::pop_heap(top_results_.begin(), top_results_.end(),
+                                  MinHeapCmp);
                     top_results_.back() =
                         result; // Overwrite lowest scoring RankResult
-                    std::push_heap(top_results_.begin(),
-                                   top_results_.end(), MinHeapCmp);
+                    std::push_heap(top_results_.begin(), top_results_.end(),
+                                   MinHeapCmp);
                 }
             }
         }
 
+        total_result_count_ += processed_string_count;
         const auto end_time = std::chrono::steady_clock::now();
         const auto duration =
             std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
-                                                                  start_time);
+               
+         start_time);
 
         LOG_DEBUG("Scored %zu strings in %.2ldms (query: '%s', chunks: %zu)",
-                  total_strings, duration.count(),
-                  current_request_.query.c_str(), chunks_to_process.size());
+                  processed_string_count, duration.count(),
+                  current_request_.query.c_str(), chunks_to_process);
     }
 
     // Update processed chunks count
-    processed_chunks_ += chunks_to_process.size();
+    processed_chunks_ = available_chunks;
 
     // Report results once after processing all available chunks
     report_results();
@@ -307,23 +284,13 @@ void StreamingRanker::report_results()
 
     for (const auto rank_result : copy_to_sort) {
         // Find the file path from chunk and global index
-        size_t global_index = rank_result.index;
-        for (size_t chunk_idx = 0;
-             chunk_idx < streaming_index_.get_available_chunks(); ++chunk_idx) {
-            auto chunk = streaming_index_.get_chunk(chunk_idx);
-            if (!chunk)
-                break;
-
-            if (global_index < chunk->size()) {
-                accumulated_results_.push_back(
-                    FileResult{.path = std::string(chunk->at(global_index)),
-                               .score = rank_result.score});
-                break;
-            }
-            global_index -= chunk->size();
-        }
+        auto chunk = streaming_index_.get_chunk(rank_result.chunk_idx);
+        assert(chunk);
+        assert(rank_result.local_idx < chunk->size());
+        accumulated_results_.push_back(
+            FileResult{.path = std::string(chunk->at(rank_result.local_idx)),
+                       .score = rank_result.score});
     }
-
     send_update();
 }
 
