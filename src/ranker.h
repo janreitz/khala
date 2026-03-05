@@ -72,7 +72,7 @@ struct FileResult {
 // Ranker request state
 struct RankerRequest {
     std::string query;
-    size_t requested_count;
+    size_t requested_count = 0;
 };
 
 // Update message from ranker to UI
