@@ -39,8 +39,11 @@ void PackedStrings::merge(PackedStrings &&other)
 
 std::string_view PackedStrings::at(size_t idx) const
 {
-    const char *ptr = data_.data() + indices_[idx];
-    return std::string_view(ptr);
+    const size_t start = indices_[idx];
+    const size_t end = (idx + 1 < indices_.size())
+        ? indices_[idx + 1] - 1   // minus null terminator
+        : data_.size() - 1;
+    return std::string_view(data_.data() + start, end - start);
 }
 
 void PackedStrings::shrink_to_fit()
