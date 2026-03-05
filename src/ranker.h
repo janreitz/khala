@@ -69,12 +69,6 @@ struct FileResult {
     }
 };
 
-// Merge two sorted FileResult vectors, keeping top max_results
-std::vector<FileResult>
-merge_top_results(const std::vector<FileResult> &existing,
-                  const std::vector<FileResult> &new_results,
-                  size_t max_results);
-
 // Ranker request state
 struct RankerRequest {
     std::string query;
