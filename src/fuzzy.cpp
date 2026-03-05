@@ -561,11 +561,12 @@ float fuzzy_score_5_simd(std::string_view path, std::string_view query_lower)
 
     const char *path_data = path.data();
     const size_t path_len = path.size();
-    std::array<char, MAX_PATH_LENGTH> path_data_lower;
-    simd_to_lower(path.data(), path_len, path_data_lower.data());
 
     if (path_len < query_len)
         return 0.0F;
+
+    std::array<char, MAX_PATH_LENGTH> path_data_lower;
+    simd_to_lower(path.data(), path_len, path_data_lower.data());
 
     // Find filename start
     const auto filename_start =
