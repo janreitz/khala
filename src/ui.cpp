@@ -368,40 +368,37 @@ std::vector<Event> handle_keyboard_input(State &state,
         // History navigation in FileSearch mode when at top of results or
         // already navigating
         if (std::holds_alternative<FileSearch>(state.mode) &&
-            (state.selected_item_index == 0 || state.items.empty() ||
-             state.navigating_history)) {
-            if (!state.file_search_history.empty()) {
-                if (!state.navigating_history) {
-                    // First time entering history - save current input
-                    state.saved_input_buffer = state.input_buffer;
-                    state.history_position = state.file_search_history.size();
-                    state.navigating_history = true;
-                }
-                if (state.history_position > 0) {
-                    state.history_position--;
-                    state.input_buffer = std::string(
-                        state.file_search_history.at(state.history_position));
-                    state.cursor_position = state.input_buffer.size();
-                    return {InputChanged{}};
-                }
+            !state.history_queries.empty()) {
+            if (!state.history_navigation_state.has_value()) {
+                // First time entering history - save current input
+                state.history_navigation_state = State::HistoryNavigationState{
+                    .history_idx = state.history_queries.size(),
+                    .saved_input_buffer = state.input_buffer,
+                };
+            }
+            if (state.history_navigation_state->history_idx > 0) {
+                state.history_navigation_state->history_idx--;
+                state.input_buffer = std::string(state.history_queries.at(
+                    state.history_navigation_state->history_idx));
+                state.cursor_position = state.input_buffer.size();
+                return {InputChanged{}};
             }
         }
         break;
 
     case KeyCode::Down:
         // History navigation - move forward or exit
-        if (state.navigating_history) {
-            state.history_position++;
-            if (state.history_position >= state.file_search_history.size()) {
+        if (auto &navigation_state = state.history_navigation_state) {
+            navigation_state->history_idx++;
+            if (navigation_state->history_idx >= state.history_queries.size()) {
                 // Exit history, restore saved input
-                state.input_buffer = state.saved_input_buffer;
+                state.input_buffer = navigation_state->saved_input_buffer;
                 state.cursor_position = state.input_buffer.size();
-                state.navigating_history = false;
-                state.saved_input_buffer.clear();
+                navigation_state.reset();
                 return {InputChanged{}};
             }
             state.input_buffer = std::string(
-                state.file_search_history.at(state.history_position));
+                state.history_queries.at(navigation_state->history_idx));
             state.cursor_position = state.input_buffer.size();
             return {InputChanged{}};
         }
@@ -472,11 +469,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::BackSpace:
-        if (state.navigating_history) {
-            state.navigating_history = false;
-            state.saved_input_buffer.clear();
-            state.history_position = state.file_search_history.size();
-        }
+        state.history_navigation_state.reset();
         if (!state.input_buffer.empty() && state.cursor_position > 0) {
             state.input_buffer.erase(state.cursor_position - 1, 1);
             state.cursor_position--;
@@ -493,11 +486,7 @@ std::vector<Event> handle_keyboard_input(State &state,
         break;
 
     case KeyCode::Character:
-        if (state.navigating_history) {
-            state.navigating_history = false;
-            state.saved_input_buffer.clear();
-            state.history_position = state.file_search_history.size();
-        }
+        state.history_navigation_state.reset();
         if (kbd_event.character >= 32 && kbd_event.character < 127) {
             state.input_buffer.insert(state.cursor_position, 1,
                                       *kbd_event.character);

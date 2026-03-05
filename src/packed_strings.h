@@ -18,6 +18,7 @@ struct PackedStrings {
     void push(const std::string &str);
     void merge(PackedStrings &&other);
     void shrink_to_fit();
+    void clear();
 
     void prefix(size_t count, char c);
 

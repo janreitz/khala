@@ -52,6 +52,12 @@ void PackedStrings::shrink_to_fit()
     indices_.shrink_to_fit();
 }
 
+void PackedStrings::clear()
+{
+    data_.clear();
+    indices_.clear();
+}
+
 bool PackedStrings::empty() const noexcept { return indices_.empty(); }
 size_t PackedStrings::size() const noexcept { return indices_.size(); }
 

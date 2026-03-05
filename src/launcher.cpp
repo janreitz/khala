@@ -36,10 +36,10 @@ int main()
     LOG_INFO("Khala launcher starting up");
 
     ui::State state;
-    load_history(state.file_search_history);
+    load_history(state.history_queries);
     const defer save_hist([&state]() noexcept {
         try {
-            save_history(state.file_search_history);
+            save_history(state.history_queries);
         } catch (...) {
         }
     });
@@ -184,7 +184,7 @@ int main()
                         if (std::holds_alternative<ui::FileSearch>(
                                 state.mode) &&
                             !state.input_buffer.empty()) {
-                            state.file_search_history.push(state.input_buffer);
+                            state.history_queries.push(state.input_buffer);
                         }
                         const auto cmd_result =
                             process_command(req.command, config);
@@ -322,10 +322,7 @@ int main()
                         state.mode = ui::FileSearch{.query = ""};
 
                         // Reset history navigation state
-                        state.navigating_history = false;
-                        state.saved_input_buffer.clear();
-                        state.history_position =
-                            state.file_search_history.size();
+                        state.history_navigation_state.reset();
 
                         // Reset ranker to empty query
                         ranker.update_query("");
