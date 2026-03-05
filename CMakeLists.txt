@@ -272,6 +272,24 @@ endif()
 target_compile_definitions(indexer_benchmark PRIVATE
     KHALA_INSTALL_DIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
 
+# This benchmark uses perf_events
+if (NOT MSVC)
+    add_executable(simd_benchmark
+        src/bench_simd.cpp
+        src/config.cpp
+        src/indexer.cpp
+        src/logger.cpp
+        src/packed_strings.cpp
+        src/ranker.cpp
+        src/streamingindex.cpp
+        src/utility.cpp
+        ${PLATFORM_UTILITY_SOURCE}
+        src/fuzzy.cpp
+    )
+    target_compile_definitions(simd_benchmark PRIVATE
+        KHALA_INSTALL_DIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
+endif()
+
 install(TARGETS khala DESTINATION bin)
 install(DIRECTORY commands/
         DESTINATION ${CMAKE_INSTALL_DATADIR}/khala/commands)
