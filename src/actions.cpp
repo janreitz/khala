@@ -76,68 +76,67 @@ std::vector<ui::Item> make_file_actions(const fs::path &path,
         }
 
         return items;
-    } else {
-        std::vector<ui::Item> items{
-            ui::Item{.title = "Open File",
-                     .description = config.editor,
-                     .path = std::nullopt,
-                     .command = OpenFileCommand{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Remove File",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = RemoveFile{path},
-                     .hotkey = std::nullopt},
-            ui::Item{.title = "Copy Path to Clipboard",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = CopyPathToClipboard{path},
-                     .hotkey = KeyboardEvent{.key = KeyCode::C,
-                                             .modifiers = KeyModifier::Ctrl,
-                                             .character = std::nullopt}},
-            ui::Item{.title = "Copy Content to Clipboard",
-                     .description = "",
-                     .path = std::nullopt,
-                     .command = CopyContentToClipboard{path},
-                     .hotkey = KeyboardEvent{.key = KeyCode::C,
-                                             .modifiers = KeyModifier::Ctrl |
-                                                          KeyModifier::Shift,
-                                             .character = std::nullopt}},
-        };
-        if (path.has_parent_path()) {
-            items.push_back(ui::Item{
-                .title = "Open Containing Folder",
-                .description = "",
-                .path = std::nullopt,
-                .command = OpenDirectory{path.parent_path()},
-                .hotkey = KeyboardEvent{.key = KeyCode::Return,
-                                        .modifiers = KeyModifier::Ctrl,
-                                        .character = std::nullopt},
-            });
-        }
-
-        // Append custom file actions, filling in the path
-        for (const auto &action_def : config.custom_actions) {
-            if (action_def.action_type != ActionType::File)
-                continue;
-
-            items.push_back(ui::Item{
-                .title = action_def.title,
-                .description = action_def.description,
-                .path = std::nullopt,
-                .command =
-                    CustomCommand{
-                        .path = path,
-                        .shell_cmd = action_def.shell_cmd,
-                        .shell =
-                            action_def.shell.value_or(config.default_shell),
-                        .stdout_to_clipboard = action_def.stdout_to_clipboard,
-                    },
-                .hotkey = action_def.hotkey,
-            });
-        }
-        return items;
     }
+    
+    std::vector<ui::Item> items{
+        ui::Item{.title = "Open File",
+                 .description = config.editor,
+                 .path = std::nullopt,
+                 .command = OpenFileCommand{path},
+                 .hotkey = std::nullopt},
+        ui::Item{.title = "Remove File",
+                 .description = "",
+                 .path = std::nullopt,
+                 .command = RemoveFile{path},
+                 .hotkey = std::nullopt},
+        ui::Item{.title = "Copy Path to Clipboard",
+                 .description = "",
+                 .path = std::nullopt,
+                 .command = CopyPathToClipboard{path},
+                 .hotkey = KeyboardEvent{.key = KeyCode::C,
+                                         .modifiers = KeyModifier::Ctrl,
+                                         .character = std::nullopt}},
+        ui::Item{.title = "Copy Content to Clipboard",
+                 .description = "",
+                 .path = std::nullopt,
+                 .command = CopyContentToClipboard{path},
+                 .hotkey = KeyboardEvent{.key = KeyCode::C,
+                                         .modifiers = KeyModifier::Ctrl |
+                                                      KeyModifier::Shift,
+                                         .character = std::nullopt}},
+    };
+    if (path.has_parent_path()) {
+        items.push_back(ui::Item{
+            .title = "Open Containing Folder",
+            .description = "",
+            .path = std::nullopt,
+            .command = OpenDirectory{path.parent_path()},
+            .hotkey = KeyboardEvent{.key = KeyCode::Return,
+                                    .modifiers = KeyModifier::Ctrl,
+                                    .character = std::nullopt},
+        });
+    }
+
+    // Append custom file actions, filling in the path
+    for (const auto &action_def : config.custom_actions) {
+        if (action_def.action_type != ActionType::File)
+            continue;
+
+        items.push_back(ui::Item{
+            .title = action_def.title,
+            .description = action_def.description,
+            .path = std::nullopt,
+            .command =
+                CustomCommand{
+                    .path = path,
+                    .shell_cmd = action_def.shell_cmd,
+                    .shell = action_def.shell.value_or(config.default_shell),
+                    .stdout_to_clipboard = action_def.stdout_to_clipboard,
+                },
+            .hotkey = action_def.hotkey,
+        });
+    }
+    return items;
 }
 
 std::vector<ui::Item> get_global_actions(const Config &config)
