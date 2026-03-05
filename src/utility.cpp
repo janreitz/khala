@@ -527,7 +527,7 @@ size_t simd_find_all(const char *data, size_t len, char target,
 
 void load_history(PackedStrings &history)
 {
-    const auto path = platform::get_data_dir() / "history.txt";
+    const auto path = platform::get_khala_data_dir() / "history.txt";
     if (!fs::exists(path)) {
         LOG_INFO("No history file at %s", path.c_str());
         return;
@@ -546,7 +546,7 @@ void load_history(PackedStrings &history)
 
 void save_history(const PackedStrings &history)
 {
-    const auto path = platform::get_data_dir() / "history.txt";
+    const auto path = platform::get_khala_data_dir() / "history.txt";
     std::error_code err;
     fs::create_directories(path.parent_path(), err);
     if (err) {

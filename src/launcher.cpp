@@ -32,7 +32,7 @@ constexpr int EVENT_LOOP_SLEEP_MS = 16; // ~60 FPS
 int main()
 {
     // Initialize logger first
-    Logger::getInstance().init(platform::get_data_dir() / "logs");
+    Logger::getInstance().init(platform::get_khala_data_dir() / "logs");
     LOG_INFO("Khala launcher starting up");
 
     ui::State state;

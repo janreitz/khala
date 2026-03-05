@@ -51,15 +51,20 @@ fs::path get_temp_dir()
     return fs::path(temp);
 }
 
-fs::path get_data_dir()
+fs::path get_user_data_dir()
 {
     const char *appdata = std::getenv("APPDATA");
     if (appdata) {
         if (const auto maybe_data_dir = get_dir(appdata)) {
-            return maybe_data_dir.value() / "khala";
+            return maybe_data_dir.value();
         }
     }
-    return get_home_dir().value_or(".") / "khala" / "data";
+    return get_home_dir().value_or(".");
+}
+
+fs::path get_khala_data_dir()
+{
+    return get_user_data_dir() / "khala";
 }
 
 void copy_to_clipboard(const std::string &content)

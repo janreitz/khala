@@ -41,19 +41,23 @@ fs::path get_temp_dir()
     return temp;
 }
 
-fs::path get_data_dir()
+fs::path get_user_data_dir()
 {
     const char *xdg_data = std::getenv("XDG_DATA_HOME");
     if (xdg_data) {
-        if (const auto maybe_data_dir = get_dir(xdg_data)) {
-            return maybe_data_dir.value() / "khala";
+        if (const auto maybe_dir = get_dir(xdg_data)) {
+            return maybe_dir.value();
         }
     }
-
-    if (const auto maybe_home_dir = get_home_dir()) {
-        return maybe_home_dir.value() / ".local" / "share" / "khala";
+    if (const auto maybe_home = get_home_dir()) {
+        return maybe_home.value() / ".local" / "share";
     }
-    return fs::path(".") / "khala";
+    return fs::path(".");
+}
+
+fs::path get_khala_data_dir()
+{
+    return get_user_data_dir() / "khala";
 }
 
 void copy_to_clipboard(const std::string &content)
@@ -315,10 +319,15 @@ std::vector<ApplicationInfo> scan_app_infos()
     std::vector<ApplicationInfo> apps;
 
     // Standard desktop file locations
-    const std::vector<fs::path> search_paths = {
-        "/usr/share/applications", "/usr/local/share/applications",
-        fs::path(std::getenv("HOME") ? std::getenv("HOME") : "") /
-            ".local/share/applications"};
+    std::vector<fs::path> search_paths = {
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        platform::get_user_data_dir() / "applications",
+    };
+
+    if (const auto maybe_home_dir = platform::get_home_dir()) {
+        search_paths.push_back(*maybe_home_dir / ".local/share/applications");
+    }
 
     for (const auto &search_path : search_paths) {
         if (!fs::exists(search_path)) {

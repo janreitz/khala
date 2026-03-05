@@ -75,7 +75,8 @@ extern const size_t MAX_PATH_LENGTH;
 std::string path_to_string(const std::filesystem::path &path);
 std::optional<std::filesystem::path> get_home_dir();
 std::filesystem::path get_temp_dir();
-std::filesystem::path get_data_dir();
+std::filesystem::path get_user_data_dir();
+std::filesystem::path get_khala_data_dir();
 std::filesystem::path get_history_path();
 
 void copy_to_clipboard(const std::string &content);
