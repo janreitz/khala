@@ -119,8 +119,16 @@ void StreamingRanker::run()
                 reset_state();
             } else if (new_request.requested_count >
                        current_request_.requested_count) {
-                // Only count increased - can reuse scored chunks
-                only_count_increased = true;
+                const bool heap_was_full =
+                    top_results_.size() >= RANKING_HEAP_CAPACITY;
+                if (new_request.requested_count > top_results_.size() &&
+                    heap_was_full) {
+                    // Scrolled past precomputed buffer — re-score with higher
+                    // cap
+                    reset_state();
+                } else {
+                    only_count_increased = true;
+                }
             }
             current_request_ = new_request;
         }
@@ -165,8 +173,9 @@ void StreamingRanker::reset_state()
 {
     processed_chunks_ = 0;
     global_offset_ = 0;
+    total_result_count_ = 0;
     accumulated_results_.clear();
-    scored_results_.clear();
+    top_results_.clear();
 }
 
 void StreamingRanker::handle_count_increase()
@@ -215,7 +224,7 @@ void StreamingRanker::process_chunks()
         const auto start_time = std::chrono::steady_clock::now();
 
         // Each thread gets its own results vector
-        std::vector<std::vector<RankResult>> per_thread_results(
+        std::vector<std::vector<RankResult>> thread_local_results(
             chunks_to_process.size());
 
         parallel::parallel_for(
@@ -224,7 +233,7 @@ void StreamingRanker::process_chunks()
                 auto chunk = streaming_index_.get_chunk(info.chunk_idx);
                 assert(chunk);
 
-                auto &local_results = per_thread_results[work_idx];
+                auto &local_results = thread_local_results[work_idx];
                 local_results.reserve(info.size /
                                       4); // estimate ~25% match rate
 
@@ -240,9 +249,25 @@ void StreamingRanker::process_chunks()
             });
 
         // Sequential merge
-        for (auto &local : per_thread_results) {
-            scored_results_.insert(scored_results_.end(), local.begin(),
-                                   local.end());
+        const size_t effective_cap =
+            std::max(RANKING_HEAP_CAPACITY, current_request_.requested_count);
+        for (auto &thread_local_result : thread_local_results) {
+            total_result_count_ += thread_local_result.size();
+            for (auto result : thread_local_result) {
+                constexpr auto MinHeapCmp = std::greater<RankResult>{};
+                if (top_results_.size() < effective_cap) {
+                    top_results_.push_back(result);
+                    std::push_heap(top_results_.begin(),
+                                   top_results_.end(), MinHeapCmp);
+                } else if (result.score > top_results_.front().score) {
+                    std::pop_heap(top_results_.begin(),
+                                  top_results_.end(), MinHeapCmp);
+                    top_results_.back() =
+                        result; // Overwrite lowest scoring RankResult
+                    std::push_heap(top_results_.begin(),
+                                   top_results_.end(), MinHeapCmp);
+                }
+            }
         }
 
         const auto end_time = std::chrono::steady_clock::now();
@@ -265,23 +290,24 @@ void StreamingRanker::process_chunks()
 void StreamingRanker::report_results()
 {
     const size_t n =
-        std::min(current_request_.requested_count, scored_results_.size());
+        std::min(current_request_.requested_count, top_results_.size());
+
     // Sort all scored results to get top requested_count
-    std::partial_sort(scored_results_.begin(),
-                      scored_results_.begin() + static_cast<std::ptrdiff_t>(n),
-                      scored_results_.end(), [](const auto &a, const auto &b) {
+    auto copy_to_sort = top_results_;
+    std::partial_sort(copy_to_sort.begin(),
+                      copy_to_sort.begin() + static_cast<std::ptrdiff_t>(n),
+                      copy_to_sort.end(), [](const auto &a, const auto &b) {
                           return a.score > b.score;
                       });
+    copy_to_sort.resize(n);
 
     // Convert top n to FileResult
     accumulated_results_.clear();
     accumulated_results_.reserve(n);
 
-    for (size_t i = 0; i < n; ++i) {
-        const auto &result = scored_results_[i];
-
+    for (const auto rank_result : copy_to_sort) {
         // Find the file path from chunk and global index
-        size_t global_index = result.index;
+        size_t global_index = rank_result.index;
         for (size_t chunk_idx = 0;
              chunk_idx < streaming_index_.get_available_chunks(); ++chunk_idx) {
             auto chunk = streaming_index_.get_chunk(chunk_idx);
@@ -291,7 +317,7 @@ void StreamingRanker::report_results()
             if (global_index < chunk->size()) {
                 accumulated_results_.push_back(
                     FileResult{.path = std::string(chunk->at(global_index)),
-                               .score = result.score});
+                               .score = rank_result.score});
                 break;
             }
             global_index -= chunk->size();
@@ -309,8 +335,7 @@ void StreamingRanker::send_update(bool is_final)
         is_final ? true : streaming_index_.is_scan_complete();
     update.total_files = streaming_index_.get_total_files();
     update.processed_chunks = processed_chunks_;
-    update.total_available_results =
-        scored_results_.size(); // Use flattened results size
+    update.total_available_results = total_result_count_;
 
     result_updates_.write(std::move(update));
 }

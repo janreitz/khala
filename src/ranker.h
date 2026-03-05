@@ -127,8 +127,13 @@ private:
     size_t processed_chunks_ = 0;
     size_t global_offset_ = 0; // Cumulative size of all processed chunks
     std::vector<FileResult> accumulated_results_;
+    size_t total_result_count_;
     RankerRequest current_request_;
-    std::vector<RankResult> scored_results_; // Flattened, only score > 0
+    // Pre-compute results up to this depth to avoid re-scoring on scroll.
+    // Re-scoring only triggers if the user scrolls past this many results,
+    // at which point refining the query is a better UX anyway.
+    static constexpr size_t RANKING_HEAP_CAPACITY = 1024;
+    std::vector<RankResult> top_results_; // Flattened, only score > 0
 
     // Worker thread
     std::thread worker_thread_;
