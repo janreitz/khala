@@ -223,6 +223,7 @@ void run_custom_command(const std::string &cmd,
 
     if (stdout_to_clipboard) {
         run_custom_command_with_capture(cmd, path, shell);
+        return;
     }
 
     const pid_t pid = fork();
