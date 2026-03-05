@@ -671,7 +671,7 @@ convert_file_results_to_items(const std::vector<FileResult> &file_results)
 
     for (const auto &result : file_results) {
         try {
-            const auto file_path = fs::canonical(result.path);
+            const fs::path file_path(result.path);
 
             if (fs::is_directory(file_path)) {
                 items.push_back(Item{
