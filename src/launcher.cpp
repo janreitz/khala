@@ -114,8 +114,6 @@ int main()
     StreamingRanker ranker(streaming_index, result_updates);
     ranker.update_request("", ui::required_item_count(state, max_visible_items));
 
-    // Current file search state
-    std::vector<FileResult> current_file_results;
     bool redraw = true;
 
     while (true) {
@@ -340,7 +338,6 @@ int main()
                         streaming_index.clear();
                         state.items.clear();
                         state.cached_file_search_update.reset();
-                        current_file_results.clear();
                         // Launch new indexer
                         index_future = std::async(std::launch::async, [&]() {
                             indexer::scan_filesystem_streaming(
@@ -367,12 +364,10 @@ int main()
                 // Cache the update for quick restoration from ContextMenu
                 state.cached_file_search_update = update;
 
-                current_file_results = std::move(update.results);
-
                 // Convert results to UI items (keep all ranked results for
                 // scrolling)
                 state.items =
-                    ui::convert_file_results_to_items(current_file_results);
+                    ui::convert_file_results_to_items(update.results);
                 redraw = true;
             }
         }
