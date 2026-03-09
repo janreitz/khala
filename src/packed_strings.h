@@ -15,6 +15,12 @@ struct PackedStrings {
     PackedStrings() = default;
 
     void reserve(size_t string_count, size_t expected_avg_string_length);
+    template <typename CharT>
+    void push(const CharT* data, size_t len) {
+      indices_.push_back(data_.size());
+      data_.insert(data_.end(), data, data + len);
+      data_.push_back('\0');
+    }
     void push(const std::string &str);
     void merge(PackedStrings &&other);
     void shrink_to_fit();

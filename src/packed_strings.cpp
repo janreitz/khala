@@ -18,9 +18,7 @@ void PackedStrings::prefix(size_t count, char c)
 
 void PackedStrings::push(const std::string &str)
 {
-    indices_.push_back(data_.size());
-    data_.insert(data_.end(), str.begin(), str.end());
-    data_.push_back('\0');
+    push(str.data(), str.size());
 }
 
 void PackedStrings::merge(PackedStrings &&other)
