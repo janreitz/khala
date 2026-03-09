@@ -22,6 +22,20 @@
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
 
+std::atomic<size_t> alloc_count = 0;
+void* operator new(size_t size) {
+    ++alloc_count;
+    return malloc(size);
+}
+
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
 // Map of scoring algorithm names to function pointers (using PreparedQuery)
 const std::map<std::string,
                std::function<float(std::string_view, std::string_view)>>
