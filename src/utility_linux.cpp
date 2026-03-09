@@ -23,6 +23,11 @@ const size_t MAX_PATH_LENGTH = PATH_MAX;
 
 namespace fs = std::filesystem;
 
+void push_path(PackedStrings& dst, const std::filesystem::path &path) {
+    const auto& native = path.native();
+    dst.push(native.data(), native.size());
+}
+
 std::string path_to_string(const fs::path &path) { return path.string(); }
 
 std::optional<fs::path> get_home_dir()

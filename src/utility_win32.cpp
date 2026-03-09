@@ -18,6 +18,11 @@ namespace platform
 
 const size_t MAX_PATH_LENGTH = MAX_PATH;
 
+void push_path(PackedStrings& dst, const std::filesystem::path &path) {
+    const auto u8 = path.u8string();
+    dst.push(reinterpret_cast<const char*>(u8.data()), u8.size());
+}
+
 std::string path_to_string(const fs::path &path)
 {
     const auto u8_filename = path.u8string();
