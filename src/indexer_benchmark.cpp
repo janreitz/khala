@@ -90,6 +90,7 @@ int main()
                stream_index.get_total_files(), streaming_scan_duration.count());
         printf("  Total streaming time: %zdms\n",
                streaming_scan_duration.count());
+        printf("  Total Allocations: %zd\n", alloc_count.load());
 
         // ================ FUZZY SCORING BENCHMARKS =================
         printf(
