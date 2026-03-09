@@ -29,6 +29,7 @@
 #include <linux/perf_event.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 #include <vector>
 
@@ -56,8 +57,7 @@ static constexpr uint64_t hw_cache_config(perf_hw_cache_id cache,
                                           perf_hw_cache_op_id op,
                                           perf_hw_cache_op_result_id result)
 {
-    return static_cast<uint64_t>(cache) |
-           (static_cast<uint64_t>(op) << 8U) |
+    return static_cast<uint64_t>(cache) | (static_cast<uint64_t>(op) << 8U) |
            (static_cast<uint64_t>(result) << 16U);
 }
 
@@ -71,22 +71,34 @@ struct PmuGate {
     };
 
     // Add / remove events here freely.
+    // Note: On hybrid Intel CPUs (12th+ gen), some counters only work on
+    // P-cores. Set PIN_TO_CPU to a P-core number if you get "No such file"
+    // errors.
+    //
+    // For CPU-specific raw events (like cycle_activity.stalls_l3_miss), use:
+    //   {"stalls-l3", PERF_TYPE_RAW, 0x01a3},  // Example: event code varies by
+    //   CPU
+    // Find codes with: perf list --details | grep -A5 "cycle_activity.stalls"
     std::vector<Counter> counters = {
-        {"cycles",          PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},
-        {"instructions",    PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS},
-        {"cache-refs",      PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_REFERENCES},
-        {"cache-misses",    PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES},
-        {"branch-misses",   PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES},
-        {"stalled-backend", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND},
-        // L1-dcache misses
-        {"L1d-misses",    PERF_TYPE_HW_CACHE,
-         hw_cache_config(PERF_COUNT_HW_CACHE_L1D,
-                         PERF_COUNT_HW_CACHE_OP_READ,
+        {"cycles", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},
+        {"instructions", PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS},
+        {"cache-refs", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_REFERENCES},
+        {"cache-misses", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES},
+        {"branch-misses", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES},
+
+        // L1 data cache misses (loads)
+        {"L1d-misses", PERF_TYPE_HW_CACHE,
+         hw_cache_config(PERF_COUNT_HW_CACHE_L1D, PERF_COUNT_HW_CACHE_OP_READ,
                          PERF_COUNT_HW_CACHE_RESULT_MISS)},
-        // LLC misses
+
+        // Last Level Cache misses (loads)
         {"LLC-load-misses", PERF_TYPE_HW_CACHE,
-         hw_cache_config(PERF_COUNT_HW_CACHE_LL,
-                         PERF_COUNT_HW_CACHE_OP_READ,
+         hw_cache_config(PERF_COUNT_HW_CACHE_LL, PERF_COUNT_HW_CACHE_OP_READ,
+                         PERF_COUNT_HW_CACHE_RESULT_MISS)},
+
+        // Data TLB misses (virtual->physical address translation)
+        {"dTLB-load-miss", PERF_TYPE_HW_CACHE,
+         hw_cache_config(PERF_COUNT_HW_CACHE_DTLB, PERF_COUNT_HW_CACHE_OP_READ,
                          PERF_COUNT_HW_CACHE_RESULT_MISS)},
     };
 
@@ -103,8 +115,8 @@ struct PmuGate {
             // pid=0 (this thread), cpu=PIN_TO_CPU (-1 = any, or a P-core
             // index on hybrid Intel to avoid E-core PMU limitations).
             // inherit=0 so child threads don't pollute.
-            c.fd = static_cast<int>(
-                syscall(__NR_perf_event_open, &attr, 0 /*self*/, PIN_TO_CPU, -1, 0));
+            c.fd = static_cast<int>(syscall(__NR_perf_event_open, &attr,
+                                            0 /*self*/, PIN_TO_CPU, -1, 0));
 
             if (c.fd < 0) {
                 fprintf(stderr,
@@ -147,59 +159,102 @@ struct PmuGate {
         }
         for (auto &c : counters) {
             if (c.fd >= 0) {
-                const auto __attribute_maybe_unused__ _ = read(c.fd, &c.value, sizeof(c.value));
+                const auto __attribute_maybe_unused__ _ =
+                    read(c.fd, &c.value, sizeof(c.value));
             }
-        }
-    }
-
-    void print(size_t n_paths, size_t n_queries) const
-    {
-        const uint64_t total_calls = n_paths * n_queries;
-        uint64_t cycles = 0, instrs = 0;
-        for (const auto &c : counters) {
-            if (strcmp(c.name, "cycles") == 0) {
-                cycles = c.value;
-            } else if (strcmp(c.name, "instructions") == 0) {
-                instrs = c.value;
-            }
-        }
-
-        printf("\n  %-22s  %16s  %12s\n", "event", "total", "per-call");
-        printf("  %-22s  %16s  %12s\n", "----------------------",
-               "----------------", "------------");
-        for (const auto &c : counters) {
-            if (c.fd < 0) {
-                continue;
-            }
-            printf("  %-22s  %16zu  %12.2f\n", c.name, c.value,
-                   static_cast<double>(c.value) /
-                       static_cast<double>(total_calls));
-        }
-        if (cycles && instrs) {
-            printf("\n  IPC : %.2f\n",
-                   static_cast<double>(instrs) / static_cast<double>(cycles));
-            printf(
-                "  cache-miss rate : %.2f%%\n",
-                100.0 *
-                    [&] {
-                        for (const auto &c : counters) {
-                            if (strcmp(c.name, "cache-misses") == 0 && cycles) {
-                                return static_cast<double>(c.value);
-                            }
-                        }
-                        return 0.0;
-                    }() /
-                    [&] {
-                        for (const auto &c : counters) {
-                            if (strcmp(c.name, "cache-refs") == 0) {
-                                return static_cast<double>(c.value);
-                            }
-                        }
-                        return 1.0;
-                    }());
         }
     }
 };
+
+struct BenchmarkResult {
+    std::vector<PmuGate::Counter> perf_counters;
+    std::chrono::steady_clock::duration duration;
+};
+
+template <typename Func> BenchmarkResult benchmark(Func &&func, int iterations = 10)
+{
+    BenchmarkResult best;
+    best.duration = std::chrono::steady_clock::duration::max();
+
+    for (int i = 0; i < iterations; ++i) {
+        PmuGate pmu;
+        pmu.enable();
+        const auto t0 = std::chrono::steady_clock::now();
+
+        func();
+
+        const auto t1 = std::chrono::steady_clock::now();
+        pmu.disable();
+
+        if (t1 - t0 < best.duration) {
+            best.duration = t1 - t0;
+            best.perf_counters = pmu.counters;
+        }
+    }
+    return best;
+}
+
+void print_benchmark_results(const BenchmarkResult &result, size_t n_paths,
+                             size_t n_queries)
+{
+
+    const auto wall_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(result.duration)
+            .count();
+    const uint64_t total_calls = n_paths * n_queries;
+
+    printf("\n--- Wall time ---\n");
+    printf("  Total  : %.2f ms\n", static_cast<double>(wall_us) / 1000.0);
+    printf("  Per call: %.1f ns\n", 1000.0 * static_cast<double>(wall_us) /
+                                        static_cast<double>(total_calls));
+    printf("  Throughput: %.2f M paths/s\n",
+           static_cast<double>(total_calls) / static_cast<double>(wall_us));
+
+    printf("\n--- PMU counters (scoring loop only) ---");
+
+    uint64_t cycles = 0, instrs = 0;
+    for (const auto &c : result.perf_counters) {
+        if (strcmp(c.name, "cycles") == 0) {
+            cycles = c.value;
+        } else if (strcmp(c.name, "instructions") == 0) {
+            instrs = c.value;
+        }
+    }
+
+    printf("\n  %-22s  %16s  %12s\n", "event", "total", "per-call");
+    printf("  %-22s  %16s  %12s\n", "----------------------",
+           "----------------", "------------");
+    for (const auto &c : result.perf_counters) {
+        if (c.fd < 0) {
+            continue;
+        }
+        printf("  %-22s  %16zu  %12.2f\n", c.name, c.value,
+               static_cast<double>(c.value) / static_cast<double>(total_calls));
+    }
+    if (cycles && instrs) {
+        printf("\n  IPC : %.2f\n",
+               static_cast<double>(instrs) / static_cast<double>(cycles));
+        printf(
+            "  cache-miss rate : %.2f%%\n",
+            100.0 *
+                [&] {
+                    for (const auto &c : result.perf_counters) {
+                        if (strcmp(c.name, "cache-misses") == 0 && cycles) {
+                            return static_cast<double>(c.value);
+                        }
+                    }
+                    return 0.0;
+                }() /
+                [&] {
+                    for (const auto &c : result.perf_counters) {
+                        if (strcmp(c.name, "cache-refs") == 0) {
+                            return static_cast<double>(c.value);
+                        }
+                    }
+                    return 1.0;
+                }());
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Prevent the compiler from optimising away scoring results.
@@ -227,54 +282,37 @@ int main()
         "read", "mk",  "json",   "cpp",  "sh",
     };
 
-    // Optional: warm up instruction/data caches with one cold pass
-    // so the first timed run isn't penalised for cold iTLB.
-    printf("Warming up...\n");
-    for (const auto &q : queries) {
-        for (const auto &p : paths) {
-            g_sink += fuzzy::fuzzy_score_5_simd(p, q);
-        }
-    }
+    float acc = 0.0F; // accumulate to prevent dead-code elimination
 
-    // -----------------------------------------------------------------------
-    // MEASURED PHASE — PMU counters only accumulate here
-    // -----------------------------------------------------------------------
-    PmuGate pmu;
-
-    printf("Starting measured run (%zu paths x %zu queries = %zu calls)...\n",
+    printf("Starting benchmark runs (%zu paths x %zu queries = %zu calls)...\n",
            paths.size(), queries.size(), paths.size() * queries.size());
 
-    const auto t0 = std::chrono::steady_clock::now();
-    pmu.enable(); // <<< PMU starts here
-
-    float acc = 0.0F; // accumulate to prevent dead-code elimination
-    for (const auto &q : queries) {
-        for (const auto &p : paths) {
-            acc += fuzzy::fuzzy_score_5_simd(p, q);
+    const auto result_1 = benchmark([&] {
+        for (const auto &q : queries) {
+            for (const auto &p : paths) {
+                acc += fuzzy::fuzzy_score_5_simd(p, q);
+            }
         }
-    }
+    });
 
-    pmu.disable(); // <<< PMU stops here
-    const auto t1 = std::chrono::steady_clock::now();
+    const auto result_2 = benchmark([&] {
+        for (const auto &q : queries) {
+            for (const auto &p : paths) {
+                acc += fuzzy::fuzzy_score_5(p, q);
+            }
+        }
+    });
 
     g_sink = acc; // ensure acc is live
 
     // -----------------------------------------------------------------------
     // REPORT
     // -----------------------------------------------------------------------
-    const auto wall_us =
-        std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-    const size_t total_calls = paths.size() * queries.size();
 
-    printf("\n--- Wall time ---\n");
-    printf("  Total  : %.2f ms\n", static_cast<double>(wall_us) / 1000.0);
-    printf("  Per call: %.1f ns\n", 1000.0 * static_cast<double>(wall_us) /
-                                        static_cast<double>(total_calls));
-    printf("  Throughput: %.2f M paths/s\n",
-           static_cast<double>(total_calls) / static_cast<double>(wall_us));
-
-    printf("\n--- PMU counters (scoring loop only) ---");
-    pmu.print(paths.size(), queries.size());
+    printf("\nfuzzy_score_5_simd\n");
+    print_benchmark_results(result_1,paths.size(), queries.size());
+    printf("\nfuzzy_score_5\n");
+    print_benchmark_results(result_2,paths.size(), queries.size());
 
     printf("\n(g_sink=%f to prevent dead-code elimination)\n", (double)g_sink);
     return 0;
