@@ -43,7 +43,7 @@ PackedStrings scan_subtree(const fs::path &root,
             }
 
             if (it->is_regular_file() || it->is_directory()) {
-                paths.push(platform::path_to_string(it->path()));
+                platform::push_path(paths, it->path());
             }
         }
     } catch (const fs::filesystem_error &) {
@@ -73,7 +73,7 @@ scan_filesystem_parallel(const std::set<fs::path> &root_paths,
                         subdirs.push_back(entry.path());
                     }
                 } else if (entry.is_regular_file()) {
-                    result.push(entry.path().string());
+                    result.push(platform::path_to_string(entry.path()));
                 }
             }
         } catch (const fs::filesystem_error &e) {
@@ -122,7 +122,7 @@ void scan_subtree_streaming(const fs::path &root,
             }
 
             if (it->is_regular_file() || it->is_directory()) {
-                current_chunk.push(platform::path_to_string(it->path()));
+                platform::push_path(current_chunk, it->path());
 
                 if (current_chunk.size() >= CHUNK_SIZE) {
                     index.add_chunk(std::move(current_chunk));
@@ -188,7 +188,7 @@ void scan_filesystem_streaming(const std::set<fs::path> &root_paths,
                     }
                     to_expand.push_back(entry.path());
                 } else if (entry.is_regular_file()) {
-                    root_files.push(platform::path_to_string(entry.path()));
+                    platform::push_path(root_files, entry.path());
                 }
             }
         } catch (const fs::filesystem_error &e) {
