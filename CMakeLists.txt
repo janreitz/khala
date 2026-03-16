@@ -288,6 +288,7 @@ if (NOT MSVC)
     )
     target_compile_definitions(simd_benchmark PRIVATE
         KHALA_INSTALL_DIR="${CMAKE_INSTALL_FULL_DATADIR}/khala")
+    target_compile_options(simd_benchmark PRIVATE -fno-omit-frame-pointer)
 endif()
 
 install(TARGETS khala DESTINATION bin)
